@@ -6,17 +6,9 @@ Wojciech Żywny was the first piano teacher of Frederic Chopin. This project aim
 
 ## Initial steps
 
-- [ ] Show a staff with one bar.
-- [ ] Show a staff with one double bar line at the end.
-- [ ] Show a staff with three bars.
-- [ ] Show a staff with a treble clef.
-- [ ] Show a staff with a bass clef.
-- [ ] Show a system with treble and bass clef.
-- [ ] Show a piano system with one note.
-- [ ] Show a piano system with tree notes in sequence.
-- [ ] Show a piano system with a chord in bass and treble clefs.
+- [ ] Initial tests with verovio.
 - [ ] Show a simplest musicxml file.
-- [ ] Show all tests made up here in musicxml.
+- [ ] Paginate a music sheet.
 - [ ] Play a note in the speaker.
 - [ ] Play a note through midi device.
 - [ ] Recognize a midi played note.
