@@ -17,4 +17,22 @@ Wojciech Żywny was the first piano teacher of Frederic Chopin. This project aim
 
 ## Current focus
 - [X] Initial tests with verovio, jovial_svg in linux.
-- [ ] Compile and execute a simple application for Android, showing a simple music sheet.
+- [X] Compile and execute a simple application for Android, showing a simple music sheet.
+- [ ] Design 'Zywny Play' to play MusicXML
+
+### FontsAwesome icons
+- code-compare
+- forward
+- backward
+- play
+- pause
+- expand
+- free-code-camp
+- award
+- repeat
+- medal
+- crosshairs
+- volume-xmark
+- volume-off
+- volume-low
+- volume-high
