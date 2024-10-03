@@ -19,10 +19,6 @@ class NavigationRailExampleApp extends StatelessWidget {
   }
 }
 
-// taxa inscrição 450
-// parte terrestre 2400 libras = R$ 17 mil
-// parte aérea  1900 dólares = R$ 10 mil
-
 class NavRailExample extends StatelessWidget {
   const NavRailExample({super.key});
 

@@ -1,16 +1,20 @@
 # zywny
 
-A new Flutter project.
+## The First Teacher for the next Chopin
 
-## Getting Started
+Wojciech Żywny was the first piano teacher of Frederic Chopin. This project aims to be a teacher to anyone who wants learn Piano/Keybard.
 
-This project is a starting point for a Flutter application.
+## Current steps
 
-A few resources to get you started if this is your first Flutter project:
+- [X] Initial tests with verovio.
+- [X] Show a simplest musicxml file.
+- [ ] Paginate a music sheet.
+- [ ] Create 'Install a music' code. <br/>
+    Install a music is the action of create all svg pages in horizontal and vertical orientation
+    with the device screen size.
+- [ ] Play a note in the speaker.
+- [ ] Play a note through midi device.
+- [ ] Recognize a midi played note.
+- [ ] Show the list of musics.
+- [ ] Enter in a music, show it, recognize it, give the student a note.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
