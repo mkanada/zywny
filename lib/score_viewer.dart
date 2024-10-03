@@ -6,6 +6,7 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive_io.dart';
@@ -107,19 +108,25 @@ Future<List<String>> createSvgs(Size size) async {
     //'svgBoundingBoxes': true,
   }));
 
-  print("preparing verovio: ${watch.elapsedMilliseconds}");
+  if (kDebugMode) {
+    print("preparing verovio: ${watch.elapsedMilliseconds}");
+  }
   watch.reset();
 
   File file =
   File(p.join(supportDir.path, 'music', 'Chopin_Raindrop_Prelude.mxml'));
   verovio.loadData(file.readAsStringSync());
 
-  print("load data: ${watch.elapsedMilliseconds}");
+  if (kDebugMode) {
+    print("load data: ${watch.elapsedMilliseconds}");
+  }
   watch.reset();
 
   verovio.redoLayout('');
 
-  print("layouting: ${watch.elapsedMilliseconds}");
+  if (kDebugMode) {
+    print("layouting: ${watch.elapsedMilliseconds}");
+  }
   watch.reset();
 
   var timeMap = verovio.renderToTimemap('');
@@ -129,7 +136,9 @@ Future<List<String>> createSvgs(Size size) async {
       p.join(supportDir.path, 'music', 'Chopin_-_Raindrop_Prelude.timemap.json'));
   timeMapFile.writeAsStringSync(timeMap);
 
-  print("render timemap: ${watch.elapsedMilliseconds}");
+  if (kDebugMode) {
+    print("render timemap: ${watch.elapsedMilliseconds}");
+  }
   watch.reset();
 
   var data = jsonDecode(timeMap);
@@ -150,7 +159,9 @@ Future<List<String>> createSvgs(Size size) async {
     }
   }
 
-  print("get note info: ${watch.elapsedMilliseconds}");
+  if (kDebugMode) {
+    print("get note info: ${watch.elapsedMilliseconds}");
+  }
   watch.reset();
 
   int totalPages = verovio.getPageCount();
@@ -174,7 +185,9 @@ Future<List<String>> createSvgs(Size size) async {
     var rects = doc.findAllElements('rect');
     for(var rect in rects) {
 
-      print('found rect: ${rect.toXmlString()}');
+      if (kDebugMode) {
+        print('found rect: ${rect.toXmlString()}');
+      }
 
       // for(var attr in rect.attributes) {
       //     print('attr name: ${attr.name}, localName: ${attr.localName}, value: ${attr.value}');
@@ -183,14 +196,18 @@ Future<List<String>> createSvgs(Size size) async {
 
       for(var attr in rect.attributes) {
         if (attr.name.toString() == 'fill' && attr.value == 'transparent') {
-          print('found rect with fill: ${rect.toXmlString()}');
+          if (kDebugMode) {
+            print('found rect with fill: ${rect.toXmlString()}');
+          }
           attr.value = '#044B94';
           wasModified = true;
         }
       }
       if (wasModified) {
         rect.setAttribute('opacity', '0.3');
-        print('new rect: ${rect.toXmlString()}');
+        if (kDebugMode) {
+          print('new rect: ${rect.toXmlString()}');
+        }
       }
     }
 
@@ -205,7 +222,9 @@ Future<List<String>> createSvgs(Size size) async {
     svgFile.writeAsStringSync(newXmlString);
   }
 
-  print("render svgs: ${watch.elapsedMilliseconds}");
+  if (kDebugMode) {
+    print("render svgs: ${watch.elapsedMilliseconds}");
+  }
 
   return svgs;
 }

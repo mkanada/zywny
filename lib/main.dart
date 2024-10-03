@@ -56,10 +56,12 @@ class NavRailExample extends StatelessWidget {
                   onPressed: () async {
                     await checkInstallation();
                     List<String> svgs = await createSvgs(sizeInMm);
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => ScoreViewer(svgs: svgs)));
+                    if (context.mounted) {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => ScoreViewer(svgs: svgs)));
+                    }
                   },
                   icon: const Icon(Icons.play_arrow_outlined)),
               IconButton(

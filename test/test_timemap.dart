@@ -1,4 +1,5 @@
 //import 'package:test/test.dart';
+import 'package:flutter/foundation.dart';
 import 'package:zywny/sheet_abstractions.dart';
 import 'package:zywny/timemap_runner.dart';
 import 'dart:convert';
@@ -12,19 +13,29 @@ void main() async {
     var timeMap = Timemap.fromJson(map);
     var runner = TimemapRunner(timeMap);
 
-    print('main isolate: ${Isolate.current.hashCode}');
+    if (kDebugMode) {
+      print('main isolate: ${Isolate.current.hashCode}');
+    }
 
     runner.addListener((TimeEvent event) {
-        print('event scheduled: ${event.scheduled}');
+        if (kDebugMode) {
+          print('event scheduled: ${event.scheduled}');
+        }
 
         for(var offNote in event.offNotes) {
-            print('  off note: $offNote');
+            if (kDebugMode) {
+              print('  off note: $offNote');
+            }
         }
         for(var onNote in event.onNotes) {
-            print('  on  note: $onNote');
+            if (kDebugMode) {
+              print('  on  note: $onNote');
+            }
         }
     });
 
     await runner.spawn();
-    print('after runner.spawn');
+    if (kDebugMode) {
+      print('after runner.spawn');
+    }
 }

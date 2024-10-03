@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:zywny/sheet_abstractions.dart';
 import 'dart:isolate';
 
@@ -75,7 +76,7 @@ class _FakeWaiter extends _Waiter {
   }
 }
 
-enum KillTime { IMMEDIATE }
+enum KillTime { immediate }
 
 class TimeEvent {
   final int scheduled;
@@ -89,7 +90,7 @@ class TimeEvent {
 }
 
 class TimemapRunner {
-  Timemap _timemap;
+  final Timemap _timemap;
   List<void Function(TimeEvent)> listeners = <void Function(TimeEvent)>[];
   Isolate? isolate;
 
@@ -97,14 +98,14 @@ class TimemapRunner {
     listeners.add(onTime);
   }
 
-  _Stopwatch watch = _Stopwatch();
-  _Waiter waiter = _Waiter();
+  _Stopwatch _watch = _Stopwatch();
+  _Waiter _waiter = _Waiter();
 
   TimemapRunner(this._timemap);
 
   TimemapRunner.fake(this._timemap) {
-    watch = _FakeStopwatch();
-    waiter = _FakeWaiter();
+    _watch = _FakeStopwatch();
+    _waiter = _FakeWaiter();
   }
 
   set timemap(Timemap timemap) {
@@ -112,21 +113,21 @@ class TimemapRunner {
   }
 
   void _run(SendPort port) async {
-    if (port == null) {
-      return;
+    if (kDebugMode) {
+      print('starting....');
     }
-
-    print('starting....');
-    watch.stop();
-    watch.reset();
-    watch.start();
+    _watch.stop();
+    _watch.reset();
+    _watch.start();
 
 
-    print('timemap itens: ${_timemap.itens.length}');
+    if (kDebugMode) {
+      print('timemap itens: ${_timemap.itens.length}');
+    }
 
     for (var item in _timemap.itens) {
 
-      await waiter.wait(watch, item.tstamp);
+      await _waiter.wait(_watch, item.tstamp);
 
       port.send(TimeEvent(
           onNotes: item.on,
@@ -134,9 +135,11 @@ class TimemapRunner {
           scheduled: item.tstamp));
     }
 
-    port.send(KillTime.IMMEDIATE);
+    port.send(KillTime.immediate);
 
-    print('finished run');
+    if (kDebugMode) {
+      print('finished run');
+    }
   }
 
   Future<void> spawn() async {

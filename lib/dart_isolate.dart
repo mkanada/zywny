@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:isolate';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+
 void main() async {
   final worker = Worker();
   await worker.spawn();
@@ -18,7 +20,9 @@ class Worker {
     final receivePort = ReceivePort();
     receivePort.listen(_handleResponsesFromIsolate);
     await Isolate.spawn(_startRemoteIsolate, receivePort.sendPort);
-    print('depois do spawn...');
+    if (kDebugMode) {
+      print('depois do spawn...');
+    }
   }
 
   void _handleResponsesFromIsolate(dynamic message) {
@@ -26,14 +30,18 @@ class Worker {
       _sendPort = message;
       _isolateReady.complete();
     } else if (message is Map<String, dynamic>) {
-      print(message);
-      print('testInstanceValue: $testInstanceValue');
+      if (kDebugMode) {
+        print(message);
+        print('testInstanceValue: $testInstanceValue');
+      }
     }
   }
 
   static void _startRemoteIsolate(SendPort port) {
     final receivePort = ReceivePort();
-    print('in isolate....');
+    if (kDebugMode) {
+      print('in isolate....');
+    }
     port.send(receivePort.sendPort);
 
     receivePort.listen((dynamic message) async {
