@@ -106,6 +106,32 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
+# verovio_lottie native library, built from the third_party submodule
+# (tool/build_verovio_linux.sh). RPATH is already $ORIGIN/lib above, so
+# DynamicLibrary.open('libverovio.so') resolves it at runtime.
+set(VEROVIO_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/verovio_lottie/verovio/bindings/dart/libverovio.so")
+if(EXISTS "${VEROVIO_LIB}")
+  install(FILES "${VEROVIO_LIB}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+else()
+  message(WARNING "libverovio.so not found at ${VEROVIO_LIB}; run tool/build_verovio_linux.sh")
+endif()
+
+# Verovio music-font resources (Bravura, Liberation text fonts, ...).
+# Installed via CMake — NOT via Flutter assets — because the Flutter asset
+# bundler only packages top-level files of a directory entry and silently
+# drops subdirectories, which leaves Verovio without fonts and crashes the
+# native renderer. install(DIRECTORY) copies recursively.
+set(VEROVIO_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../assets/verovio_data")
+if(EXISTS "${VEROVIO_DATA_DIR}")
+  install(DIRECTORY "${VEROVIO_DATA_DIR}"
+    DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
+    COMPONENT Runtime)
+else()
+  message(WARNING "Verovio data dir not found at ${VEROVIO_DATA_DIR}; run tool/fetch_verovio_assets.sh")
+endif()
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"

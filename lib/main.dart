@@ -1,5 +1,13 @@
+import 'dart:io';
+
 import 'package:dotlottie_flutter/dotlottie_flutter.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+
+import 'lottie_file_server.dart';
+import 'native_paths.dart';
+import 'score_pages.dart';
+import 'verovio_render.dart';
 
 void main() {
   runApp(const MyApp());
@@ -11,177 +19,367 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'zywny • dotLottie',
+      title: 'zywny • partitura → dotLottie',
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
-      home: const DotLottieHomePage(),
+      home: const ScoreHomePage(),
     );
   }
 }
 
-enum AnimFonte { assetLottie, assetJson, rede }
-
-class DotLottieHomePage extends StatefulWidget {
-  const DotLottieHomePage({super.key});
+class ScoreHomePage extends StatefulWidget {
+  const ScoreHomePage({super.key});
 
   @override
-  State<DotLottieHomePage> createState() => _DotLottieHomePageState();
+  State<ScoreHomePage> createState() => _ScoreHomePageState();
 }
 
-class _DotLottieHomePageState extends State<DotLottieHomePage> {
-  AnimFonte _fonte = AnimFonte.assetJson;
+class _ScoreHomePageState extends State<ScoreHomePage> {
+  final LottieFileServer _server = LottieFileServer();
   DotLottieViewController? _controller;
-  String _status = 'pronto';
+
+  String? _scoreName;
+  String? _inputPath;
+  String? _lottieUrl;
+  String _status = 'abra uma partitura (.mei, .musicxml, .mxml)';
+  bool _busy = false;
   double _velocidade = 1.0;
 
-  // Animação interessante encontrada na internet (exemplo oficial LottieFiles):
-  // ilustração "Add Music" (480x360, 370 frames, 60fps) hospedada no lottie.host.
-  static const _urlRede =
-      'https://lottie.host/d12158de-44c9-4079-b980-3bf63694f918/VrgZppaPQ8.json';
+  /// Render tuning (see the "Ajustes de render" panel). Values persist
+  /// across files so the best size for this screen is tuned once.
+  /// Defaults: 3700×1350 (see [kDefaultPageWidth]/[kDefaultPageHeight]).
+  double _pageWidth = kDefaultPageWidth.toDouble();
+  double _pageHeight = kDefaultPageHeight.toDouble();
 
-  // NOTA: o plugin faz `rootBundle.load('assets/$source')` internamente,
-  // por isso aqui vai só o nome do arquivo (sem o prefixo `assets/`).
-  String get _source => switch (_fonte) {
-    AnimFonte.assetLottie => 'animacao.lottie',
-    AnimFonte.assetJson => 'musica.json',
-    AnimFonte.rede => _urlRede,
-  };
+  /// Camera rest frames, one per score page (see [pageRestFrames]).
+  List<int> _pageRests = const [0];
+  int _currentPage = 0;
 
-  String get _sourceType => _fonte == AnimFonte.rede ? 'url' : 'asset';
+  @override
+  void dispose() {
+    _server.close();
+    super.dispose();
+  }
 
-  String get _descricao => switch (_fonte) {
-    AnimFonte.assetLottie => 'dotLottie oficial de exemplo (.lottie, offline)',
-    AnimFonte.assetJson => '"Add Music" em JSON (offline, 370 frames)',
-    AnimFonte.rede => '"Add Music" via rede (lottie.host, online)',
-  };
+  Future<void> _abrirPartitura() async {
+    if (_busy) return;
+    const typeGroup = XTypeGroup(
+      label: 'partituras',
+      extensions: ['mei', 'musicxml', 'mxml', 'xml'],
+    );
+    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    if (file == null) return;
+    if (!mounted) return;
 
-  void _setStatus(String s) => setState(() => _status = s);
+    setState(() {
+      _inputPath = file.path;
+      _scoreName = file.name;
+    });
+    await _renderAndShow();
+  }
+
+  /// Renders [_inputPath] with the current tuning values and displays it.
+  Future<void> _renderAndShow() async {
+    final inputPath = _inputPath;
+    if (inputPath == null || _busy) return;
+    if (!mounted) return;
+
+    final pageWidth = _pageWidth.toInt();
+    final pageHeight = _pageHeight.toInt();
+
+    setState(() {
+      _busy = true;
+      _status = 'gerando dotLottie…';
+      _controller = null;
+    });
+
+    try {
+      final tmpDir = await Directory.systemTemp.createTemp('zywny');
+      final outPath = '${tmpDir.path}/score.lottie';
+      final name = _scoreName ?? '';
+
+      setState(() => _status =
+          'renderizando $name ($pageWidth×$pageHeight)…');
+
+      await renderScoreToDotLottie(
+        VerovioRenderRequest(
+          inputPath: inputPath,
+          outputPath: outPath,
+          libraryPath: findVerovioLibrary(),
+          resourcePath: findVerovioResources(),
+          pageWidth: pageWidth,
+          pageHeight: pageHeight,
+        ),
+      );
+
+      final url = await _server.serveFile(outPath);
+      // Camera rest per page: seeking to one shows exactly that page.
+      final rests = await pageRestFrames(outPath);
+      if (!mounted) return;
+      final nPages = rests.length;
+      setState(() {
+        // URL nova => Key nova => o player recarrega a animação.
+        _lottieUrl = url.toString();
+        _pageRests = rests;
+        _currentPage = 0;
+        _status = nPages > 1
+            ? 'pronto ✓ — $nPages páginas ($pageWidth×$pageHeight)'
+            : 'pronto ✓ ($pageWidth×$pageHeight)';
+        _busy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _status = 'erro: $e';
+        _busy = false;
+      });
+    }
+  }
+
+  Future<void> _goToPage(int page) async {
+    if (_lottieUrl == null || _pageRests.isEmpty) return;
+    final clamped = page.clamp(0, _pageRests.length - 1);
+    setState(() {
+      _currentPage = clamped;
+      _status = _pageRests.length > 1
+          ? 'página ${clamped + 1} de ${_pageRests.length}'
+          : 'pronto ✓';
+    });
+    // Seeking the timeline moves the baked camera to that page's rest.
+    await _controller?.setFrame(_pageRests[clamped].toDouble());
+  }
+
+  /// One tuning slider row. The value label updates live while dragging;
+  /// the file re-renders once on release ([Slider.onChangeEnd]), guarded
+  /// by [_renderAndShow] (no file loaded or render in flight → no-op).
+  Widget _tuningSlider({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required int divisions,
+    required ValueChanged<double> onChanged,
+    String suffix = '',
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 72,
+          child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ),
+        Expanded(
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged,
+            onChangeEnd: (_) => _renderAndShow(),
+          ),
+        ),
+        SizedBox(
+          width: 88,
+          child: Text(
+            '${value.toInt()}$suffix',
+            textAlign: TextAlign.end,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Text('zywny • dotLottie'),
+        title: const Text('zywny • partitura → dotLottie'),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: .center,
-            children: [
-              SegmentedButton<AnimFonte>(
-                segments: const [
-                  ButtonSegment(
-                    value: AnimFonte.assetLottie,
-                    label: Text('.lottie'),
-                    icon: Icon(Icons.folder),
-                  ),
-                  ButtonSegment(
-                    value: AnimFonte.assetJson,
-                    label: Text('.json'),
-                    icon: Icon(Icons.music_note),
-                  ),
-                  ButtonSegment(
-                    value: AnimFonte.rede,
-                    label: Text('rede'),
-                    icon: Icon(Icons.cloud),
-                  ),
-                ],
-                selected: {_fonte},
-                onSelectionChanged: (s) => setState(() {
-                  _fonte = s.first;
-                  _controller = null;
-                  _status = 'trocando fonte…';
-                }),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _descricao,
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.deepPurple.shade100),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: .stretch,
+          children: [
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: _abrirPartitura,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Abrir partitura'),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: DotLottieView(
-                  key: ValueKey(_source),
-                  source: _source,
-                  sourceType: _sourceType,
-                  autoplay: true,
-                  loop: true,
-                  speed: _velocidade,
-                  onViewCreated: (c) => _controller = c,
-                  onLoad: () => _setStatus('carregada ✓'),
-                  onLoadError: () => _setStatus('erro ao carregar ✗'),
-                  onPlay: () => _setStatus('tocando ▶'),
-                  onPause: () => _setStatus('pausada ⏸'),
-                  onStop: () => _setStatus('parada ⏹'),
-                  onComplete: () => _setStatus('concluída ✓'),
-                  onLoop: (n) => _setStatus('loop ${n.toInt()} 🔁'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _scoreName ?? 'nenhuma partitura',
+                    style: Theme.of(context).textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('Ajustes de render'),
+              subtitle: Text(
+                '${_pageWidth.toInt()}×${_pageHeight.toInt()}',
               ),
-              const SizedBox(height: 12),
-              Text('status: $_status'),
-              const SizedBox(height: 12),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                children: [
-                  FilledButton.icon(
-                    onPressed: () => _controller?.play(),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Play'),
-                  ),
-                  FilledButton.tonalIcon(
-                    onPressed: () => _controller?.pause(),
-                    icon: const Icon(Icons.pause),
-                    label: const Text('Pause'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _controller?.stop(),
-                    icon: const Icon(Icons.stop),
-                    label: const Text('Stop'),
-                  ),
-                ],
+              children: [
+                _tuningSlider(
+                  label: 'Largura',
+                  value: _pageWidth,
+                  min: kVerovioMinPageWidth.toDouble(),
+                  max: kVerovioMaxPageWidth.toDouble(),
+                  divisions: 95,
+                  onChanged: (v) => setState(() => _pageWidth = v),
+                ),
+                _tuningSlider(
+                  label: 'Altura',
+                  value: _pageHeight,
+                  min: kVerovioMinPageHeight.toDouble(),
+                  max: kVerovioMaxPageHeight.toDouble(),
+                  divisions: 114,
+                  onChanged: (v) => setState(() => _pageHeight = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Score view locked to the page aspect: the fitted box always
+            // matches the rendered page exactly, so the display scale stays
+            // constant (no letterbox bands, no cropping) whatever the
+            // window size. The plugin itself only offers fit modes
+            // (contain/cover/… via setLayout) — constancy comes from the
+            // matched aspects, not from a player flag.
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final pageAspect = _pageWidth / _pageHeight;
+                  var w = constraints.maxWidth;
+                  var h = w / pageAspect;
+                  if (h > constraints.maxHeight) {
+                    h = constraints.maxHeight;
+                    w = h * pageAspect;
+                  }
+                  return Center(
+                    child: SizedBox(
+                      width: w,
+                      height: h,
+                      child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.deepPurple.shade100),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: _busy
+                        ? const Center(child: CircularProgressIndicator())
+                        : _lottieUrl == null
+                            ? const Center(
+                                child: Icon(
+                                  Icons.music_note,
+                                  size: 64,
+                                  color: Colors.grey,
+                                ),
+                              )
+                            : DotLottieView(
+                                key: ValueKey(_lottieUrl),
+                                source: _lottieUrl!,
+                                sourceType: 'url',
+                                // The timeline bakes the page-turn camera:
+                                // autoplay would drift through pages, so the
+                                // host frames the current page explicitly.
+                                autoplay: false,
+                                loop: false,
+                                // Page aspect matches this box by
+                                // construction, so contain fills it exactly.
+                                fit: BoxFit.contain,
+                                speed: _velocidade,
+                                onViewCreated: (c) => _controller = c,
+                                onLoad: () async {
+                                  await _controller?.setFrame(
+                                    _pageRests[_currentPage].toDouble(),
+                                  );
+                                  if (!mounted) return;
+                                  setState(() => _status = _pageRests.length > 1
+                                      ? 'página ${_currentPage + 1} de ${_pageRests.length}'
+                                      : 'carregada ✓');
+                                },
+                                onLoadError: () => setState(
+                                  () => _status = 'erro ao carregar ✗',
+                                ),
+                                onPlay: () =>
+                                    setState(() => _status = 'tocando ▶'),
+                                onPause: () =>
+                                    setState(() => _status = 'pausada ⏸'),
+                                onStop: () =>
+                                    setState(() => _status = 'parada ⏹'),
+                                onComplete: () =>
+                                    setState(() => _status = 'concluída ✓'),
+                              ),
+                      ),
+                    ),
+                  );
+                },
               ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisSize: .min,
-                children: [
-                  const Text('Velocidade: '),
-                  DropdownButton<double>(
-                    value: _velocidade,
-                    items: const [0.5, 1.0, 1.5, 2.0]
-                        .map(
-                          (v) => DropdownMenuItem(
-                            value: v,
-                            child: Text('${v}x'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) async {
-                      if (v == null) return;
-                      setState(() => _velocidade = v);
-                      await _controller?.setSpeed(v);
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Fonte: lottie.host (doc oficial dotLottie) + LottieFiles',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+            Text('status: $_status'),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                IconButton.filledTonal(
+                  tooltip: 'Página anterior',
+                  onPressed: _pageRests.length > 1 && !_busy
+                      ? () => _goToPage(_currentPage - 1)
+                      : null,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                IconButton.filledTonal(
+                  tooltip: 'Próxima página',
+                  onPressed: _pageRests.length > 1 && !_busy
+                      ? () => _goToPage(_currentPage + 1)
+                      : null,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+                FilledButton.icon(
+                  onPressed: () => _controller?.play(),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Play'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => _controller?.pause(),
+                  icon: const Icon(Icons.pause),
+                  label: const Text('Pause'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _controller?.stop(),
+                  icon: const Icon(Icons.stop),
+                  label: const Text('Stop'),
+                ),
+                const SizedBox(width: 8),
+                const Text('Velocidade: '),
+                DropdownButton<double>(
+                  value: _velocidade,
+                  items: const [0.5, 1.0, 1.5, 2.0]
+                      .map(
+                        (v) => DropdownMenuItem(
+                          value: v,
+                          child: Text('${v}x'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) async {
+                    if (v == null) return;
+                    setState(() => _velocidade = v);
+                    await _controller?.setSpeed(v);
+                  },
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

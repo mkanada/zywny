@@ -35,6 +35,10 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   dotlottie_flutter: ^0.1.7
+  file_selector: ^1.0.3
+  archive: ^4.0.7
+  verovio:
+    path: third_party/verovio_lottie/verovio/bindings/dart
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +65,12 @@ flutter:
   assets:
     - assets/animacao.lottie
     - assets/musica.json
+    # NOTA: assets/verovio_data/ NÃO vai aqui de propósito. O bundler de
+    # assets do Flutter só empacota arquivos do topo do diretório
+    # (listSync não-recursivo) e ignoraria Bravura/, text/ etc., deixando
+    # o Verovio sem fontes e crashando o render nativo. As fontes vão para
+    # <bundle>/data/verovio_data via linux/CMakeLists.txt (install recursivo).
+    # Geradas por tool/fetch_verovio_assets.sh a partir do submódulo.
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
