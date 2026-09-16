@@ -3,10 +3,9 @@ import 'dart:io';
 import 'package:dotlottie_flutter/dotlottie_flutter.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:verovio_viewer/verovio_viewer.dart';
 
-import 'lottie_file_server.dart';
 import 'native_paths.dart';
-import 'score_pages.dart';
 import 'verovio_render.dart';
 
 void main() {
@@ -34,12 +33,12 @@ class ScoreHomePage extends StatefulWidget {
 }
 
 class _ScoreHomePageState extends State<ScoreHomePage> {
-  final LottieFileServer _server = LottieFileServer();
+  final GlobalKey<ScoreViewerState> _viewerKey = GlobalKey();
   DotLottieViewController? _controller;
 
   String? _scoreName;
   String? _inputPath;
-  String? _lottieUrl;
+  String? _lottiePath;
   String _status = 'abra uma partitura (.mei, .musicxml, .mxml)';
   bool _busy = false;
   double _velocidade = 1.0;
@@ -50,15 +49,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   double _pageWidth = kDefaultPageWidth.toDouble();
   double _pageHeight = kDefaultPageHeight.toDouble();
 
-  /// Camera rest frames, one per score page (see [pageRestFrames]).
-  List<int> _pageRests = const [0];
-  int _currentPage = 0;
-
-  @override
-  void dispose() {
-    _server.close();
-    super.dispose();
-  }
+  int get _pageCount => _viewerKey.currentState?.pageCount ?? 1;
+  int get _currentPage => _viewerKey.currentState?.currentPage ?? 0;
 
   Future<void> _abrirPartitura() async {
     if (_busy) return;
@@ -105,25 +97,17 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           inputPath: inputPath,
           outputPath: outPath,
           libraryPath: findVerovioLibrary(),
-          resourcePath: findVerovioResources(),
+          resourcePath: await verovioResourcePath(),
           pageWidth: pageWidth,
           pageHeight: pageHeight,
         ),
       );
 
-      final url = await _server.serveFile(outPath);
-      // Camera rest per page: seeking to one shows exactly that page.
-      final rests = await pageRestFrames(outPath);
       if (!mounted) return;
-      final nPages = rests.length;
       setState(() {
-        // URL nova => Key nova => o player recarrega a animação.
-        _lottieUrl = url.toString();
-        _pageRests = rests;
-        _currentPage = 0;
-        _status = nPages > 1
-            ? 'pronto ✓ — $nPages páginas ($pageWidth×$pageHeight)'
-            : 'pronto ✓ ($pageWidth×$pageHeight)';
+        // Novo caminho => Key nova (ver [ScoreViewer]) => o player recarrega.
+        _lottiePath = outPath;
+        _status = 'carregando ($pageWidth×$pageHeight)…';
         _busy = false;
       });
     } catch (e) {
@@ -135,17 +119,23 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
   }
 
-  Future<void> _goToPage(int page) async {
-    if (_lottieUrl == null || _pageRests.isEmpty) return;
-    final clamped = page.clamp(0, _pageRests.length - 1);
+  void _onScoreViewerReady() {
+    if (!mounted) return;
     setState(() {
-      _currentPage = clamped;
-      _status = _pageRests.length > 1
-          ? 'página ${clamped + 1} de ${_pageRests.length}'
+      _status = _pageCount > 1
+          ? 'página ${_currentPage + 1} de $_pageCount'
+          : 'carregada ✓';
+    });
+  }
+
+  Future<void> _goToPage(int page) async {
+    await _viewerKey.currentState?.goToPage(page);
+    if (!mounted) return;
+    setState(() {
+      _status = _pageCount > 1
+          ? 'página ${_currentPage + 1} de $_pageCount'
           : 'pronto ✓';
     });
-    // Seeking the timeline moves the baked camera to that page's rest.
-    await _controller?.setFrame(_pageRests[clamped].toDouble());
   }
 
   /// One tuning slider row. The value label updates live while dragging;
@@ -273,7 +263,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     clipBehavior: Clip.antiAlias,
                     child: _busy
                         ? const Center(child: CircularProgressIndicator())
-                        : _lottieUrl == null
+                        : _lottiePath == null
                             ? const Center(
                                 child: Icon(
                                   Icons.music_note,
@@ -281,30 +271,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                                   color: Colors.grey,
                                 ),
                               )
-                            : DotLottieView(
-                                key: ValueKey(_lottieUrl),
-                                source: _lottieUrl!,
-                                sourceType: 'url',
-                                // The timeline bakes the page-turn camera:
-                                // autoplay would drift through pages, so the
-                                // host frames the current page explicitly.
-                                autoplay: false,
-                                loop: false,
+                            : ScoreViewer(
+                                key: _viewerKey,
+                                lottiePath: _lottiePath!,
                                 // Page aspect matches this box by
                                 // construction, so contain fills it exactly.
                                 fit: BoxFit.contain,
                                 speed: _velocidade,
-                                onViewCreated: (c) => _controller = c,
-                                onLoad: () async {
-                                  await _controller?.setFrame(
-                                    _pageRests[_currentPage].toDouble(),
-                                  );
-                                  if (!mounted) return;
-                                  setState(() => _status = _pageRests.length > 1
-                                      ? 'página ${_currentPage + 1} de ${_pageRests.length}'
-                                      : 'carregada ✓');
-                                },
-                                onLoadError: () => setState(
+                                onControllerReady: (c) => _controller = c,
+                                onReady: _onScoreViewerReady,
+                                onError: (e) => setState(
                                   () => _status = 'erro ao carregar ✗',
                                 ),
                                 onPlay: () =>
@@ -332,14 +308,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               children: [
                 IconButton.filledTonal(
                   tooltip: 'Página anterior',
-                  onPressed: _pageRests.length > 1 && !_busy
+                  onPressed: _pageCount > 1 && !_busy
                       ? () => _goToPage(_currentPage - 1)
                       : null,
                   icon: const Icon(Icons.chevron_left),
                 ),
                 IconButton.filledTonal(
                   tooltip: 'Próxima página',
-                  onPressed: _pageRests.length > 1 && !_busy
+                  onPressed: _pageCount > 1 && !_busy
                       ? () => _goToPage(_currentPage + 1)
                       : null,
                   icon: const Icon(Icons.chevron_right),
