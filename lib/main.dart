@@ -1,3 +1,4 @@
+import 'package:dotlottie_flutter/dotlottie_flutter.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -7,115 +8,181 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'zywny • dotLottie',
+      theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
+      home: const DotLottieHomePage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+enum AnimFonte { assetLottie, assetJson, rede }
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class DotLottieHomePage extends StatefulWidget {
+  const DotLottieHomePage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<DotLottieHomePage> createState() => _DotLottieHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _DotLottieHomePageState extends State<DotLottieHomePage> {
+  AnimFonte _fonte = AnimFonte.assetJson;
+  DotLottieViewController? _controller;
+  String _status = 'pronto';
+  double _velocidade = 1.0;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+  // Animação interessante encontrada na internet (exemplo oficial LottieFiles):
+  // ilustração "Add Music" (480x360, 370 frames, 60fps) hospedada no lottie.host.
+  static const _urlRede =
+      'https://lottie.host/d12158de-44c9-4079-b980-3bf63694f918/VrgZppaPQ8.json';
+
+  // NOTA: o plugin faz `rootBundle.load('assets/$source')` internamente,
+  // por isso aqui vai só o nome do arquivo (sem o prefixo `assets/`).
+  String get _source => switch (_fonte) {
+    AnimFonte.assetLottie => 'animacao.lottie',
+    AnimFonte.assetJson => 'musica.json',
+    AnimFonte.rede => _urlRede,
+  };
+
+  String get _sourceType => _fonte == AnimFonte.rede ? 'url' : 'asset';
+
+  String get _descricao => switch (_fonte) {
+    AnimFonte.assetLottie => 'dotLottie oficial de exemplo (.lottie, offline)',
+    AnimFonte.assetJson => '"Add Music" em JSON (offline, 370 frames)',
+    AnimFonte.rede => '"Add Music" via rede (lottie.host, online)',
+  };
+
+  void _setStatus(String s) => setState(() => _status = s);
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('zywny • dotLottie'),
       ),
       body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: .center,
+            children: [
+              SegmentedButton<AnimFonte>(
+                segments: const [
+                  ButtonSegment(
+                    value: AnimFonte.assetLottie,
+                    label: Text('.lottie'),
+                    icon: Icon(Icons.folder),
+                  ),
+                  ButtonSegment(
+                    value: AnimFonte.assetJson,
+                    label: Text('.json'),
+                    icon: Icon(Icons.music_note),
+                  ),
+                  ButtonSegment(
+                    value: AnimFonte.rede,
+                    label: Text('rede'),
+                    icon: Icon(Icons.cloud),
+                  ),
+                ],
+                selected: {_fonte},
+                onSelectionChanged: (s) => setState(() {
+                  _fonte = s.first;
+                  _controller = null;
+                  _status = 'trocando fonte…';
+                }),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _descricao,
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.deepPurple.shade100),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: DotLottieView(
+                  key: ValueKey(_source),
+                  source: _source,
+                  sourceType: _sourceType,
+                  autoplay: true,
+                  loop: true,
+                  speed: _velocidade,
+                  onViewCreated: (c) => _controller = c,
+                  onLoad: () => _setStatus('carregada ✓'),
+                  onLoadError: () => _setStatus('erro ao carregar ✗'),
+                  onPlay: () => _setStatus('tocando ▶'),
+                  onPause: () => _setStatus('pausada ⏸'),
+                  onStop: () => _setStatus('parada ⏹'),
+                  onComplete: () => _setStatus('concluída ✓'),
+                  onLoop: (n) => _setStatus('loop ${n.toInt()} 🔁'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text('status: $_status'),
+              const SizedBox(height: 12),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () => _controller?.play(),
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Play'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () => _controller?.pause(),
+                    icon: const Icon(Icons.pause),
+                    label: const Text('Pause'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _controller?.stop(),
+                    icon: const Icon(Icons.stop),
+                    label: const Text('Stop'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisSize: .min,
+                children: [
+                  const Text('Velocidade: '),
+                  DropdownButton<double>(
+                    value: _velocidade,
+                    items: const [0.5, 1.0, 1.5, 2.0]
+                        .map(
+                          (v) => DropdownMenuItem(
+                            value: v,
+                            child: Text('${v}x'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) async {
+                      if (v == null) return;
+                      setState(() => _velocidade = v);
+                      await _controller?.setSpeed(v);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Fonte: lottie.host (doc oficial dotLottie) + LottieFiles',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
       ),
     );
   }
