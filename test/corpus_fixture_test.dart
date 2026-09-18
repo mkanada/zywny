@@ -1,0 +1,80 @@
+// Faz o parse de um .vsb real do corpus (Erik Satie - Gymnopédie No.1,
+// exportado em S07 com `-x 42`, copiado para test/fixtures/erik-satie.vsb) e
+// confere contagens/ids conhecidos, além do critério 4 (byId == índice
+// exportado em S04).
+import 'dart:io';
+import 'dart:ui';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:score_bridge/score_bridge.dart';
+
+void main() {
+  late VsbDocument doc;
+
+  setUpAll(() {
+    final bytes = File('test/fixtures/erik-satie.vsb').readAsBytesSync();
+    doc = VsbDocument.fromBytes(bytes);
+  });
+
+  test('manifest e glifos', () {
+    expect(doc.manifest.format, 'vsb');
+    expect(doc.manifest.version, 1);
+    expect(doc.manifest.pageCount, 2);
+    expect(doc.manifest.files.timemap, 'timemap.json');
+    expect(doc.glyphs, hasLength(16));
+    expect(doc.glyphs.keys, contains('Leipzig:E050'));
+  });
+
+  test('páginas', () {
+    expect(doc.pages, hasLength(2));
+    expect(doc.pages[0].index, 0);
+    expect(doc.pages[1].index, 1);
+    expect(doc.pages[0].widthPx, 2100);
+    expect(doc.pages[0].heightPx, 2970);
+  });
+
+  test('elements: contagem e ids conhecidos na página 0', () {
+    final elements = doc.pages[0].elements;
+    expect(elements, hasLength(1055));
+
+    final first = elements.first;
+    expect(first.id, 'da3kuku');
+    expect(first.className, 'mdiv pageMilestone');
+    expect(first.nodePath, 1);
+    expect(first.bbox, const Rect.fromLTRB(0, 0, 0, 0));
+
+    final system = elements.firstWhere((e) => e.id == 'd1wmfkp6');
+    expect(system.className, 'system');
+    expect(system.nodePath, 3);
+    expect(system.bbox.left, closeTo(180, 1e-9));
+    expect(system.bbox.top, closeTo(-2822, 1e-9));
+    expect(system.bbox.right, closeTo(21438.8, 1e-9));
+    expect(system.bbox.bottom, closeTo(9691.6, 1e-9));
+
+    final last = elements.last;
+    expect(last.id, 'a1zfws3');
+    expect(last.className, 'svg');
+    expect(last.nodePath, 1378);
+  });
+
+  test('elements: contagem na página 1', () {
+    expect(doc.pages[1].elements, hasLength(170));
+  });
+
+  test('byId contém exatamente os mesmos ids do índice exportado (S04)', () {
+    for (final page in doc.pages) {
+      final idsFromIndex = page.elements.map((e) => e.id).toSet();
+      expect(page.byId.keys.toSet(), idsFromIndex);
+    }
+  });
+
+  test('byId aponta para o nó certo (id/class batem)', () {
+    final page = doc.pages[0];
+    for (final entry in page.elements) {
+      final node = page.byId[entry.id];
+      expect(node, isNotNull, reason: 'sem nó para id ${entry.id}');
+      expect(node!.id, entry.id);
+      expect(node.className, entry.className);
+    }
+  });
+}
