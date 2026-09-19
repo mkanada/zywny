@@ -4,6 +4,8 @@
 library;
 
 export 'src/model.dart';
+export 'src/geometry.dart';
+export 'src/scene_painter.dart';
 export 'src/parser.dart'
     show
         parseManifestDocument,
