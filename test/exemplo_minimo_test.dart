@@ -35,10 +35,11 @@ void main() {
     expect(glyph.codepoint, 'E0A4');
     expect(glyph.unitsPerEm, 2048);
     expect(glyph.horizAdvX, 656);
-    expect(glyph.bbox.left, -10);
-    expect(glyph.bbox.top, -262);
-    expect(glyph.bbox.right, 552);
-    expect(glyph.bbox.bottom, 262);
+    expect(glyph.bbox.x, -10);
+    expect(glyph.bbox.y, -262);
+    expect(glyph.bbox.width, 552);
+    expect(glyph.bbox.height, 262);
+    expect(glyph.bbox.toContourRect(), const Rect.fromLTRB(-1, 0, 54.2, 26.2));
     expect(glyph.paths, hasLength(1));
     final subpath = glyph.paths.single;
     expect(subpath.closed, isTrue);

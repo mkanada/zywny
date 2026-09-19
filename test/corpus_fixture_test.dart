@@ -1,5 +1,5 @@
 // Faz o parse de um .vsb real do corpus (Erik Satie - Gymnopédie No.1,
-// exportado em S07 com `-x 42`, copiado para test/fixtures/erik-satie.vsb) e
+// exportado em S08 com `-x 42`, copiado para test/fixtures/erik-satie.vsb) e
 // confere contagens/ids conhecidos, além do critério 4 (byId == índice
 // exportado em S04).
 import 'dart:io';
@@ -23,6 +23,12 @@ void main() {
     expect(doc.manifest.files.timemap, 'timemap.json');
     expect(doc.glyphs, hasLength(16));
     expect(doc.glyphs.keys, contains('Leipzig:E050'));
+    final clef = doc.glyphs['Leipzig:E050']!;
+    expect(clef.bbox.x, -10);
+    expect(clef.bbox.y, -6550);
+    expect(clef.bbox.width, 6470);
+    expect(clef.bbox.height, 17380);
+    expect(clef.bbox.toContourRect(), const Rect.fromLTRB(-1, -1083, 646, 655));
   });
 
   test('páginas', () {
@@ -47,9 +53,9 @@ void main() {
     expect(system.className, 'system');
     expect(system.nodePath, 3);
     expect(system.bbox.left, closeTo(180, 1e-9));
-    expect(system.bbox.top, closeTo(-2822, 1e-9));
-    expect(system.bbox.right, closeTo(21438.8, 1e-9));
-    expect(system.bbox.bottom, closeTo(9691.6, 1e-9));
+    expect(system.bbox.top, closeTo(546.16, 1e-9));
+    expect(system.bbox.right, closeTo(20008.5, 1e-9));
+    expect(system.bbox.bottom, closeTo(4886, 1e-9));
 
     final last = elements.last;
     expect(last.id, 'a1zfws3');

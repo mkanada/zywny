@@ -99,7 +99,7 @@ class GlyphDef {
   final String codepoint;
   final int unitsPerEm;
   final double horizAdvX;
-  final Rect bbox;
+  final GlyphBBox bbox;
   final List<BezierPath> paths;
 
   const GlyphDef({
@@ -110,6 +110,35 @@ class GlyphDef {
     required this.bbox,
     required this.paths,
   });
+}
+
+/// Bbox de metadados de um glifo (§4).
+///
+/// O JSON usa `[x, y, width, height]` na escala guardada por
+/// `Glyph::SetBoundingBox`: 10 vezes a escala dos contornos e com o eixo Y
+/// apontando para cima. Use [toContourRect] para obter a bbox no sistema dos
+/// contornos, já dividida por 10 e com Y apontando para baixo.
+class GlyphBBox {
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+
+  const GlyphBBox({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  Rect toContourRect() {
+    return Rect.fromLTRB(
+      x / 10.0,
+      -(y + height) / 10.0,
+      (x + width) / 10.0,
+      -y / 10.0,
+    );
+  }
 }
 
 /// Um subpath dentro de `paths` (glifo ou forma `p`), §4/§4.1.

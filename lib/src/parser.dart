@@ -207,7 +207,7 @@ GlyphDef _parseGlyphDef(Map<String, dynamic> json, String path) {
       _requireField(json, 'horizAdvX', path),
       '$path.horizAdvX',
     ),
-    bbox: _asRect(_requireField(json, 'bbox', path), '$path.bbox'),
+    bbox: _parseGlyphBBox(_requireField(json, 'bbox', path), '$path.bbox'),
     paths: paths,
   );
 }
@@ -743,6 +743,17 @@ Rect _asRect(dynamic value, String path) {
   }
   final n = _asFlatNumbers(value, path);
   return Rect.fromLTRB(n[0], n[1], n[2], n[3]);
+}
+
+GlyphBBox _parseGlyphBBox(dynamic value, String path) {
+  if (value is! List || value.length != 4) {
+    throw VsbFormatException(
+      path,
+      'esperado array de 4 números [x, y, width, height]',
+    );
+  }
+  final n = _asFlatNumbers(value, path);
+  return GlyphBBox(x: n[0], y: n[1], width: n[2], height: n[3]);
 }
 
 Offset _asOffset(dynamic value, String path) {
