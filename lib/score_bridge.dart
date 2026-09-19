@@ -8,6 +8,7 @@ export 'src/geometry.dart';
 export 'src/dash.dart';
 export 'src/glyph_cache.dart';
 export 'src/scene_painter.dart';
+export 'src/text_font.dart';
 export 'src/parser.dart'
     show
         parseManifestDocument,
