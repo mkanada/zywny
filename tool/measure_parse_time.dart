@@ -7,7 +7,7 @@
 //   flutter test tool/measure_parse_time.dart
 // Diretório dos .vsb configurável por variável de ambiente (main() é chamado
 // sem argumentos pelo runner de teste):
-//   CORPUS_DIR=../compare/out/s07 flutter test tool/measure_parse_time.dart
+//   CORPUS_DIR=../compare/out/s08 flutter test tool/measure_parse_time.dart
 // ignore_for_file: avoid_print
 import 'dart:io';
 
@@ -20,7 +20,7 @@ double _median(List<double> values) {
 
 void main() {
   final dir = Directory(
-    Platform.environment['CORPUS_DIR'] ?? '../compare/out/s07',
+    Platform.environment['CORPUS_DIR'] ?? '../compare/out/s08',
   );
   final files =
       dir
