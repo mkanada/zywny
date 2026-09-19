@@ -8,7 +8,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 
-import 'support/load_fonts.dart';
 import 'support/ttf_metrics.dart';
 
 /// A string do critério 3, a um tamanho típico de título do corpus.

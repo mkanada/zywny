@@ -1,9 +1,11 @@
 // `ScenePainter`: ajuste de página, percurso da árvore e cor herdada (R02b),
 // mais traço, opacidade, pontas/junções e tracejado (R02c), mais instâncias
-// de glifo `u` (R03b).
+// de glifo `u` (R03b) e runs de texto `t` (R04b, só `left`; `center`/`right`
+// em R04c).
 //
-// Desenha formas `p`/`r`/`e` com preenchimento e traço (§5.2/§6) e usos de
-// glifo `u` (§5.3) via `GlyphCache` (R03a). Texto (R04) fica para depois.
+// Desenha formas `p`/`r`/`e` com preenchimento e traço (§5.2/§6), usos de
+// glifo `u` (§5.3) via `GlyphCache` (R03a) e texto comum (§5.4) via
+// `painterForRun` (R04a/R04b).
 library;
 
 import 'dart:math' as math;
@@ -13,6 +15,7 @@ import 'dash.dart';
 import 'geometry.dart';
 import 'glyph_cache.dart';
 import 'model.dart';
+import 'text_run.dart';
 
 /// Pinta uma página da cena num [Canvas] (§3/§5.1/§6).
 ///
@@ -102,7 +105,7 @@ class ScenePainter {
       case SceneGlyphUse():
         _drawGlyphUse(canvas, child, current);
       case SceneText():
-        break; // R04.
+        _drawText(canvas, child, current);
     }
   }
 
@@ -239,6 +242,32 @@ class ScenePainter {
     _cachedGlyphStrokeCap = cap;
     _cachedGlyphStrokeJoin = join;
     return paint;
+  }
+
+  /// Pinta um run de texto comum `t` (§5.4, R04b).
+  ///
+  /// `x`/`y` do formato são a âncora da **linha de base** (como no SVG:
+  /// `StartText`/`MoveTextTo`); o `TextPainter` pinta a partir do **topo**,
+  /// daí `run.y - dy`. Neste passo só `left` está implementado (âncora =
+  /// `x`); `center`/`right` pintam provisoriamente como `left` — ver
+  /// TODO(R04c) abaixo, nunca uma conta errada silenciosa.
+  void _drawText(ui.Canvas canvas, SceneText run, ui.Color current) {
+    final color = run.color == null ? current : _parseCssColor(run.color!);
+    final painter = painterForRun(run, color);
+    final dy = painter.computeDistanceToActualBaseline(
+      ui.TextBaseline.alphabetic,
+    );
+    var x = run.x;
+    switch (run.align) {
+      case SceneTextAlign.left:
+        break;
+      // TODO(R04c): deslocar x pela metade/largura total do run para
+      // `center`/`right` (e aplicar `letterSpacing`); hoje caem como `left`.
+      case SceneTextAlign.center:
+      case SceneTextAlign.right:
+        break;
+    }
+    painter.paint(canvas, ui.Offset(x, run.y - dy));
   }
 }
 

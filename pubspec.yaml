@@ -37,6 +37,15 @@ flutter:
   # Serifada do projeto (R04a): a mesma que o `svg_render` usa como
   # `serif` da referência (`--pin-serif-family "Liberation Serif"`).
   # OFL em fonts/LiberationSerif-OFL.txt.
+  #
+  # Os TTFs vão também em `assets`: o `fonts:` registra a família, mas não
+  # expõe os bytes via `rootBundle` no app release — e o `loadScoreFonts`
+  # (R04b, usado pelo `compare`) precisa deles como assets comuns.
+  assets:
+    - fonts/LiberationSerif-Regular.ttf
+    - fonts/LiberationSerif-Italic.ttf
+    - fonts/LiberationSerif-Bold.ttf
+    - fonts/LiberationSerif-BoldItalic.ttf
   fonts:
     - family: Liberation Serif
       fonts:

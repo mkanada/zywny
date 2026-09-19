@@ -14,9 +14,22 @@ import 'dart:typed_data';
 
 /// Métricas de avanço de uma TTF carregada em memória.
 class TtfAdvances {
-  TtfAdvances._(this.unitsPerEm, this._glyphFor, this._advances);
+  TtfAdvances._(
+    this.unitsPerEm,
+    this.ascentUnits,
+    this.descentUnits,
+    this.gapUnits,
+    this._glyphFor,
+    this._advances,
+  );
 
   final int unitsPerEm;
+
+  /// Métricas verticais do `hhea` em unidades da fonte (`descentUnits` com
+  /// sinal, negativo para baixo da linha de base).
+  final int ascentUnits;
+  final int descentUnits;
+  final int gapUnits;
   final int Function(int codepoint) _glyphFor;
   final List<int> _advances;
 
@@ -48,13 +61,31 @@ class TtfAdvances {
     }
 
     final unitsPerEm = u16(table('head') + 18);
-    final numHMetrics = u16(table('hhea') + 34);
+    final hhea = table('hhea');
+    // Verticais do `hhea` são int16 com sinal.
+    final ascent = data.getInt16(hhea + 4, Endian.big);
+    final descent = data.getInt16(hhea + 6, Endian.big);
+    final gap = data.getInt16(hhea + 8, Endian.big);
+    final numHMetrics = u16(hhea + 34);
     final hmtx = table('hmtx');
     final advances = List<int>.generate(numHMetrics, (k) => u16(hmtx + k * 4));
 
     final glyphFor = _parseCmap(data, table('cmap'));
-    return TtfAdvances._(unitsPerEm, glyphFor, advances);
+    return TtfAdvances._(unitsPerEm, ascent, descent, gap, glyphFor, advances);
   }
+
+  /// Distância topo→linha de base alfabética a [size] px, com `height: 1.0`.
+  ///
+  /// Sem `height`, o Skia empilha `ascent + descent + gap` e reparte meio
+  /// `gap` acima do ascendente (`dy = asc + gap/2`, medido); com
+  /// `height: 1.0` o Flutter reescala essas métricas naturais para 1 em, de
+  /// modo que `dy = (asc + gap/2) / (asc - desc + gap) × size`. Para a
+  /// Liberation Serif Regular a 405: 321,33 px — o `computeDistanceToActual
+  /// Baseline` do pintor devolve o mesmo número (critério 2 de R04b).
+  double ascentOf(double size) =>
+      (ascentUnits + gapUnits / 2.0) /
+      (ascentUnits - descentUnits + gapUnits) *
+      size;
 
   static int Function(int) _parseCmap(ByteData data, int cmap) {
     int u16(int offset) => data.getUint16(offset, Endian.big);

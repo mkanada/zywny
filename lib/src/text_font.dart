@@ -15,12 +15,22 @@
 // fallback do sistema sem avisar — por isso há um ponto único de decisão.
 library;
 
+import 'package:flutter/services.dart';
+
 /// Família registrada no `pubspec.yaml` deste pacote (os 4 estilos).
 const kScoreTextFamily = 'Liberation Serif';
 
-/// Pacote que contém os assets da fonte (para `TextStyle(package: ...)`
-/// fora deste pacote, ex. no app `compare`).
+/// Pacote que contém os assets da fonte (para hosts que preferem
+/// `TextStyle(package: ...)` em vez do [loadScoreFonts]).
 const kScoreTextFamilyPackage = 'score_bridge';
+
+/// Assets de fonte do pacote, na ordem Regular/Italic/Bold/BoldItalic.
+const kScoreFontAssets = [
+  'packages/score_bridge/fonts/LiberationSerif-Regular.ttf',
+  'packages/score_bridge/fonts/LiberationSerif-Italic.ttf',
+  'packages/score_bridge/fonts/LiberationSerif-Bold.ttf',
+  'packages/score_bridge/fonts/LiberationSerif-BoldItalic.ttf',
+];
 
 /// Resolve o `family` do `.vsb` (§5.4) para a família carregada.
 ///
@@ -28,3 +38,25 @@ const kScoreTextFamilyPackage = 'score_bridge';
 /// [kScoreTextFamily]: o mapeamento é deliberado (ver comentário acima),
 /// nunca `family` cru.
 String resolveFamily(String vsbFamily) => kScoreTextFamily;
+
+bool _fontsLoaded = false;
+
+/// Carrega os 4 estilos de [kScoreTextFamily] via [FontLoader] (idempotente
+/// por processo; `flutter test` isola um processo por arquivo).
+///
+/// O motor casa estilo/peso pelos metadados da própria fonte (OS/2), por
+/// isso os 4 TTFs entram num único `FontLoader` sem descritores. O
+/// `TextPainter` usa a família **sem** `package:` (sondado em R04b:
+/// `package:` + fonte de `FontLoader` cai em fallback silencioso);
+/// chame aqui em teste/headless e no `compare` antes de renderizar texto.
+Future<void> loadScoreFonts() async {
+  if (_fontsLoaded) {
+    return;
+  }
+  final loader = FontLoader(kScoreTextFamily);
+  for (final asset in kScoreFontAssets) {
+    loader.addFont(rootBundle.load(asset));
+  }
+  await loader.load();
+  _fontsLoaded = true;
+}

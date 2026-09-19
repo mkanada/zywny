@@ -2,7 +2,8 @@
 //
 // Usado pelos critérios 2-7 de R02b e pelos passos seguintes. Grava
 // `drawPath` (com a `Paint` efetiva e um snapshot da transformação ativa),
-// as operações de salvamento (`save`/`restore`) e as de transformação
+// `drawParagraph` (R04b, com o deslocamento e o snapshot), as operações de
+// salvamento (`save`/`restore`) e as de transformação
 // (`translate`/`scale`/`rotate`/`transform`/`skew`). Todo o resto da
 // interface `Canvas` é no-op.
 //
@@ -115,8 +116,21 @@ class DrawPathCall {
   ui.Offset map(double x, double y) => transform.map(x, y);
 }
 
+/// Uma chamada `drawParagraph` gravada (R04b), com o deslocamento pedido e
+/// um snapshot da transformação ativa.
+class DrawParagraphCall {
+  DrawParagraphCall(this.paragraph, this.offset, this.transform);
+
+  final ui.Paragraph paragraph;
+  final ui.Offset offset;
+  final AffineTransform transform;
+
+  ui.Offset map(double x, double y) => transform.map(x, y);
+}
+
 class RecordingCanvas implements ui.Canvas {
   final List<DrawPathCall> drawPaths = [];
+  final List<DrawParagraphCall> drawParagraphs = [];
   final List<String> ops = [];
 
   final List<AffineTransform> _stack = [AffineTransform.identity()];
@@ -280,7 +294,11 @@ class RecordingCanvas implements ui.Canvas {
   void drawPicture(ui.Picture picture) {}
 
   @override
-  void drawParagraph(ui.Paragraph paragraph, ui.Offset offset) {}
+  void drawParagraph(ui.Paragraph paragraph, ui.Offset offset) {
+    drawParagraphs.add(
+      DrawParagraphCall(paragraph, offset, _stack.last.clone()),
+    );
+  }
 
   @override
   void drawPoints(
