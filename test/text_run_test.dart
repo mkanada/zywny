@@ -22,6 +22,8 @@ SceneText _run({
   double size = 405,
   SceneTextAlign align = SceneTextAlign.left,
   double letterSpacing = 0.0,
+  bool bold = false,
+  bool italic = false,
   String? color,
 }) {
   return SceneText(
@@ -31,8 +33,8 @@ SceneText _run({
     size: size,
     align: align,
     letterSpacing: letterSpacing,
-    bold: false,
-    italic: false,
+    bold: bold,
+    italic: italic,
     family: 'Times',
     color: color,
   );
@@ -97,9 +99,9 @@ SceneNode _node({String? color, List<SceneChild> children = const []}) {
   return (count: count, r: r / count, g: g / count, b: b / count);
 }
 
-Future<({int count, double r, double g, double b})> _paintInk(
-  SceneChild child,
-) async {
+/// Rasteriza [child] num quadrado branco de 100×100 px (página sintética
+/// com `fit.scale = 0.1`) e devolve os bytes RGBA crus.
+Future<ByteData> _renderBytes(SceneChild child) async {
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder);
   canvas.drawRect(
@@ -111,14 +113,19 @@ Future<({int count, double r, double g, double b})> _paintInk(
   try {
     final image = await picture.toImage(100, 100);
     try {
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      return _inkStats(bytes!);
+      return (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
     } finally {
       image.dispose();
     }
   } finally {
     picture.dispose();
   }
+}
+
+Future<({int count, double r, double g, double b})> _paintInk(
+  SceneChild child,
+) async {
+  return _inkStats(await _renderBytes(child));
 }
 
 void main() {
@@ -283,6 +290,62 @@ void main() {
     final left = canvas.drawParagraphs.single.offset.dx;
     // O centro do run pintado cai sobre o `x` do formato.
     expect(left + w / 2, closeTo(run.x, 0.5));
+  });
+
+  test('4 estilos: imagens duas a duas diferentes', () async {
+    // Guarda contra TTF não registrada (itálico/negrito sintético): uma
+    // igualdade significa que uma das faces não foi usada.
+    final images = <String, Uint8List>{};
+    for (final style in const [
+      (false, false),
+      (false, true),
+      (true, false),
+      (true, true),
+    ]) {
+      final bytes = await _renderBytes(
+        _run(text: 'Agitato', size: 200, bold: style.$1, italic: style.$2),
+      );
+      images['${style.$1}/${style.$2}'] = bytes.buffer.asUint8List();
+    }
+    final keys = images.keys.toList();
+    for (var a = 0; a < keys.length; a++) {
+      for (var b = a + 1; b < keys.length; b++) {
+        expect(
+          images[keys[a]],
+          isNot(equals(images[keys[b]])),
+          reason: '${keys[a]} == ${keys[b]}: face não registrada?',
+        );
+      }
+    }
+  });
+
+  test('4 estilos: largura bate com a TTF daquele arquivo (<1%)', () async {
+    // Pega itálico sintético: ele preserva a largura da regular, que difere
+    // da itálica real.
+    const runs = [
+      (false, false, 0),
+      (false, true, 1),
+      (true, false, 2),
+      (true, true, 3),
+    ];
+    for (final (bold, italic, asset) in runs) {
+      final bytes = await rootBundle.load(kScoreFontAssets[asset]);
+      final ttf = TtfAdvances.parse(
+        bytes.buffer.asByteData(bytes.offsetInBytes, bytes.lengthInBytes),
+      );
+      const text = 'Agitato';
+      const size = 405.0;
+      final expected = ttf.widthOf(text, size);
+      final actual = painterForRun(
+        _run(text: text, size: size, bold: bold, italic: italic),
+        const Color(0xFF000000),
+      ).width;
+      expect(
+        (actual - expected).abs() / expected,
+        lessThan(0.01),
+        reason: 'estilo $bold/$italic (asset $asset)',
+      );
+    }
   });
 }
 
