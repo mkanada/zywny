@@ -28,6 +28,9 @@ SceneNode _node({
 }
 
 SceneRect _fillRect(double x, {ScenePaint fill = ScenePaint.inherit}) {
+  // R02c: `stroke: none` preserva a intenção original destes testes (só o
+  // preenchimento; o pintor agora desenha o traço em R02c e um `inherit`
+  // aqui dobraria cada forma). O traço é coberto em `stroke_style_test.dart`.
   return SceneRect(
     x: x,
     y: 0,
@@ -36,7 +39,7 @@ SceneRect _fillRect(double x, {ScenePaint fill = ScenePaint.inherit}) {
     rx: 0,
     fill: fill,
     fillOpacity: 1.0,
-    stroke: ScenePaint.inherit,
+    stroke: ScenePaint.none,
     strokeWidth: null,
     strokeOpacity: 1.0,
     lineCap: SceneLineCap.defaultCap,
@@ -224,28 +227,33 @@ void main() {
       final canvas = RecordingCanvas();
       ScenePainter(page, doc.glyphs).paint(canvas);
 
-      expect(canvas.drawPaths.length, _countFills(page.root));
+      // R02c: o pintor agora desenha traço além do preenchimento; a
+      // contagem independente soma os dois canais.
+      expect(canvas.drawPaths.length, _countDraws(page.root));
       expect(canvas.drawPaths, isNotEmpty);
     },
   );
 }
 
-/// Conta `p`/`r`/`e` com `fill != none`, pulando subárvores `hidden` —
-/// percurso independente do pintor (glifos e texto não contam: R02b os
-/// ignora).
-int _countFills(SceneNode node) {
+/// Conta `drawPath` esperados (R02c): um por canal (`fill`/`stroke`) com
+/// valor != none, pulando subárvores `hidden` — percurso independente do
+/// pintor (glifos e texto não contam: R02b os ignora, R03/R04 os ligam).
+int _countDraws(SceneNode node) {
   if (node.hidden) {
     return 0;
   }
   var count = 0;
   for (final child in node.children) {
     if (child is SceneNode) {
-      count += _countFills(child);
+      count += _countDraws(child);
     } else if (child is ScenePath ||
         child is SceneRect ||
         child is SceneEllipse) {
-      final fill = (child as SceneShape).fill;
-      if (!identical(fill, ScenePaint.none)) {
+      final shape = child as SceneShape;
+      if (!identical(shape.fill, ScenePaint.none)) {
+        count += 1;
+      }
+      if (!identical(shape.stroke, ScenePaint.none)) {
         count += 1;
       }
     }

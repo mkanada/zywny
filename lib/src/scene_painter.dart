@@ -1,14 +1,14 @@
-// Esqueleto do `ScenePainter`: ajuste de página, percurso da árvore e cor
-// herdada (R02b).
+// `ScenePainter`: ajuste de página, percurso da árvore e cor herdada (R02b),
+// mais traço, opacidade, pontas/junções e tracejado (R02c).
 //
-// Desenha somente o preenchimento de `ScenePath`/`SceneRect`/`SceneEllipse`.
-// Traço e opacidade (R02c), glifos (R03) e texto (R04) ficam para os passos
-// seguintes.
+// Desenha formas `p`/`r`/`e` com preenchimento e traço (§5.2/§6). Glifos (R03)
+// e texto (R04) ficam para os passos seguintes.
 library;
 
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'dash.dart';
 import 'geometry.dart';
 import 'model.dart';
 
@@ -67,11 +67,11 @@ class ScenePainter {
       case SceneNode():
         _paintNode(canvas, child, current);
       case ScenePath():
-        _drawFill(canvas, child.path, child.fill, current);
+        _drawShape(canvas, child, child.path, current);
       case SceneRect():
-        _drawFill(canvas, child.path, child.fill, current);
+        _drawShape(canvas, child, child.path, current);
       case SceneEllipse():
-        _drawFill(canvas, child.path, child.fill, current);
+        _drawShape(canvas, child, child.path, current);
       case SceneGlyphUse():
         break; // R03.
       case SceneText():
@@ -79,24 +79,108 @@ class ScenePainter {
     }
   }
 
-  void _drawFill(
+  /// Pinta uma forma `p`/`r`/`e`: preenchimento primeiro, traço depois (é a
+  /// ordem do SVG), com duas `Paint` separadas (§5.2).
+  ///
+  /// `strokeWidth` ausente vira `1.0` (padrão IR para `p`/`r`/`e`; no corpus
+  /// atual o campo nunca falta). O caminho do traço leva o tracejado quando
+  /// `dash` está presente; o do preenchimento nunca (semântica do SVG:
+  /// `stroke-dasharray` só afeta o traço). `strokeWidth` fica em unidades de
+  /// viewBox: a escala da página é do `Canvas`, nunca da `Paint`.
+  void _drawShape(
     ui.Canvas canvas,
-    ui.Path path,
-    ScenePaint fill,
+    SceneShape shape,
+    ui.Path basePath,
     ui.Color current,
   ) {
-    if (identical(fill, ScenePaint.none)) {
-      return;
+    final fill = _resolveChannelColor(shape.fill, current, shape.fillOpacity);
+    if (fill != null) {
+      canvas.drawPath(
+        basePath,
+        ui.Paint()
+          ..color = fill
+          ..style = ui.PaintingStyle.fill
+          ..isAntiAlias = true,
+      );
     }
-    final ui.Color color = fill is ColorPaint
-        ? _parseCssColor(fill.hex)
-        : current;
-    canvas.drawPath(
-      path,
-      ui.Paint()
-        ..color = color
-        ..style = ui.PaintingStyle.fill,
+    final stroke = _resolveChannelColor(
+      shape.stroke,
+      current,
+      shape.strokeOpacity,
     );
+    if (stroke != null) {
+      final strokePath = shape.dash == null
+          ? basePath
+          : applyDash(basePath, shape.dash!);
+      canvas.drawPath(
+        strokePath,
+        ui.Paint()
+          ..color = stroke
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = shape.strokeWidth ?? 1.0
+          ..strokeCap = _toStrokeCap(shape.lineCap)
+          ..strokeJoin = _toStrokeJoin(shape.lineJoin)
+          ..isAntiAlias = true,
+      );
+    }
+  }
+}
+
+/// Resolve a cor de um canal (`fill`/`stroke`): `none` vira `null` (não
+/// pinta), `inherit` usa a cor corrente, cor explícita usa o hex. O alfa
+/// final é `alfaDaCor × opacity`, com arredondamento metade para cima na
+/// hora de quantizar para 8 bits (`0.5 sobre #ff0000` dá alfa 128: 127.5
+/// arredonda para cima).
+ui.Color? _resolveChannelColor(
+  ScenePaint paint,
+  ui.Color current,
+  double opacity,
+) {
+  if (identical(paint, ScenePaint.none)) {
+    return null;
+  }
+  final ui.Color base = paint is ColorPaint
+      ? _parseCssColor(paint.hex)
+      : current;
+  if (opacity >= 1.0) {
+    return base;
+  }
+  return base.withValues(alpha: (base.a * opacity).clamp(0.0, 1.0));
+}
+
+/// `default` = "o exportador não pediu nada" → default do SVG quando o
+/// atributo está ausente (`butt`, é o que o `resvg` aplica).
+ui.StrokeCap _toStrokeCap(SceneLineCap cap) {
+  switch (cap) {
+    case SceneLineCap.defaultCap:
+      return ui.StrokeCap.butt;
+    case SceneLineCap.butt:
+      return ui.StrokeCap.butt;
+    case SceneLineCap.round:
+      return ui.StrokeCap.round;
+    case SceneLineCap.square:
+      return ui.StrokeCap.square;
+  }
+}
+
+/// `default` → `miter` (default do SVG). `arcs` e `miter-clip` não existem no
+/// Flutter e são mapeados para `miter`; nenhum dos dois ocorre no corpus
+/// (só `default`/`round`/`miter`/`bevel` aparecem nas formas — e `arcs`/
+/// `miter-clip` em zero ocorrências).
+ui.StrokeJoin _toStrokeJoin(SceneLineJoin join) {
+  switch (join) {
+    case SceneLineJoin.defaultJoin:
+      return ui.StrokeJoin.miter;
+    case SceneLineJoin.arcs:
+      return ui.StrokeJoin.miter;
+    case SceneLineJoin.bevel:
+      return ui.StrokeJoin.bevel;
+    case SceneLineJoin.miter:
+      return ui.StrokeJoin.miter;
+    case SceneLineJoin.miterClip:
+      return ui.StrokeJoin.miter;
+    case SceneLineJoin.round:
+      return ui.StrokeJoin.round;
   }
 }
 
