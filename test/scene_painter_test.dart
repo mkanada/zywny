@@ -235,9 +235,9 @@ void main() {
   );
 }
 
-/// Conta `drawPath` esperados (R02c): um por canal (`fill`/`stroke`) com
-/// valor != none, pulando subárvores `hidden` — percurso independente do
-/// pintor (glifos e texto não contam: R02b os ignora, R03/R04 os ligam).
+/// Conta `drawPath` esperados (R02c + R03b): um por canal (`fill`/`stroke`)
+/// com valor != none, pulando subárvores `hidden` — percurso independente do
+/// pintor (texto não conta: R04 o liga).
 int _countDraws(SceneNode node) {
   if (node.hidden) {
     return 0;
@@ -248,7 +248,8 @@ int _countDraws(SceneNode node) {
       count += _countDraws(child);
     } else if (child is ScenePath ||
         child is SceneRect ||
-        child is SceneEllipse) {
+        child is SceneEllipse ||
+        child is SceneGlyphUse) {
       final shape = child as SceneShape;
       if (!identical(shape.fill, ScenePaint.none)) {
         count += 1;
@@ -257,7 +258,7 @@ int _countDraws(SceneNode node) {
         count += 1;
       }
     }
-    // SceneGlyphUse e SceneText: o pintor os ignora neste passo (R03/R04).
+    // SceneText: o pintor ainda o ignora (R04).
   }
   return count;
 }
