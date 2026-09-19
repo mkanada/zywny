@@ -1,7 +1,10 @@
-// Testes de R04b — run de texto: linha de base, tamanho e cor (§5.4).
+// Testes de R04b/R04c — run de texto: linha de base, tamanho, cor (§5.4),
+// mais os três alinhamentos e `letterSpacing` (R04c).
 //
-// Cobre os critérios de aceite 2-5 do passo. O `drawParagraph` é observado
-// via `RecordingCanvas` (deslocamento) e via rasterização real (cor).
+// Cobre os critérios de aceite 2-5 de R04b e 2-4 de R04c. O `drawParagraph`
+// é observado via `RecordingCanvas` (deslocamento) e via rasterização real
+// (cor).
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
@@ -18,6 +21,7 @@ SceneText _run({
   double y = 1000,
   double size = 405,
   SceneTextAlign align = SceneTextAlign.left,
+  double letterSpacing = 0.0,
   String? color,
 }) {
   return SceneText(
@@ -26,7 +30,7 @@ SceneText _run({
     y: y,
     size: size,
     align: align,
-    letterSpacing: 0.0,
+    letterSpacing: letterSpacing,
     bold: false,
     italic: false,
     family: 'Times',
@@ -207,4 +211,97 @@ void main() {
     expect(green.g, greaterThan(green.r + 30));
     expect(green.g, greaterThan(green.b + 30));
   });
+
+  test('alinhamentos sem letterSpacing: x, x-w/2, x-w', () {
+    const color = Color(0xFF000000);
+    final w = painterForRun(_run(), color).width;
+    final cases = {
+      SceneTextAlign.left: 200.0,
+      SceneTextAlign.center: 200.0 - w / 2,
+      SceneTextAlign.right: 200.0 - w,
+    };
+    for (final entry in cases.entries) {
+      final canvas = RecordingCanvas();
+      ScenePainter(_textPage(_run(align: entry.key)), const {}).paint(canvas);
+      expect(canvas.drawParagraphs, hasLength(1));
+      expect(
+        canvas.drawParagraphs.single.offset.dx,
+        closeTo(entry.value, 1e-6),
+      );
+    }
+  });
+
+  test('alinhamentos com letterSpacing 40: largura à mão', () async {
+    // Largura esperada calculada à mão: soma dos avanços + n×ls, com o
+    // espaçamento final incluído (semântica do SVG/`resvg`).
+    final bytes = await rootBundle.load(kScoreFontAssets[0]);
+    final ttf = TtfAdvances.parse(
+      bytes.buffer.asByteData(bytes.offsetInBytes, bytes.lengthInBytes),
+    );
+    const text = 'Lent';
+    final hand = ttf.widthOf(text, 405) + text.runes.length * 40.0;
+    const color = Color(0xFF000000);
+    final w = painterForRun(_run(text: text, letterSpacing: 40.0), color).width;
+    // Conclusão R04c (Flutter 3.47.4): o Flutter INCLUI o espaçamento
+    // final no width — sem compensação em `center`/`right`.
+    expect(w, closeTo(hand, 1e-6));
+    final cases = {
+      SceneTextAlign.left: 200.0,
+      SceneTextAlign.center: 200.0 - hand / 2,
+      SceneTextAlign.right: 200.0 - hand,
+    };
+    for (final entry in cases.entries) {
+      final canvas = RecordingCanvas();
+      ScenePainter(
+        _textPage(_run(text: text, align: entry.key, letterSpacing: 40.0)),
+        const {},
+      ).paint(canvas);
+      expect(
+        canvas.drawParagraphs.single.offset.dx,
+        closeTo(entry.value, 1e-6),
+      );
+    }
+  });
+
+  test('dedilhado real: centro sobre x (tol 0,5 viewBox)', () {
+    final bytes = File('../compare/out/s08/Chopin_Etude_Op10_No9.vsb')
+        .readAsBytesSync();
+    final doc = VsbDocument.fromBytes(bytes);
+    SceneText? fingering;
+    for (final child in doc.pages[0].root.children) {
+      fingering = _firstCenter303(child);
+      if (fingering != null) {
+        break;
+      }
+    }
+    expect(fingering, isNotNull, reason: 'sem dedilhado 303/center na p1');
+    final run = fingering!;
+    final w = painterForRun(run, const Color(0xFF000000)).width;
+    final canvas = RecordingCanvas();
+    ScenePainter(_textPage(run), doc.glyphs).paint(canvas);
+    expect(canvas.drawParagraphs, hasLength(1));
+    final left = canvas.drawParagraphs.single.offset.dx;
+    // O centro do run pintado cai sobre o `x` do formato.
+    expect(left + w / 2, closeTo(run.x, 0.5));
+  });
+}
+
+/// Primeiro run `t` com `size: 303` e `align: center` na subárvore (os
+/// dedilhados da Étude, p. ex. '5' sobre a nota).
+SceneText? _firstCenter303(SceneChild child) {
+  if (child is SceneText) {
+    if (child.size == 303 && child.align == SceneTextAlign.center) {
+      return child;
+    }
+    return null;
+  }
+  if (child is SceneNode) {
+    for (final grand in child.children) {
+      final found = _firstCenter303(grand);
+      if (found != null) {
+        return found;
+      }
+    }
+  }
+  return null;
 }

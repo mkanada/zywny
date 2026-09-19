@@ -1,11 +1,10 @@
 // `ScenePainter`: ajuste de página, percurso da árvore e cor herdada (R02b),
 // mais traço, opacidade, pontas/junções e tracejado (R02c), mais instâncias
-// de glifo `u` (R03b) e runs de texto `t` (R04b, só `left`; `center`/`right`
-// em R04c).
+// de glifo `u` (R03b) e runs de texto `t` (R04b/R04c).
 //
 // Desenha formas `p`/`r`/`e` com preenchimento e traço (§5.2/§6), usos de
 // glifo `u` (§5.3) via `GlyphCache` (R03a) e texto comum (§5.4) via
-// `painterForRun` (R04a/R04b).
+// `painterForRun` (R04a/R04b) com os três alinhamentos (R04c).
 library;
 
 import 'dart:math' as math;
@@ -244,30 +243,28 @@ class ScenePainter {
     return paint;
   }
 
-  /// Pinta um run de texto comum `t` (§5.4, R04b).
+  /// Pinta um run de texto comum `t` (§5.4, R04b/R04c).
   ///
   /// `x`/`y` do formato são a âncora da **linha de base** (como no SVG:
   /// `StartText`/`MoveTextTo`); o `TextPainter` pinta a partir do **topo**,
-  /// daí `run.y - dy`. Neste passo só `left` está implementado (âncora =
-  /// `x`); `center`/`right` pintam provisoriamente como `left` — ver
-  /// TODO(R04c) abaixo, nunca uma conta errada silenciosa.
+  /// daí `run.y - dy`. O deslocamento horizontal reproduz `text-anchor`:
+  /// `left` (=`start`) ancora em `x`, `center` (=`middle`) centra a largura
+  /// medida sobre `x`, `right` (=`end`) termina em `x`. `painter.width` já
+  /// inclui o `letterSpacing` final (sondado em R04c), como o `resvg`.
   void _drawText(ui.Canvas canvas, SceneText run, ui.Color current) {
     final color = run.color == null ? current : _parseCssColor(run.color!);
     final painter = painterForRun(run, color);
     final dy = painter.computeDistanceToActualBaseline(
       ui.TextBaseline.alphabetic,
     );
-    var x = run.x;
-    switch (run.align) {
-      case SceneTextAlign.left:
-        break;
-      // TODO(R04c): deslocar x pela metade/largura total do run para
-      // `center`/`right` (e aplicar `letterSpacing`); hoje caem como `left`.
-      case SceneTextAlign.center:
-      case SceneTextAlign.right:
-        break;
-    }
-    painter.paint(canvas, ui.Offset(x, run.y - dy));
+    // `width` exige `layout()` prévio (`painterForRun` já fez); sem ele
+    // seria 0 e tudo alinharia à esquerda silenciosamente.
+    final dx = switch (run.align) {
+      SceneTextAlign.left => 0.0,
+      SceneTextAlign.center => -painter.width / 2,
+      SceneTextAlign.right => -painter.width,
+    };
+    painter.paint(canvas, ui.Offset(run.x + dx, run.y - dy));
   }
 }
 
