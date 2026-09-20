@@ -1,30 +1,30 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Smoke test do app: com nenhuma partitura aberta, a tela inicial oferece o
+// botão de abrir e não tenta tocar no Verovio nativo (nada é renderizado até
+// um arquivo ser escolhido).
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zywny/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+  testWidgets('tela inicial pede uma partitura', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Abrir partitura'), findsOneWidget);
+    expect(find.text('nenhuma partitura'), findsOneWidget);
+    expect(
+      find.text('status: abra uma partitura (.mei, .musicxml, .mxml)'),
+      findsOneWidget,
+    );
+    // Sem documento não há página desenhada.
+    expect(find.byType(VsbPageView), findsNothing);
+    expect(find.text('—'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    // A página é derivada da caixa da partitura: depois do primeiro layout
+    // o painel mostra o tamanho em unidades do Verovio e em milímetros.
     await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.textContaining('zoom 1.0×'), findsOneWidget);
+    expect(find.textContaining('página '), findsOneWidget);
+    expect(find.textContaining(' mm)'), findsOneWidget);
   });
 }

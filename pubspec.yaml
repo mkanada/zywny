@@ -34,13 +34,19 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  dotlottie_flutter: ^0.1.7
   file_selector: ^1.0.3
+  # Descompactação dos dados do Verovio (assets/verovio_data.zip) e
+  # diretório de destino da extração — ver lib/verovio_resources.dart.
   archive: ^4.0.7
+  path_provider: ^2.1.5
+
+  # Bindings FFI do fork do Verovio que exporta `.vsb` (Verovio Score
+  # Bridge) e o pacote que lê esse formato e o desenha com CustomPaint.
+  # Ambos vivem no submódulo third_party/verovio_flutter_bridge.
   verovio:
-    path: third_party/verovio_lottie/verovio/bindings/dart
-  verovio_viewer:
-    path: third_party/verovio_lottie/verovio_viewer
+    path: third_party/verovio_flutter_bridge/verovio/bindings/dart
+  score_bridge:
+    path: third_party/verovio_flutter_bridge/score_bridge
 
 dev_dependencies:
   flutter_test:
@@ -65,10 +71,14 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/animacao.lottie
-    - assets/musica.json
-    # As fontes Verovio (Liberation + SMuFL) vêm do pacote verovio_viewer
-    # (verovioResourcePath()), não de um asset daqui.
+    # Fontes de gravação do Verovio (Bravura, Leipzig, ... + os TTFs
+    # Liberation de `data/text`), empacotadas num zip único porque o
+    # bundler de assets do Flutter lista diretórios sem recursão. Gerado
+    # por tool/build_verovio_assets.sh a partir do submódulo e extraído em
+    # runtime por lib/verovio_resources.dart. Não versionado.
+    - assets/verovio_data.zip
+  # A serifada do texto comum (Liberation Serif) vem do pacote
+  # score_bridge, registrada por loadScoreFonts().
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

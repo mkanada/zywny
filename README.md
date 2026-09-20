@@ -1,17 +1,53 @@
 # zywny
 
-A new Flutter project.
+App Flutter de e-learning musical: abre uma partitura (MEI/MusicXML), gera a
+cena no formato `.vsb` (*Verovio Score Bridge*) em runtime via FFI e a desenha
+com `CustomPaint`.
 
-## Getting Started
+Os dois pacotes que fazem isso vivem no submódulo
+[`third_party/verovio_flutter_bridge`](https://github.com/mkanada/verovio_flutter_bridge):
 
-This project is a starting point for a Flutter application.
+- **`verovio`** (`verovio/bindings/dart`) — bindings FFI do fork do Verovio que
+  exporta `.vsb` (`renderToBridgeFile`).
+- **`score_bridge`** — parser do `.vsb` e `ScenePainter`, que desenha a página
+  com paridade visual contra o SVG do próprio Verovio.
 
-A few resources to get you started if this is your first Flutter project:
+## Build
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Com [`just`](https://just.systems) (`just` sozinho lista as receitas):
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```sh
+just setup   # submódulo + libverovio.so + assets/verovio_data.zip + pub get
+just run     # flutter run -d linux --no-enable-impeller
+```
+
+Ou na mão:
+
+```sh
+git submodule update --init --recursive   # traz o verovio_flutter_bridge
+tool/build_verovio_linux.sh               # compila e strippa a libverovio.so
+tool/build_verovio_assets.sh              # gera assets/verovio_data.zip
+flutter pub get
+flutter run -d linux --no-enable-impeller
+```
+
+O `--no-enable-impeller` não é preferência: o backend Impeller no Linux não
+resolve o MSAA e serrilha todo o vetorial — [flutter#191171][aa], corrigido no
+master por [flutter#191379][aafix] (23/08/2026), ainda fora do stable 3.47.4.
+Numa partitura, que é path fino, o resultado é grosseiro. Quando o fix descer
+para o stable, comparar com `just run-impeller` e largar a flag.
+
+[aa]: https://github.com/flutter/flutter/issues/191171
+[aafix]: https://github.com/flutter/flutter/pull/191379
+
+Os dois artefatos gerados pelos scripts não são versionados:
+
+- `third_party/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so` —
+  `linux/CMakeLists.txt` a instala em `lib/` do bundle (RPATH `$ORIGIN/lib`);
+  em `flutter run` ela é achada na árvore do projeto (`lib/native_paths.dart`,
+  ou `VEROVIO_LIBRARY_PATH`).
+- `assets/verovio_data.zip` — as fontes de gravação (`verovio/data`) num zip
+  único, extraído na primeira execução por `lib/verovio_resources.dart`. Zip
+  porque o bundler de assets do Flutter não recursa em diretórios.
+
+Rode os dois scripts de novo sempre que o submódulo andar.

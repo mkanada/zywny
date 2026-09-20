@@ -1,14 +1,20 @@
+import 'dart:async';
 import 'dart:io';
 
-import 'package:dotlottie_flutter/dotlottie_flutter.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import 'package:verovio_viewer/verovio_viewer.dart';
+import 'package:score_bridge/score_bridge.dart';
 
 import 'native_paths.dart';
 import 'verovio_render.dart';
+import 'verovio_resources.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Liberation Serif (the `t` runs of the scene, §5.4) ships inside
+  // score_bridge and has to be registered before the first paint —
+  // otherwise the engine falls back to a system serif without warning.
+  await loadScoreFonts();
   runApp(const MyApp());
 }
 
@@ -18,7 +24,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'zywny • partitura → dotLottie',
+      title: 'zywny • partitura → .vsb',
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
       home: const ScoreHomePage(),
     );
@@ -33,24 +39,72 @@ class ScoreHomePage extends StatefulWidget {
 }
 
 class _ScoreHomePageState extends State<ScoreHomePage> {
-  final GlobalKey<ScoreViewerState> _viewerKey = GlobalKey();
-  DotLottieViewController? _controller;
-
   String? _scoreName;
   String? _inputPath;
-  String? _lottiePath;
+  VsbDocument? _document;
+  int _pageIndex = 0;
   String _status = 'abra uma partitura (.mei, .musicxml, .mxml)';
   bool _busy = false;
-  double _velocidade = 1.0;
 
-  /// Render tuning (see the "Ajustes de render" panel). Values persist
-  /// across files so the best size for this screen is tuned once.
-  /// Defaults: 3700×1350 (see [kDefaultPageWidth]/[kDefaultPageHeight]).
-  double _pageWidth = kDefaultPageWidth.toDouble();
-  double _pageHeight = kDefaultPageHeight.toDouble();
+  /// Size of the score box in device pixels, from the [LayoutBuilder] in
+  /// [_buildScoreArea]. The page is engraved for exactly this box, so there
+  /// is nothing to render before the first layout.
+  Size? _boxDevicePx;
+  Timer? _resizeDebounce;
 
-  int get _pageCount => _viewerKey.currentState?.pageCount ?? 1;
-  int get _currentPage => _viewerKey.currentState?.currentPage ?? 0;
+  /// Zoom, as a multiplier on how large the notation is displayed. The page
+  /// is [_boxDevicePx] divided by this, so 2x asks for a page half the size
+  /// in millimetres: fewer systems on it, each one twice as large on screen,
+  /// and more pages for the piece.
+  double _zoom = 1.0;
+
+  int get _pageCount => _document?.pages.length ?? 0;
+
+  /// Paper size, in tenths of a millimetre, that makes one device pixel one
+  /// unit — i.e. the page is engraved at 254 dpi and drawn 1:1, which is the
+  /// configuration `compare` measured against the reference SVG. Anything
+  /// larger would show the notation shrunk, pushing stroke widths below a
+  /// pixel (a 0.13 mm staff line needs ~7.7 px/mm to survive).
+  int get _pageWidth => (_boxDevicePx!.width / _zoom)
+      .round()
+      .clamp(kVerovioMinPageWidth, kVerovioMaxPageWidth);
+
+  int get _pageHeight => (_boxDevicePx!.height / _zoom)
+      .round()
+      .clamp(kVerovioMinPageHeight, kVerovioMaxPageHeight);
+
+  @override
+  void dispose() {
+    _resizeDebounce?.cancel();
+    super.dispose();
+  }
+
+  /// Records the score box and re-engraves when it really changed.
+  ///
+  /// Called from `build`, so it must never call `setState` synchronously;
+  /// the re-render goes through a debounce both for that and because a
+  /// window drag emits a size per frame, each one an FFI render away.
+  void _onBoxSize(Size devicePx) {
+    final previous = _boxDevicePx;
+    if (previous == devicePx) return;
+    _boxDevicePx = devicePx;
+    if (previous == null) {
+      // First layout: the tuning panel was built before the box was known,
+      // so it is still showing no page size. Nothing to re-render yet.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    if (_inputPath == null) return;
+    // 2% of slack: a one-pixel wobble is not worth re-engraving the piece.
+    final changed =
+        (previous.width - devicePx.width).abs() / previous.width > 0.02 ||
+            (previous.height - devicePx.height).abs() / previous.height > 0.02;
+    if (!changed) return;
+    _resizeDebounce?.cancel();
+    _resizeDebounce = Timer(const Duration(milliseconds: 400), _renderAndShow);
+  }
 
   Future<void> _abrirPartitura() async {
     if (_busy) return;
@@ -65,6 +119,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     setState(() {
       _inputPath = file.path;
       _scoreName = file.name;
+      _pageIndex = 0;
     });
     await _renderAndShow();
   }
@@ -72,28 +127,29 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Renders [_inputPath] with the current tuning values and displays it.
   Future<void> _renderAndShow() async {
     final inputPath = _inputPath;
-    if (inputPath == null || _busy) return;
+    if (inputPath == null || _busy || _boxDevicePx == null) return;
     if (!mounted) return;
 
-    final pageWidth = _pageWidth.toInt();
-    final pageHeight = _pageHeight.toInt();
+    final pageWidth = _pageWidth;
+    final pageHeight = _pageHeight;
 
     setState(() {
       _busy = true;
-      _status = 'gerando dotLottie…';
-      _controller = null;
+      _status = 'gerando .vsb…';
+      _document = null;
     });
 
     try {
       final tmpDir = await Directory.systemTemp.createTemp('zywny');
-      final outPath = '${tmpDir.path}/score.lottie';
+      final outPath = '${tmpDir.path}/score.vsb';
       final name = _scoreName ?? '';
 
-      setState(() => _status =
-          'renderizando $name ($pageWidth×$pageHeight)…');
+      setState(
+        () => _status = 'renderizando $name ($pageWidth×$pageHeight)…',
+      );
 
-      await renderScoreToDotLottie(
-        VerovioRenderRequest(
+      final document = await renderScoreToVsb(
+        VsbRenderRequest(
           inputPath: inputPath,
           outputPath: outPath,
           libraryPath: findVerovioLibrary(),
@@ -105,9 +161,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
       if (!mounted) return;
       setState(() {
-        // Novo caminho => Key nova (ver [ScoreViewer]) => o player recarrega.
-        _lottiePath = outPath;
-        _status = 'carregando ($pageWidth×$pageHeight)…';
+        _document = document;
+        // A new page size reflows the score: the page we were on may not
+        // exist any more.
+        _pageIndex = _pageIndex.clamp(0, document.pages.length - 1);
+        _status = document.pages.length > 1
+            ? 'página ${_pageIndex + 1} de ${document.pages.length}'
+            : 'carregada ✓';
         _busy = false;
       });
     } catch (e) {
@@ -119,21 +179,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
   }
 
-  void _onScoreViewerReady() {
-    if (!mounted) return;
+  void _goToPage(int page) {
+    if (_pageCount == 0) return;
+    final target = page.clamp(0, _pageCount - 1);
     setState(() {
+      _pageIndex = target;
       _status = _pageCount > 1
-          ? 'página ${_currentPage + 1} de $_pageCount'
-          : 'carregada ✓';
-    });
-  }
-
-  Future<void> _goToPage(int page) async {
-    await _viewerKey.currentState?.goToPage(page);
-    if (!mounted) return;
-    setState(() {
-      _status = _pageCount > 1
-          ? 'página ${_currentPage + 1} de $_pageCount'
+          ? 'página ${target + 1} de $_pageCount'
           : 'pronto ✓';
     });
   }
@@ -169,7 +221,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         SizedBox(
           width: 88,
           child: Text(
-            '${value.toInt()}$suffix',
+            '${value.toStringAsFixed(1)}$suffix',
             textAlign: TextAlign.end,
             style: Theme.of(context).textTheme.bodySmall,
           ),
@@ -178,12 +230,35 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
+  Widget _buildScoreArea() {
+    // The page is engraved for this box, so its size has to be known before
+    // the first render — hence measuring here rather than off the window.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dpr = MediaQuery.devicePixelRatioOf(context);
+        _onBoxSize(constraints.biggest * dpr);
+
+        if (_busy) return const Center(child: CircularProgressIndicator());
+        final document = _document;
+        if (document == null || document.pages.isEmpty) {
+          return const Center(
+            child: Icon(Icons.music_note, size: 64, color: Colors.grey),
+          );
+        }
+        return VsbPageView(
+          document: document,
+          pageIndex: _pageIndex.clamp(0, document.pages.length - 1),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Text('zywny • partitura → dotLottie'),
+        title: const Text('zywny • partitura → .vsb'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(12),
@@ -212,90 +287,34 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               tilePadding: EdgeInsets.zero,
               title: const Text('Ajustes de render'),
               subtitle: Text(
-                '${_pageWidth.toInt()}×${_pageHeight.toInt()}',
+                _boxDevicePx == null
+                    ? 'zoom ${_zoom.toStringAsFixed(1)}×'
+                    : 'zoom ${_zoom.toStringAsFixed(1)}× • '
+                        'página $_pageWidth×$_pageHeight '
+                        '(${(_pageWidth / 10).round()}×'
+                        '${(_pageHeight / 10).round()} mm)',
               ),
               children: [
                 _tuningSlider(
-                  label: 'Largura',
-                  value: _pageWidth,
-                  min: kVerovioMinPageWidth.toDouble(),
-                  max: kVerovioMaxPageWidth.toDouble(),
-                  divisions: 95,
-                  onChanged: (v) => setState(() => _pageWidth = v),
-                ),
-                _tuningSlider(
-                  label: 'Altura',
-                  value: _pageHeight,
-                  min: kVerovioMinPageHeight.toDouble(),
-                  max: kVerovioMaxPageHeight.toDouble(),
-                  divisions: 114,
-                  onChanged: (v) => setState(() => _pageHeight = v),
+                  label: 'Zoom',
+                  value: _zoom,
+                  min: 0.5,
+                  max: 3.0,
+                  divisions: 25,
+                  onChanged: (v) => setState(() => _zoom = v),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            // Score view locked to the page aspect: the fitted box always
-            // matches the rendered page exactly, so the display scale stays
-            // constant (no letterbox bands, no cropping) whatever the
-            // window size. The plugin itself only offers fit modes
-            // (contain/cover/… via setLayout) — constancy comes from the
-            // matched aspects, not from a player flag.
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final pageAspect = _pageWidth / _pageHeight;
-                  var w = constraints.maxWidth;
-                  var h = w / pageAspect;
-                  if (h > constraints.maxHeight) {
-                    h = constraints.maxHeight;
-                    w = h * pageAspect;
-                  }
-                  return Center(
-                    child: SizedBox(
-                      width: w,
-                      height: h,
-                      child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.deepPurple.shade100),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: _busy
-                        ? const Center(child: CircularProgressIndicator())
-                        : _lottiePath == null
-                            ? const Center(
-                                child: Icon(
-                                  Icons.music_note,
-                                  size: 64,
-                                  color: Colors.grey,
-                                ),
-                              )
-                            : ScoreViewer(
-                                key: _viewerKey,
-                                lottiePath: _lottiePath!,
-                                // Page aspect matches this box by
-                                // construction, so contain fills it exactly.
-                                fit: BoxFit.contain,
-                                speed: _velocidade,
-                                onControllerReady: (c) => _controller = c,
-                                onReady: _onScoreViewerReady,
-                                onError: (e) => setState(
-                                  () => _status = 'erro ao carregar ✗',
-                                ),
-                                onPlay: () =>
-                                    setState(() => _status = 'tocando ▶'),
-                                onPause: () =>
-                                    setState(() => _status = 'pausada ⏸'),
-                                onStop: () =>
-                                    setState(() => _status = 'parada ⏹'),
-                                onComplete: () =>
-                                    setState(() => _status = 'concluída ✓'),
-                              ),
-                      ),
-                    ),
-                  );
-                },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.deepPurple.shade100),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _buildScoreArea(),
               ),
             ),
             const SizedBox(height: 8),
@@ -308,50 +327,23 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               children: [
                 IconButton.filledTonal(
                   tooltip: 'Página anterior',
-                  onPressed: _pageCount > 1 && !_busy
-                      ? () => _goToPage(_currentPage - 1)
+                  onPressed: _pageIndex > 0 && !_busy
+                      ? () => _goToPage(_pageIndex - 1)
                       : null,
                   icon: const Icon(Icons.chevron_left),
                 ),
+                Text(
+                  _pageCount == 0
+                      ? '—'
+                      : '${_pageIndex + 1} / $_pageCount',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
                 IconButton.filledTonal(
                   tooltip: 'Próxima página',
-                  onPressed: _pageCount > 1 && !_busy
-                      ? () => _goToPage(_currentPage + 1)
+                  onPressed: _pageIndex < _pageCount - 1 && !_busy
+                      ? () => _goToPage(_pageIndex + 1)
                       : null,
                   icon: const Icon(Icons.chevron_right),
-                ),
-                FilledButton.icon(
-                  onPressed: () => _controller?.play(),
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Play'),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () => _controller?.pause(),
-                  icon: const Icon(Icons.pause),
-                  label: const Text('Pause'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _controller?.stop(),
-                  icon: const Icon(Icons.stop),
-                  label: const Text('Stop'),
-                ),
-                const SizedBox(width: 8),
-                const Text('Velocidade: '),
-                DropdownButton<double>(
-                  value: _velocidade,
-                  items: const [0.5, 1.0, 1.5, 2.0]
-                      .map(
-                        (v) => DropdownMenuItem(
-                          value: v,
-                          child: Text('${v}x'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    setState(() => _velocidade = v);
-                    await _controller?.setSpeed(v);
-                  },
                 ),
               ],
             ),
@@ -360,4 +352,72 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       ),
     );
   }
+}
+
+/// Draws one page of a parsed `.vsb` with [ScenePainter], keeping the page
+/// aspect and centring it in whatever box the parent gives.
+///
+/// Named `VsbPageView`, not `ScorePageView`: the plan's phase A gives
+/// `score_bridge` a `ScorePageView` of its own (layered `CustomPaint` plus a
+/// `ScoreController`), and an unqualified import of both would clash. When
+/// that lands, this widget is what it replaces.
+///
+/// The page is a fixed-size drawing ([ScenePage.widthPx]/[ScenePage.heightPx]
+/// are the dimensions of the Verovio `<svg>` root); the painter already
+/// applies the page fit, so all that is left here is a uniform scale from
+/// those pixels to the widget box.
+class VsbPageView extends StatelessWidget {
+  const VsbPageView({
+    super.key,
+    required this.document,
+    required this.pageIndex,
+  });
+
+  final VsbDocument document;
+  final int pageIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final page = document.pages[pageIndex];
+    return Center(
+      child: AspectRatio(
+        aspectRatio: page.widthPx / page.heightPx,
+        child: ColoredBox(
+          color: Colors.white,
+          child: CustomPaint(
+            painter: _ScenePageCustomPainter(document, page),
+            size: Size.infinite,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScenePageCustomPainter extends CustomPainter {
+  _ScenePageCustomPainter(this.document, this.page);
+
+  final VsbDocument document;
+  final ScenePage page;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    // AspectRatio keeps both factors equal; computing them separately just
+    // avoids depending on that for correctness.
+    canvas.scale(size.width / page.widthPx, size.height / page.heightPx);
+    // The glyph outline cache lives on the document, so flipping pages back
+    // and forth never rebuilds a `ui.Path`.
+    ScenePainter(
+      page,
+      document.glyphs,
+      glyphCache: document.glyphCache,
+    ).paint(canvas);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ScenePageCustomPainter oldDelegate) =>
+      !identical(oldDelegate.page, page) ||
+      !identical(oldDelegate.document, document);
 }

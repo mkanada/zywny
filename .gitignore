@@ -47,9 +47,9 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# Verovio music fonts — fetched from the submodule, regenerable
-# (run tool/fetch_verovio_assets.sh).
-/assets/verovio_data/
+# Verovio engraving resources — generated from the submodule, regenerable
+# (run tool/build_verovio_assets.sh).
+/assets/verovio_data.zip
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/

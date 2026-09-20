@@ -106,10 +106,10 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
-# verovio_lottie native library, built from the third_party submodule
-# (tool/build_verovio_linux.sh). RPATH is already $ORIGIN/lib above, so
-# DynamicLibrary.open('libverovio.so') resolves it at runtime.
-set(VEROVIO_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/verovio_lottie/verovio/bindings/dart/libverovio.so")
+# Verovio native library, built from the third_party/verovio_flutter_bridge
+# submodule (tool/build_verovio_linux.sh). RPATH is already $ORIGIN/lib
+# above, so DynamicLibrary.open('libverovio.so') resolves it at runtime.
+set(VEROVIO_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so")
 if(EXISTS "${VEROVIO_LIB}")
   install(FILES "${VEROVIO_LIB}"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
@@ -118,11 +118,11 @@ else()
   message(WARNING "libverovio.so not found at ${VEROVIO_LIB}; run tool/build_verovio_linux.sh")
 endif()
 
-# Verovio music-font resources (Bravura, Liberation text fonts, ...) are no
-# longer installed here: they ship inside verovio_viewer as a bundled
-# Flutter asset (a single zip, unpacked at runtime by its
-# `verovioResourcePath()`), which sidesteps the same non-recursive
-# asset-bundler limitation this block used to work around directly.
+# Verovio engraving resources (Bravura, Liberation text fonts, ...) are not
+# installed here: they ship as the single zip asset assets/verovio_data.zip
+# (tool/build_verovio_assets.sh), unpacked at runtime by
+# `verovioResourcePath()` in lib/verovio_resources.dart. A zip sidesteps the
+# non-recursive Flutter asset bundler.
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
