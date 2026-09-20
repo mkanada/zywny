@@ -5,6 +5,10 @@
 // Desenha formas `p`/`r`/`e` com preenchimento e traço (§5.2/§6), usos de
 // glifo `u` (§5.3) via `GlyphCache` (R03a) e texto comum (§5.4) via
 // `painterForRun` (R04a/R04b) com os três alinhamentos (R04c).
+//
+// O percurso da árvore em si (ordem, `hidden`, cor herdada) vive em
+// `scene_walk.dart` e é compartilhado com a segmentação (A01a); aqui só há o
+// visitante que desenha.
 library;
 
 import 'dart:math' as math;
@@ -14,6 +18,7 @@ import 'dash.dart';
 import 'geometry.dart';
 import 'glyph_cache.dart';
 import 'model.dart';
+import 'scene_walk.dart';
 import 'text_run.dart';
 
 /// Pinta uma página da cena num [Canvas] (§3/§5.1/§6).
@@ -58,53 +63,31 @@ class ScenePainter {
     canvas.scale(page.fit.scale);
     canvas.translate(page.origin.dx, page.origin.dy);
     // Pilha de cor começa em preto opaco: o `color="black"` do
-    // `<svg class="definition-scale">` (§6).
-    _paintNode(canvas, page.root, const ui.Color(0xFF000000));
+    // `<svg class="definition-scale">` (§6). O percurso é o de `walkScene`,
+    // o mesmo da segmentação (A01a).
+    walkScene(
+      page.root,
+      const ui.Color(0xFF000000),
+      _CanvasVisitor(this, canvas),
+      colorOverrides: colorOverrides,
+    );
   }
 
-  void _paintNode(ui.Canvas canvas, SceneNode node, ui.Color current) {
-    if (node.hidden) {
-      return;
-    }
-    // Uma conversão `#rrggbb` -> `Color` por nó, não por forma.
-    ui.Color color = current;
-    final override = node.id == null ? null : colorOverrides[node.id];
-    if (override != null) {
-      color = override;
-    } else if (node.color != null) {
-      color = _parseCssColor(node.color!);
-    }
-    if (node.rotate != null) {
-      final r = node.rotate!;
-      canvas.save();
-      canvas.translate(r.origin.dx, r.origin.dy);
-      canvas.rotate(r.angle * math.pi / 180.0);
-      canvas.translate(-r.origin.dx, -r.origin.dy);
-      for (final child in node.children) {
-        _paintChild(canvas, child, color);
-      }
-      canvas.restore();
-    } else {
-      for (final child in node.children) {
-        _paintChild(canvas, child, color);
-      }
-    }
-  }
-
-  void _paintChild(ui.Canvas canvas, SceneChild child, ui.Color current) {
-    switch (child) {
+  void _paintLeaf(ui.Canvas canvas, SceneChild leaf, ui.Color current) {
+    switch (leaf) {
       case SceneNode():
-        _paintNode(canvas, child, current);
+        // Grupos são tratados por `walkScene`; nunca chegam como folha.
+        return;
       case ScenePath():
-        _drawShape(canvas, child, child.path, current);
+        _drawShape(canvas, leaf, leaf.path, current);
       case SceneRect():
-        _drawShape(canvas, child, child.path, current);
+        _drawShape(canvas, leaf, leaf.path, current);
       case SceneEllipse():
-        _drawShape(canvas, child, child.path, current);
+        _drawShape(canvas, leaf, leaf.path, current);
       case SceneGlyphUse():
-        _drawGlyphUse(canvas, child, current);
+        _drawGlyphUse(canvas, leaf, current);
       case SceneText():
-        _drawText(canvas, child, current);
+        _drawText(canvas, leaf, current);
     }
   }
 
@@ -252,7 +235,7 @@ class ScenePainter {
   /// medida sobre `x`, `right` (=`end`) termina em `x`. `painter.width` já
   /// inclui o `letterSpacing` final (sondado em R04c), como o `resvg`.
   void _drawText(ui.Canvas canvas, SceneText run, ui.Color current) {
-    final color = run.color == null ? current : _parseCssColor(run.color!);
+    final color = run.color == null ? current : parseCssColor(run.color!);
     final painter = painterForRun(run, color);
     final dy = painter.computeDistanceToActualBaseline(
       ui.TextBaseline.alphabetic,
@@ -265,6 +248,38 @@ class ScenePainter {
       SceneTextAlign.right => -painter.width,
     };
     painter.paint(canvas, ui.Offset(run.x + dx, run.y - dy));
+  }
+}
+
+/// Visitante que pinta o percurso de [walkScene] num [ui.Canvas]: `rotate`
+/// vira `save/translate/rotate/translate` na entrada e `restore` na saída.
+class _CanvasVisitor implements SceneVisitor {
+  _CanvasVisitor(this._painter, this._canvas);
+
+  final ScenePainter _painter;
+  final ui.Canvas _canvas;
+
+  @override
+  bool enterGroup(SceneNode node, ui.Color inheritedColor, ui.Color color) {
+    final r = node.rotate;
+    if (r != null) {
+      _canvas.save();
+      _canvas.translate(r.origin.dx, r.origin.dy);
+      _canvas.rotate(r.angle * math.pi / 180.0);
+      _canvas.translate(-r.origin.dx, -r.origin.dy);
+    }
+    return true;
+  }
+
+  @override
+  void visitLeaf(SceneChild leaf, ui.Color color) =>
+      _painter._paintLeaf(_canvas, leaf, color);
+
+  @override
+  void exitGroup(SceneNode node) {
+    if (node.rotate != null) {
+      _canvas.restore();
+    }
   }
 }
 
@@ -282,7 +297,7 @@ ui.Color? _resolveChannelColor(
     return null;
   }
   final ui.Color base = paint is ColorPaint
-      ? _parseCssColor(paint.hex)
+      ? parseCssColor(paint.hex)
       : current;
   if (opacity >= 1.0) {
     return base;
@@ -324,9 +339,4 @@ ui.StrokeJoin _toStrokeJoin(SceneLineJoin join) {
     case SceneLineJoin.round:
       return ui.StrokeJoin.round;
   }
-}
-
-/// Converte `#rrggbb` (minúsculo, conforme §7) em [ui.Color] opaca.
-ui.Color _parseCssColor(String hex) {
-  return ui.Color(0xFF000000 | int.parse(hex.substring(1), radix: 16));
 }

@@ -329,11 +329,7 @@ class _PageIndex {
   int nodePath = -1;
 }
 
-SceneNode _parseNode(
-  Map<String, dynamic> json,
-  String path,
-  _PageIndex index,
-) {
+SceneNode _parseNode(Map<String, dynamic> json, String path, _PageIndex index) {
   final id = json['id'] == null ? null : _asString(json['id'], '$path.id');
   final className = json['class'] == null
       ? ''
