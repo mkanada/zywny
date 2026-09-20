@@ -274,22 +274,9 @@ ScenePage _parseScenePage(Map<String, dynamic> json, String path) {
   );
 
   final rootJson = _requireMap(json, 'root', path, fieldPath: '$path.root');
-  final byId = <String, SceneNode>{};
-  final root = _parseNode(rootJson, '$path.root', byId);
-
-  final elementsJson = _requireList(
-    json,
-    'elements',
-    path,
-    fieldPath: '$path.elements',
-  );
-  final elements = <IndexEntry>[
-    for (var k = 0; k < elementsJson.length; k++)
-      _parseIndexEntry(
-        _asMap(elementsJson[k], '$path.elements[$k]'),
-        '$path.elements[$k]',
-      ),
-  ];
+  // `elements` não vem do JSON: é derivado desta mesma passada (§5.5).
+  final index = _PageIndex();
+  final root = _parseNode(rootJson, '$path.root', index);
 
   return ScenePage(
     index: _asInt(_requireField(json, 'index', path), '$path.index'),
@@ -325,24 +312,27 @@ ScenePage _parseScenePage(Map<String, dynamic> json, String path) {
     fit: fit,
     origin: _asOffset(_requireField(json, 'origin', path), '$path.origin'),
     root: root,
-    elements: elements,
-    byId: byId,
+    elements: index.elements,
+    byId: index.byId,
   );
 }
 
-IndexEntry _parseIndexEntry(Map<String, dynamic> json, String path) {
-  return IndexEntry(
-    id: _asString(_requireField(json, 'id', path), '$path.id'),
-    className: _asString(_requireField(json, 'class', path), '$path.class'),
-    nodePath: _asInt(_requireField(json, 'nodePath', path), '$path.nodePath'),
-    bbox: _asRect(_requireField(json, 'bbox', path), '$path.bbox'),
-  );
+/// Acumuladores derivados do percurso da árvore de uma página: o mapa
+/// `xml:id` → nó e o índice plano de §5.5, que o formato não carrega.
+///
+/// `nodePath` é a posição em pré-ordem contando **só nós de grupo** (a raiz é
+/// 0), como manda §5.5; por isso o contador avança em [_parseNode] e a entrada
+/// é anexada antes dos filhos, o que mantém [elements] em pré-ordem.
+class _PageIndex {
+  final Map<String, SceneNode> byId = <String, SceneNode>{};
+  final List<IndexEntry> elements = <IndexEntry>[];
+  int nodePath = -1;
 }
 
 SceneNode _parseNode(
   Map<String, dynamic> json,
   String path,
-  Map<String, SceneNode> byId,
+  _PageIndex index,
 ) {
   final id = json['id'] == null ? null : _asString(json['id'], '$path.id');
   final className = json['class'] == null
@@ -361,6 +351,21 @@ SceneNode _parseNode(
       ? null
       : _asRect(json['bbox'], '$path.bbox');
 
+  // Antes dos filhos: mantém [_PageIndex.elements] em pré-ordem. Um nó com
+  // `id` mas sem bbox (milestone, grupo vazio) indexa `Rect.zero`, que é o
+  // `[0, 0, 0, 0]` que o formato gravava (§5.5).
+  final nodePath = ++index.nodePath;
+  if (id != null) {
+    index.elements.add(
+      IndexEntry(
+        id: id,
+        className: className,
+        nodePath: nodePath,
+        bbox: bbox ?? Rect.zero,
+      ),
+    );
+  }
+
   final childrenJson = json['children'];
   if (childrenJson is! List) {
     throw VsbFormatException(
@@ -373,7 +378,7 @@ SceneNode _parseNode(
       _parseChild(
         _asMap(childrenJson[k], '$path.children[$k]'),
         '$path.children[$k]',
-        byId,
+        index,
       ),
   ];
 
@@ -387,7 +392,7 @@ SceneNode _parseNode(
     children: children,
   );
   if (id != null) {
-    byId[id] = node;
+    index.byId[id] = node;
   }
   return node;
 }
@@ -402,12 +407,12 @@ SceneRotate _parseRotate(Map<String, dynamic> json, String path) {
 SceneChild _parseChild(
   Map<String, dynamic> json,
   String path,
-  Map<String, SceneNode> byId,
+  _PageIndex index,
 ) {
   final t = _asString(_requireField(json, 't', path), '$path.t');
   switch (t) {
     case 'g':
-      return _parseNode(json, path, byId);
+      return _parseNode(json, path, index);
     case 'p':
       return _parseScenePath(json, path);
     case 'r':

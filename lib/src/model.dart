@@ -174,7 +174,8 @@ class PageFit {
   const PageFit({required this.scale, required this.tx, required this.ty});
 }
 
-/// Entrada de `pages[].elements` (§5.5).
+/// Entrada do índice plano de elementos endereçáveis (§5.5), derivada da
+/// árvore no parse — o formato não a carrega.
 class IndexEntry {
   final String id;
   final String className;
@@ -206,6 +207,9 @@ class ScenePage {
   final PageFit fit;
   final Offset origin;
   final SceneNode root;
+
+  /// Índice plano de elementos endereçáveis em pré-ordem (§5.5). Como [byId],
+  /// é construído no percurso da árvore durante o parse — não vem do JSON.
   final List<IndexEntry> elements;
 
   /// Índice `xml:id` → nó, construído numa única passada de percurso da
