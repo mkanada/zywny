@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:score_bridge/score_bridge.dart';
 
 import 'package:zywny/main.dart';
 
@@ -34,7 +35,7 @@ void main() {
       findsOneWidget,
     );
     // Sem documento não há página desenhada.
-    expect(find.byType(VsbPageView), findsNothing);
+    expect(find.byType(ScorePageView), findsNothing);
     expect(find.text('—'), findsOneWidget);
 
     // Zoom flutuando sobre a partitura, começando em 100%; o painel de

@@ -1,7 +1,7 @@
 # zywny — tarefas do projeto (https://just.systems)
 #
 #   just            lista as receitas
-#   just setup      submódulo + libverovio.so + assets + pub get
+#   just setup      libverovio.so + assets + pub get
 #   just run        roda no Linux, sem Impeller
 #
 # Por que sem Impeller: o backend do Flutter no Linux não resolve o MSAA,
@@ -38,14 +38,10 @@ run-release: build-release
     FLUTTER_ENGINE_SWITCHES=1 FLUTTER_ENGINE_SWITCH_1=enable-impeller=false ./{{linux_bundle}}
 
 # Preparação completa a partir de um clone limpo.
-setup: submodules native assets
+setup: native assets
     flutter pub get
 
-# Traz/atualiza third_party/verovio_flutter_bridge.
-submodules:
-    git submodule update --init --recursive
-
-# Compila a libverovio.so do submódulo (não versionada).
+# Compila a libverovio.so do verovio_flutter_bridge (não versionada).
 native:
     tool/build_verovio_linux.sh
 
@@ -53,7 +49,7 @@ native:
 assets:
     tool/build_verovio_assets.sh
 
-# Refaz .so e assets depois que o submódulo andar.
+# Refaz .so e assets depois que o verovio_flutter_bridge mudar.
 rebuild-deps: native assets
 
 # Testes Dart (headless — não passam pelo Impeller).

@@ -15,9 +15,8 @@ String findVerovioLibrary() {
     // Installed bundle: <bundle>/zywny -> <bundle>/lib/libverovio.so
     // (linux/CMakeLists.txt installs it there; RPATH is $ORIGIN/lib).
     '${File(Platform.resolvedExecutable).parent.path}/lib/libverovio.so',
-    // Dev fallback: built from the submodule via tool/build_verovio_linux.sh.
-    '${Directory.current.path}/third_party/verovio_flutter_bridge'
-        '/verovio/bindings/dart/libverovio.so',
+    // Dev fallback: built in verovio_flutter_bridge via tool/build_verovio_linux.sh.
+    '/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so',
   ];
   for (final c in candidates) {
     if (File(c).existsSync()) return c;

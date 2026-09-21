@@ -419,8 +419,8 @@ packages:
   score_bridge:
     dependency: "direct main"
     description:
-      path: "third_party/verovio_flutter_bridge/score_bridge"
-      relative: true
+      path: "/home/mauricio/rust_projects/verovio_flutter_bridge/score_bridge"
+      relative: false
     source: path
     version: "0.0.1"
   sky_engine:
@@ -495,8 +495,8 @@ packages:
   verovio:
     dependency: "direct main"
     description:
-      path: "third_party/verovio_flutter_bridge/verovio/bindings/dart"
-      relative: true
+      path: "/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart"
+      relative: false
     source: path
     version: "0.1.0"
   vm_service:

@@ -106,10 +106,10 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
-# Verovio native library, built from the third_party/verovio_flutter_bridge
-# submodule (tool/build_verovio_linux.sh). RPATH is already $ORIGIN/lib
+# Verovio native library, built from /home/mauricio/rust_projects/verovio_flutter_bridge
+# (tool/build_verovio_linux.sh). RPATH is already $ORIGIN/lib
 # above, so DynamicLibrary.open('libverovio.so') resolves it at runtime.
-set(VEROVIO_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so")
+set(VEROVIO_LIB "/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so")
 if(EXISTS "${VEROVIO_LIB}")
   install(FILES "${VEROVIO_LIB}"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"

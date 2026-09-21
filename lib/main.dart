@@ -5,6 +5,7 @@ import 'dart:math' as math;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
 
@@ -48,7 +49,8 @@ class ScoreHomePage extends StatefulWidget {
 const double kZoomMin = 0.5;
 const double kZoomMax = 8.0;
 
-class _ScoreHomePageState extends State<ScoreHomePage> {
+class _ScoreHomePageState extends State<ScoreHomePage>
+    with SingleTickerProviderStateMixin {
   String? _scoreName;
   String? _inputPath;
   VsbDocument? _document;
@@ -85,6 +87,24 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   int get _pageCount => _document?.pages.length ?? 0;
 
+  /// Note highlights. Repaints the page through its own listenable, so
+  /// playback never rebuilds this widget.
+  final ScoreController _controller = ScoreController();
+
+  /// Playback walks `document.timemap` against a clock: [_ticker] runs while
+  /// playing, [_playhead] is the score time (ms) it has reached, and
+  /// [_nextEntry] is the first timemap entry not yet fired.
+  late final Ticker _ticker = createTicker(_onTick);
+  bool _playing = false;
+  Duration _playhead = Duration.zero;
+  Duration _resumedAt = Duration.zero;
+  int _nextEntry = 0;
+
+  /// `xml:id` → page index, so playback can follow the notes across pages.
+  Map<String, int> _pageOfId = const {};
+
+  bool get _canPlay => (_document?.timemap?.isNotEmpty ?? false) && !_busy;
+
   /// Paper size, in tenths of a millimetre, that makes one device pixel one
   /// unit — i.e. the page is engraved at 254 dpi and drawn 1:1, which is the
   /// configuration `compare` measured against the reference SVG. Anything
@@ -114,6 +134,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   @override
   void dispose() {
     _resizeDebounce?.cancel();
+    _ticker.dispose();
+    _controller.dispose();
     _view.dispose();
     super.dispose();
   }
@@ -215,6 +237,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       );
 
       if (!mounted) return;
+      // A new engraving has new ids (and possibly new pages): drop the
+      // playback that belonged to the old one.
+      _stop();
+      _controller.attachDocument(document);
+      _pageOfId = {
+        for (final page in document.pages)
+          for (final id in page.byId.keys) id: page.index,
+      };
       setState(() {
         _document = document;
         // New options reflow the score: the page we were on may not exist
@@ -240,6 +270,63 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (mounted && _renderQueued) {
       _renderQueued = false;
       unawaited(_renderAndShow());
+    }
+  }
+
+  void _togglePlay() {
+    if (_playing) {
+      _ticker.stop();
+      _controller.releaseAll();
+      setState(() => _playing = false);
+      return;
+    }
+    final timemap = _document?.timemap;
+    if (timemap == null || timemap.isEmpty) return;
+    if (_nextEntry >= timemap.length) {
+      _playhead = Duration.zero;
+      _nextEntry = 0;
+    }
+    _resumedAt = _playhead;
+    _ticker.start();
+    setState(() => _playing = true);
+  }
+
+  /// Stops playback and rewinds to the start.
+  void _stop() {
+    if (_ticker.isActive) _ticker.stop();
+    _controller.clearAll();
+    _playhead = Duration.zero;
+    _nextEntry = 0;
+    if (_playing && mounted) setState(() => _playing = false);
+    _playing = false;
+  }
+
+  /// Fires every timemap entry whose `tstamp` (ms) the clock has passed.
+  void _onTick(Duration elapsed) {
+    final timemap = _document?.timemap;
+    if (timemap == null) return;
+    _playhead = _resumedAt + elapsed;
+    final ms = _playhead.inMicroseconds / 1000;
+    int? followPage;
+    while (_nextEntry < timemap.length && timemap[_nextEntry].tstamp <= ms) {
+      final entry = timemap[_nextEntry++];
+      for (final id in entry.off) {
+        _controller.release(id, duration: const Duration(milliseconds: 120));
+      }
+      _controller.highlightAll(
+        entry.on,
+        release: const Duration(milliseconds: 250),
+        hold: const Duration(days: 1),
+      );
+      for (final id in entry.on) {
+        followPage = _pageOfId[id] ?? followPage;
+      }
+    }
+    if (followPage != null && followPage != _pageIndex) _goToPage(followPage);
+    if (_nextEntry >= timemap.length) {
+      _ticker.stop();
+      _controller.releaseAll();
+      setState(() => _playing = false);
     }
   }
 
@@ -379,11 +466,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   math.min(constraints.maxWidth, constraints.maxHeight) / 2,
                 ),
                 child: hasPage
-                    ? VsbPageView(
-                        document: document,
-                        pageIndex: _pageIndex.clamp(
-                          0,
-                          document.pages.length - 1,
+                    ? Center(
+                        child: ScorePageView(
+                          document: document,
+                          pageIndex: _pageIndex.clamp(
+                            0,
+                            document.pages.length - 1,
+                          ),
+                          controller: _controller,
                         ),
                       )
                     : const Center(
@@ -489,6 +579,18 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               spacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                IconButton.filled(
+                  tooltip: _playing ? 'Pausar' : 'Tocar (destacar notas)',
+                  onPressed: _canPlay ? _togglePlay : null,
+                  icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
+                ),
+                IconButton.filledTonal(
+                  tooltip: 'Parar',
+                  onPressed: _canPlay && (_playing || _playhead > Duration.zero)
+                      ? _stop
+                      : null,
+                  icon: const Icon(Icons.stop),
+                ),
                 IconButton.filledTonal(
                   tooltip: 'Página anterior',
                   onPressed: _pageIndex > 0 && !_busy
@@ -514,72 +616,4 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       ),
     );
   }
-}
-
-/// Draws one page of a parsed `.vsb` with [ScenePainter], keeping the page
-/// aspect and centring it in whatever box the parent gives.
-///
-/// Named `VsbPageView`, not `ScorePageView`: the plan's phase A gives
-/// `score_bridge` a `ScorePageView` of its own (layered `CustomPaint` plus a
-/// `ScoreController`), and an unqualified import of both would clash. When
-/// that lands, this widget is what it replaces.
-///
-/// The page is a fixed-size drawing ([ScenePage.widthPx]/[ScenePage.heightPx]
-/// are the dimensions of the Verovio `<svg>` root); the painter already
-/// applies the page fit, so all that is left here is a uniform scale from
-/// those pixels to the widget box.
-class VsbPageView extends StatelessWidget {
-  const VsbPageView({
-    super.key,
-    required this.document,
-    required this.pageIndex,
-  });
-
-  final VsbDocument document;
-  final int pageIndex;
-
-  @override
-  Widget build(BuildContext context) {
-    final page = document.pages[pageIndex];
-    return Center(
-      child: AspectRatio(
-        aspectRatio: page.widthPx / page.heightPx,
-        child: ColoredBox(
-          color: Colors.white,
-          child: CustomPaint(
-            painter: _ScenePageCustomPainter(document, page),
-            size: Size.infinite,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ScenePageCustomPainter extends CustomPainter {
-  _ScenePageCustomPainter(this.document, this.page);
-
-  final VsbDocument document;
-  final ScenePage page;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.save();
-    // AspectRatio keeps both factors equal; computing them separately just
-    // avoids depending on that for correctness.
-    canvas.scale(size.width / page.widthPx, size.height / page.heightPx);
-    // The glyph outline cache lives on the document, so flipping pages back
-    // and forth never rebuilds a `ui.Path`.
-    ScenePainter(
-      page,
-      document.glyphs,
-      glyphCache: document.glyphCache,
-    ).paint(canvas);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_ScenePageCustomPainter oldDelegate) =>
-      !identical(oldDelegate.page, page) ||
-      !identical(oldDelegate.document, document);
 }

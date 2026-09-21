@@ -4,8 +4,8 @@ App Flutter de e-learning musical: abre uma partitura (MEI/MusicXML), gera a
 cena no formato `.vsb` (*Verovio Score Bridge*) em runtime via FFI e a desenha
 com `CustomPaint`.
 
-Os dois pacotes que fazem isso vivem no submódulo
-[`third_party/verovio_flutter_bridge`](https://github.com/mkanada/verovio_flutter_bridge):
+Os dois pacotes que fazem isso vivem no projeto
+[`/home/mauricio/rust_projects/verovio_flutter_bridge`](https://github.com/mkanada/verovio_flutter_bridge):
 
 - **`verovio`** (`verovio/bindings/dart`) — bindings FFI do fork do Verovio que
   exporta `.vsb` (`renderToBridgeFile`).
@@ -24,7 +24,6 @@ just run     # flutter run -d linux --no-enable-impeller
 Ou na mão:
 
 ```sh
-git submodule update --init --recursive   # traz o verovio_flutter_bridge
 tool/build_verovio_linux.sh               # compila e strippa a libverovio.so
 tool/build_verovio_assets.sh              # gera assets/verovio_data.zip
 flutter pub get
@@ -42,7 +41,7 @@ para o stable, comparar com `just run-impeller` e largar a flag.
 
 Os dois artefatos gerados pelos scripts não são versionados:
 
-- `third_party/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so` —
+- `/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so` —
   `linux/CMakeLists.txt` a instala em `lib/` do bundle (RPATH `$ORIGIN/lib`);
   em `flutter run` ela é achada na árvore do projeto (`lib/native_paths.dart`,
   ou `VEROVIO_LIBRARY_PATH`).

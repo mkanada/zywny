@@ -42,11 +42,11 @@ dependencies:
 
   # Bindings FFI do fork do Verovio que exporta `.vsb` (Verovio Score
   # Bridge) e o pacote que lê esse formato e o desenha com CustomPaint.
-  # Ambos vivem no submódulo third_party/verovio_flutter_bridge.
+  # Ambos vivem em /home/mauricio/rust_projects/verovio_flutter_bridge.
   verovio:
-    path: third_party/verovio_flutter_bridge/verovio/bindings/dart
+    path: /home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart
   score_bridge:
-    path: third_party/verovio_flutter_bridge/score_bridge
+    path: /home/mauricio/rust_projects/verovio_flutter_bridge/score_bridge
 
 dev_dependencies:
   flutter_test:
@@ -74,7 +74,7 @@ flutter:
     # Fontes de gravação do Verovio (Bravura, Leipzig, ... + os TTFs
     # Liberation de `data/text`), empacotadas num zip único porque o
     # bundler de assets do Flutter lista diretórios sem recursão. Gerado
-    # por tool/build_verovio_assets.sh a partir do submódulo e extraído em
+    # por tool/build_verovio_assets.sh a partir do verovio_flutter_bridge e extraído em
     # runtime por lib/verovio_resources.dart. Não versionado.
     - assets/verovio_data.zip
   # A serifada do texto comum (Liberation Serif) vem do pacote

@@ -16,7 +16,7 @@ Future<String>? _resourcePathFuture;
 /// Extracts (once per process) the Verovio engraving resources bundled with
 /// the app and returns the directory holding them — pass it straight as the
 /// Toolkit's `resourcePath`. Same tree as `verovio/data/` in the
-/// `verovio_flutter_bridge` submodule (Bravura, Leipzig, Gootville,
+/// `verovio_flutter_bridge` project (Bravura, Leipzig, Gootville,
 /// Petaluma, Leland and `text/` with the Liberation TTFs and metrics).
 ///
 /// Bundled as a single zip asset rather than raw files: Flutter's asset
