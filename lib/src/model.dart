@@ -61,27 +61,64 @@ class VsbManifestFiles {
   final String scene;
   final String glyphs;
   final String? timemap;
+  final String? meta;
 
   const VsbManifestFiles({
     required this.scene,
     required this.glyphs,
     this.timemap,
+    this.meta,
   });
 }
 
-/// Documento completo: manifest + dicionário de glifos + páginas + timemap
-/// opcional (§2.2).
+/// Uma pessoa creditada em `meta.json` (§2.3).
+class VsbCreator {
+  final String name;
+
+  /// `composer`, `lyricist`, `arranger`...; `null` quando o arquivo não diz.
+  final String? role;
+
+  const VsbCreator({required this.name, this.role});
+}
+
+/// `meta.json` (§2.3): título e autores da peça, do documento inteiro — nunca
+/// por página. Todos os campos são opcionais.
+class VsbMeta {
+  final String? title;
+  final List<VsbCreator> creators;
+
+  const VsbMeta({this.title, this.creators = const []});
+
+  /// Nome do primeiro crédito com o papel `composer`, se houver.
+  String? get composer => creatorWithRole('composer');
+
+  /// Nome do primeiro crédito com o papel dado, se houver.
+  String? creatorWithRole(String role) {
+    for (final creator in creators) {
+      if (creator.role == role) return creator.name;
+    }
+    return null;
+  }
+}
+
+/// Documento completo: manifest + dicionário de glifos + páginas + timemap e
+/// metadados opcionais (§2.2).
 class VsbDocument {
   final VsbManifest manifest;
   final Map<String, GlyphDef> glyphs;
   final List<ScenePage> pages;
   final List<TimemapEntry>? timemap;
 
+  /// Título e autores da peça (§2.3); `null` quando o arquivo de origem não
+  /// tinha nenhum dos dois.
+  final VsbMeta? meta;
+
   VsbDocument({
     required this.manifest,
     required this.glyphs,
     required this.pages,
     this.timemap,
+    this.meta,
   });
 
   /// Cache de contornos de glifo (R03a): uma instância por documento,

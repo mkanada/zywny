@@ -85,11 +85,21 @@ VsbDocument _fromZipBytes(Uint8List bytes) {
     }
   }
 
+  VsbMeta? meta;
+  if (manifest.files.meta != null) {
+    final metaEntry = archive.findFile(manifest.files.meta!);
+    if (metaEntry != null) {
+      final metaDecoded = json.decode(utf8.decode(metaEntry.readBytes()!));
+      meta = parseMetaDocument(metaDecoded, path: 'meta');
+    }
+  }
+
   return VsbDocument(
     manifest: manifest,
     glyphs: glyphs,
     pages: pages,
     timemap: timemap,
+    meta: meta,
   );
 }
 
@@ -109,11 +119,17 @@ VsbDocument _fromDocumentJson(Map<String, dynamic> root) {
     timemap = parseTimemapDocument(root['timemap'], path: 'timemap');
   }
 
+  VsbMeta? meta;
+  if (root.containsKey('meta') && root['meta'] != null) {
+    meta = parseMetaDocument(root['meta'], path: 'meta');
+  }
+
   return VsbDocument(
     manifest: manifest,
     glyphs: glyphs,
     pages: pages,
     timemap: timemap,
+    meta: meta,
   );
 }
 
@@ -154,6 +170,9 @@ VsbManifest parseManifestDocument(
     timemap: filesJson['timemap'] == null
         ? null
         : _asString(filesJson['timemap'], '$path.files.timemap'),
+    meta: filesJson['meta'] == null
+        ? null
+        : _asString(filesJson['meta'], '$path.files.meta'),
   );
   return VsbManifest(
     format: format,
@@ -242,6 +261,36 @@ BezierPath _parseBezier(Map<String, dynamic> json, String path) {
     );
   }
   return BezierPath(closed: closed, v: v, i: i, o: o);
+}
+
+// ---------------------------------------------------------------------------
+// meta.json (§2.3)
+// ---------------------------------------------------------------------------
+
+VsbMeta parseMetaDocument(dynamic json, {required String path}) {
+  final map = _asMap(json, path);
+  final creatorsJson = map['creators'];
+  if (creatorsJson != null && creatorsJson is! List) {
+    throw VsbFormatException('$path.creators', 'esperado array de créditos');
+  }
+  return VsbMeta(
+    title: map['title'] == null ? null : _asString(map['title'], '$path.title'),
+    creators: [
+      if (creatorsJson != null)
+        for (var k = 0; k < (creatorsJson as List).length; k++)
+          _parseCreator(
+            _asMap(creatorsJson[k], '$path.creators[$k]'),
+            '$path.creators[$k]',
+          ),
+    ],
+  );
+}
+
+VsbCreator _parseCreator(Map<String, dynamic> json, String path) {
+  return VsbCreator(
+    name: _asString(_requireField(json, 'name', path), '$path.name'),
+    role: json['role'] == null ? null : _asString(json['role'], '$path.role'),
+  );
 }
 
 // ---------------------------------------------------------------------------

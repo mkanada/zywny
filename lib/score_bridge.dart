@@ -15,6 +15,7 @@ export 'src/text_run.dart';
 export 'src/parser.dart'
     show
         parseManifestDocument,
+        parseMetaDocument,
         parseGlyphsDocument,
         parseSceneDocument,
         parseTimemapDocument;
