@@ -21,6 +21,10 @@ import 'model.dart';
 import 'scene_walk.dart';
 import 'text_run.dart';
 
+/// O preto opaco do `color="black"` do `<svg class="definition-scale">`: a
+/// cor que a raiz de uma página herda (§6).
+const kPageInitialColor = ui.Color(0xFF000000);
+
 /// Pinta uma página da cena num [Canvas] (§3/§5.1/§6).
 ///
 /// Aplica a transformação de página uma vez ([PageFit] + `origin` vindos
@@ -59,17 +63,52 @@ class ScenePainter {
   SceneLineJoin? _cachedGlyphStrokeJoin;
 
   void paint(ui.Canvas canvas) {
-    canvas.translate(page.fit.tx, page.fit.ty);
-    canvas.scale(page.fit.scale);
-    canvas.translate(page.origin.dx, page.origin.dy);
+    applyPageTransform(canvas);
     // Pilha de cor começa em preto opaco: o `color="black"` do
     // `<svg class="definition-scale">` (§6). O percurso é o de `walkScene`,
     // o mesmo da segmentação (A01a).
     walkScene(
       page.root,
-      const ui.Color(0xFF000000),
+      kPageInitialColor,
       _CanvasVisitor(this, canvas),
       colorOverrides: colorOverrides,
+    );
+  }
+
+  /// Aplica ao [canvas] a transformação de página (§3): `translate(fit)`,
+  /// `scale` e `translate(origin)`. Depois dela o `Canvas` está no espaço de
+  /// conteúdo, em unidades de viewBox — o espaço em que os segmentos de A01a
+  /// e os `Picture` de A01b são gravados.
+  void applyPageTransform(ui.Canvas canvas) {
+    canvas.translate(page.fit.tx, page.fit.ty);
+    canvas.scale(page.fit.scale);
+    canvas.translate(page.origin.dx, page.origin.dy);
+  }
+
+  /// Pinta uma folha (forma, uso de glifo ou run de texto) com a cor herdada
+  /// [color] já resolvida. É o que um segmento estático (A01a) chama, um item
+  /// por vez, sem percurso de árvore.
+  void paintLeaf(ui.Canvas canvas, SceneChild leaf, ui.Color color) =>
+      _paintLeaf(canvas, leaf, color);
+
+  /// Pinta o subgrafo de [node] como o percurso da página o faria, dado o
+  /// estado herdado **antes** dele ([inheritedColor]). [overrides] troca a
+  /// cor de qualquer nó do subgrafo por `id` (inclusive o próprio [node]) e
+  /// vence o `color` do nó; não altera o [colorOverrides] do painter.
+  ///
+  /// O `rotate` dos ancestrais é do chamador (o `transform` do `DynamicItem`
+  /// de A01a); o do próprio [node] é aplicado aqui.
+  void paintSubtree(
+    ui.Canvas canvas,
+    SceneNode node,
+    ui.Color inheritedColor, {
+    Map<String, ui.Color> overrides = const {},
+  }) {
+    walkScene(
+      node,
+      inheritedColor,
+      _CanvasVisitor(this, canvas),
+      colorOverrides: overrides,
     );
   }
 
