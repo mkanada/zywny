@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'dart:ui' show Offset, Rect;
 
 import 'glyph_cache.dart';
+import 'hit_test.dart';
 import 'parser.dart' as parser;
 
 /// Exceção lançada quando um documento `.vsb`/JSON está malformado.
@@ -124,6 +125,10 @@ class VsbDocument {
   /// Cache de contornos de glifo (R03a): uma instância por documento,
   /// compartilhada por todas as páginas e painters.
   late final GlyphCache glyphCache = GlyphCache(glyphs);
+
+  /// Mapa `id → (página, bbox, classe)` e hit-test (A04a): montado uma vez,
+  /// na primeira consulta.
+  late final ScoreGeometry geometry = ScoreGeometry(this);
 
   /// Faz o parse de um `.vsb` (zip) ou de um JSON único (`-t vsb-json`),
   /// detectando o formato pela assinatura `PK` do zip (§2).

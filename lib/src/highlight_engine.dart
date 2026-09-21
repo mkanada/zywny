@@ -116,6 +116,10 @@ class HighlightEngine {
 
   bool isActive(String id) => _entries.containsKey(id);
 
+  /// Os ids acesos (em qualquer fase). Visão viva: não modifique o motor
+  /// enquanto itera.
+  Iterable<String> get activeIds => _entries.keys;
+
   /// Acende [id] em [now]. Se já estava acesa, **reinicia** a própria
   /// animação (do início do `attack`) sem tocar em nenhuma outra.
   void start(String id, HighlightSpec spec, Duration now) {

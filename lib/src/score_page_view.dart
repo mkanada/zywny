@@ -29,6 +29,11 @@ class ScorePageView extends StatefulWidget {
     this.controller,
     this.animatableIds,
     this.backgroundColor = const Color(0xFFFFFFFF),
+    this.stats,
+    this.overlayIds = const [],
+    this.overlayBuilder,
+    this.onElementTap,
+    this.tapClasses,
   });
 
   final VsbDocument document;
@@ -46,12 +51,40 @@ class ScorePageView extends StatefulWidget {
   /// Fundo da página; `null` deixa transparente.
   final Color? backgroundColor;
 
+  /// Contadores de `Picture` a usar. Um dono que monta várias páginas (o
+  /// `ScoreView`) passa o mesmo objeto a todas para somar a vida útil delas;
+  /// sem ele a página tem os seus.
+  final PictureStats? stats;
+
+  /// Ids que viram widgets de verdade (A04b), um `Positioned` por id sobre a
+  /// bbox dele. O padrão é vazio — **custo zero**: a árvore fica idêntica à
+  /// de antes dos overlays. Ids que não estão nesta página são ignorados.
+  ///
+  /// O overlay é uma camada de widget **acima** de toda a partitura: não
+  /// participa da ordem de pintura da cena, e vive dentro da página, então é
+  /// recortado junto com ela na virada por haste (A03b).
+  final Iterable<String> overlayIds;
+
+  /// Constrói o widget de [id]; [rect] é a bbox em pixels lógicos da página
+  /// (a origem é o canto dela). Devolver `null` omite o overlay. É chamado a
+  /// cada layout — nada de posição memorizada.
+  final Widget? Function(BuildContext context, String id, Rect rect)?
+  overlayBuilder;
+
+  /// Toque num elemento: recebe o id mais específico (menor bbox) sob o
+  /// toque, filtrado por [tapClasses]; não dispara em área vazia. Um único
+  /// detector para a página inteira.
+  final void Function(String id)? onElementTap;
+
+  /// Classes que [onElementTap] aceita; `null` é `{'note'}`.
+  final Set<String>? tapClasses;
+
   @override
   State<ScorePageView> createState() => ScorePageViewState();
 }
 
 class ScorePageViewState extends State<ScorePageView> {
-  final PictureStats _stats = PictureStats();
+  late final PictureStats _stats = widget.stats ?? PictureStats();
   PageLayers? _layers;
   Set<String> _animatableIds = const {};
 
@@ -162,18 +195,79 @@ class ScorePageViewState extends State<ScorePageView> {
   @override
   Widget build(BuildContext context) {
     final page = _page;
-    return AspectRatio(
-      aspectRatio: page.widthPx / page.heightPx,
-      child: RepaintBoundary(
-        child: CustomPaint(
-          painter: _PagePainter(
-            _layers!,
-            widget.controller,
-            widget.backgroundColor,
-          ),
+    final Widget base = RepaintBoundary(
+      child: CustomPaint(
+        painter: _PagePainter(
+          _layers!,
+          widget.controller,
+          widget.backgroundColor,
         ),
       ),
     );
+    final hasOverlay =
+        widget.overlayBuilder != null && widget.overlayIds.isNotEmpty;
+    return AspectRatio(
+      aspectRatio: page.widthPx / page.heightPx,
+      child: hasOverlay || widget.onElementTap != null
+          ? LayoutBuilder(
+              builder: (context, constraints) =>
+                  _withInteraction(context, constraints.maxWidth, base),
+            )
+          : base,
+    );
+  }
+
+  /// Camadas de widget por cima da página (A04b): overlays por id e o
+  /// detector de toque. Só existe se o host pediu.
+  Widget _withInteraction(BuildContext context, double width, Widget base) {
+    final geometry = widget.document.geometry;
+    final builder = widget.overlayBuilder;
+    Widget result = base;
+    if (builder != null && widget.overlayIds.isNotEmpty) {
+      final children = <Widget>[base];
+      for (final id in widget.overlayIds) {
+        final ref = geometry.elementOf(id);
+        if (ref == null || ref.page != widget.pageIndex) {
+          continue;
+        }
+        final rect = geometry.rectOf(ref, pageWidth: width);
+        final child = builder(context, id, rect);
+        if (child != null) {
+          children.add(
+            Positioned.fromRect(
+              key: ValueKey<String>('overlay:$id'),
+              rect: rect,
+              child: child,
+            ),
+          );
+        }
+      }
+      result = Stack(
+        textDirection: TextDirection.ltr,
+        fit: StackFit.passthrough,
+        children: children,
+      );
+    }
+    final onTap = widget.onElementTap;
+    if (onTap != null) {
+      final classes = widget.tapClasses ?? const {'note'};
+      result = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (details) {
+          final id = geometry.idAt(
+            widget.pageIndex,
+            details.localPosition,
+            pageWidth: width,
+            classes: classes,
+          );
+          if (id != null) {
+            onTap(id);
+          }
+        },
+        child: result,
+      );
+    }
+    return result;
   }
 }
 

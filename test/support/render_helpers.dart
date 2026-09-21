@@ -139,3 +139,80 @@ Future<ByteData> pageViewBytes(
   );
   return captureBytes(tester, key, page.widthPx, page.heightPx);
 }
+
+/// Renderiza um `ScoreView` numa janela do tamanho da página [pageIndex] e
+/// devolve o RGBA cru; o widget continua montado (o chamador desmonta).
+Future<({GlobalKey key, int w, int h})> pumpView(
+  WidgetTester tester,
+  Widget view,
+  ScenePage page,
+) async {
+  final key = await pumpAtSize(tester, view, page.widthPx, page.heightPx);
+  return (key: key, w: page.widthPx, h: page.heightPx);
+}
+
+/// O `.vsb` do corpus cujo nome contém [part]; `null` se não existir.
+VsbDocument? corpusDoc(String part) {
+  for (final f in corpusFiles()) {
+    if (f.path.contains(part)) {
+      return VsbDocument.fromBytes(f.readAsBytesSync());
+    }
+  }
+  return null;
+}
+
+/// Conta pixels "vermelho de destaque" (`0xD32F2F`, tolerância larga) em
+/// [rect] da imagem `w × h`.
+int countRedPixels(ByteData bytes, int w, ui.Rect rect) {
+  final data = bytes.buffer.asUint8List(
+    bytes.offsetInBytes,
+    bytes.lengthInBytes,
+  );
+  var n = 0;
+  for (var y = rect.top.floor(); y < rect.bottom.ceil(); y++) {
+    for (var x = rect.left.floor(); x < rect.right.ceil(); x++) {
+      final i = (y * w + x) * 4;
+      if (data[i] > 150 && data[i + 1] < 110 && data[i + 2] < 110) {
+        n++;
+      }
+    }
+  }
+  return n;
+}
+
+/// RGBA `(r, g, b)` do pixel `(x, y)` da imagem de largura [w].
+(int, int, int) pixelAt(ByteData bytes, int w, int x, int y) {
+  final i = (y * w + x) * 4;
+  return (bytes.getUint8(i), bytes.getUint8(i + 1), bytes.getUint8(i + 2));
+}
+
+/// Grava [bytes] (RGBA `w × h`) como PNG em [path], para as evidências.
+Future<void> writePng(
+  WidgetTester tester,
+  ByteData bytes,
+  int w,
+  int h,
+  String path,
+) async {
+  await tester.runAsync(() async {
+    final buffer = await ui.ImmutableBuffer.fromUint8List(
+      bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+    );
+    final desc = ui.ImageDescriptor.raw(
+      buffer,
+      width: w,
+      height: h,
+      pixelFormat: ui.PixelFormat.rgba8888,
+    );
+    final codec = await desc.instantiateCodec();
+    final frame = await codec.getNextFrame();
+    final png = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    File(path)
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(png!.buffer.asUint8List());
+    frame.image.dispose();
+    codec.dispose();
+    desc.dispose();
+    buffer.dispose();
+  });
+}

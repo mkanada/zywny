@@ -259,6 +259,20 @@ class ScoreController extends ChangeNotifier {
     _afterEngineChange();
   }
 
+  /// Apaga todos os destaques **agora**, sem fade, preservando as cores fixas
+  /// de [setColor] (diferente de [clearAll]). É o que o player usa no `seek`.
+  void clearHighlights() {
+    if (_engine.isIdle && _animatedIds.isEmpty) {
+      return;
+    }
+    _engine.clear();
+    final changed = _syncAnimated();
+    _stopTicker();
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
   /// [release] em todas as notas acesas.
   void releaseAll({Duration? duration, Curve? curve}) {
     _engine.stopAll(_now, release: duration, curve: curve);
@@ -267,6 +281,9 @@ class ScoreController extends ChangeNotifier {
 
   /// [id] tem um destaque em curso.
   bool isHighlighted(String id) => _engine.isActive(id);
+
+  /// Os ids com destaque em curso (em qualquer fase, `release` incluído).
+  Iterable<String> get highlightedIds => _engine.activeIds;
 
   /// Quantas notas têm um destaque em curso.
   int get highlightedCount => _engine.activeCount;
@@ -321,7 +338,10 @@ class ScoreController extends ChangeNotifier {
     }
     var changed = false;
     for (final id in _animatedIds) {
-      if (!colors.containsKey(id)) {
+      // Também as que terminaram neste frame: o motor as devolve uma última
+      // vez, mas com outras notas ainda acesas elas não podem ficar presas na
+      // cor do último quadro.
+      if (!colors.containsKey(id) || !_engine.isActive(id)) {
         final fixed = _fixed[id];
         if (fixed == null) {
           _effective.remove(id);
