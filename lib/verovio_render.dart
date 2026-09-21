@@ -39,6 +39,7 @@ class VsbRenderRequest {
     required this.resourcePath,
     required this.pageWidth,
     required this.pageHeight,
+    this.options = const {},
   });
 
   final String inputPath;
@@ -48,14 +49,19 @@ class VsbRenderRequest {
   final int pageWidth;
   final int pageHeight;
 
+  /// Further Verovio options (`layout_options.dart`), applied after the page
+  /// size; whatever is not listed keeps Verovio's default.
+  final Map<String, Object> options;
+
   Map<String, Object?> toJson() => {
-        'inputPath': inputPath,
-        'outputPath': outputPath,
-        'libraryPath': libraryPath,
-        'resourcePath': resourcePath,
-        'pageWidth': pageWidth,
-        'pageHeight': pageHeight,
-      };
+    'inputPath': inputPath,
+    'outputPath': outputPath,
+    'libraryPath': libraryPath,
+    'resourcePath': resourcePath,
+    'pageWidth': pageWidth,
+    'pageHeight': pageHeight,
+    'options': options,
+  };
 }
 
 /// Renders the whole score to a single `.vsb` in a worker isolate — so the
@@ -80,6 +86,7 @@ void _renderInIsolate(Map<String, Object?> json) {
   final resourcePath = json['resourcePath'] as String;
   final pageWidth = json['pageWidth'] as int;
   final pageHeight = json['pageHeight'] as int;
+  final options = (json['options'] as Map).cast<String, Object>();
 
   final toolkit = VerovioToolkit.withResourcePath(
     resourcePath,
@@ -88,15 +95,17 @@ void _renderInIsolate(Map<String, Object?> json) {
   try {
     // Options must be set BEFORE loading: page size only takes effect
     // on the layout triggered by the load.
-    final optionsSet = toolkit.setOptions(jsonEncode({
-      'pageWidth': pageWidth,
-      'pageHeight': pageHeight,
-      // No "MEI rendered with Verovio" footer: it wastes the bottom strip
-      // of every page and shrinks the usable notation area.
-      'footer': 'none',
-    }));
+    final optionsSet = toolkit.setOptions(
+      jsonEncode({
+        'pageWidth': pageWidth,
+        'pageHeight': pageHeight,
+        ...options,
+      }),
+    );
     if (!optionsSet) {
-      throw StateError('Verovio rejected the layout options');
+      throw StateError(
+        'Verovio rejected the layout options\n${toolkit.getLog()}',
+      );
     }
     if (!toolkit.loadFile(inputPath)) {
       throw StateError(
