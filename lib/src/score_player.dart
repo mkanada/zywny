@@ -244,6 +244,46 @@ class ScorePlayer {
     _publish(seeking: true);
   }
 
+  /// Vai para o instante em que [id] (compasso, nota, ou id expandido) toca,
+  /// como [seek] (E02c). Uso típico:
+  /// `ScorePageView(onElementTap: (id) => player.seekToElement(id))`.
+  ///
+  /// [id] repetido mais de uma vez: sem [pass], a política é **a mesma
+  /// passagem em que a posição atual está, senão a 1ª** (D-TOQUE, decisão do
+  /// usuário em 2026-09-22). Um `pass:` explícito sempre ganha da política.
+  ///
+  /// Devolve `false`, sem mexer na posição nem nos destaques, se [id] não
+  /// resolve a nada tocado (id desconhecido, ou sem timemap) ou se [pass] foi
+  /// pedido e essa passagem não existe.
+  bool seekToElement(String id, {int? pass}) {
+    if (_disposed) {
+      return false;
+    }
+    final onsets = timeline.onsetsOf(id);
+    if (onsets.isEmpty) {
+      return false;
+    }
+    if (pass != null) {
+      for (final onset in onsets) {
+        if (onset.pass == pass) {
+          seek(Duration(milliseconds: onset.ms.round()));
+          return true;
+        }
+      }
+      return false;
+    }
+    final currentPass = timeline.measures.isEmpty
+        ? 1
+        : timeline.measures[timeline.measureIndexAt(_positionMs)].pass;
+    final target = onsets.firstWhere(
+      (o) => o.pass == currentPass,
+      orElse: () => onsets.first, // a 1ª passagem: onsets está em ordem de
+      // tempo, e a passagem 1 sempre toca antes das demais.
+    );
+    seek(Duration(milliseconds: target.ms.round()));
+    return true;
+  }
+
   // -------------------------------------------------------------------------
   // Publicação: compasso, haste, página
   // -------------------------------------------------------------------------

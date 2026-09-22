@@ -295,6 +295,45 @@ class ScoreTimeline {
     ];
   }
 
+  /// Instante(s) em que [id] toca, em ordem de tempo: um item por passagem
+  /// em que o elemento (compasso, nota, ou id expandido) é tocado. Um id
+  /// expandido (`-rend<N>`) devolve só o instante da sua passagem (E02c).
+  ///
+  /// Vazio se [id] não resolve a nada na cena, ou se não há timemap.
+  List<({int pass, double ms})> onsetsOf(String id) {
+    final sceneId = document.sceneIdOf(id);
+    if (sceneId == null) {
+      return const [];
+    }
+    final expanded = id != sceneId;
+    if (_measureOfId[sceneId] == sceneId) {
+      // é o próprio compasso: o instante de cada ocorrência é o startMs
+      // dela (já resolvido pelas regras de occurrencesOf).
+      return [
+        for (final i in occurrencesOf(id))
+          (pass: measures[i].pass, ms: measures[i].startMs.toDouble()),
+      ];
+    }
+    // nota (ou outro elemento com onset no timemap): o instante de cada
+    // passagem é o tstamp da entrada cujo `on` traz o id dela, com o
+    // sufixo daquela passagem (ou sem sufixo, na passagem 1).
+    final requestedPass = document.passOf(id);
+    final result = <({int pass, double ms})>[];
+    for (final e in entries) {
+      for (final onId in e.on) {
+        if (document.sceneIdOf(onId) != sceneId) {
+          continue;
+        }
+        final pass = document.passOf(onId);
+        if (expanded && pass != requestedPass) {
+          continue;
+        }
+        result.add((pass: pass, ms: e.tstamp));
+      }
+    }
+    return result;
+  }
+
   // -------------------------------------------------------------------------
   // Consultas por posição
   // -------------------------------------------------------------------------

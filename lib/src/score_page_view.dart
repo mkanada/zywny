@@ -78,7 +78,8 @@ class ScorePageView extends StatefulWidget {
 
   /// Toque num elemento: recebe o id mais específico (menor bbox) sob o
   /// toque, filtrado por [tapClasses]; não dispara em área vazia. Um único
-  /// detector para a página inteira.
+  /// detector para a página inteira. Para tocar a partir dali, ligue a um
+  /// `ScorePlayer` (E02c): `onElementTap: (id) => player.seekToElement(id)`.
   final void Function(String id)? onElementTap;
 
   /// Classes que [onElementTap] aceita; `null` é `{'note'}`.
