@@ -5,16 +5,23 @@
 // isso `seek`, `pause` e `speed` funcionam sem código extra — a haste é
 // derivada, nunca guardada.
 //
-// ÍNDICE DE COMPASSOS. "Em que compasso estou" sai da **cena**: o nó de
-// classe `measure` que é ancestral do id. Um único percurso da árvore monta o
-// mapa `id → compasso` e a página de cada compasso; o timemap dá o instante.
-// Compassos e notas com sufixo `-rend<N>` de repetição (ids expandidos, que
-// não existem na cena) ficam de fora sem erro NESTE arquivo — o timemap
-// embutido preenche `measureOn` desde E01b e `VsbDocument.sceneIdOf`/`passOf`
-// resolvem esses ids desde E02a, mas usá-los para que uma ocorrência de
-// compasso repetida apareça na linha do tempo é E02b, ainda não feito aqui.
-// Até lá, uma peça com repetição fica presa no último compasso "novo" antes
-// dela durante toda a 2ª passagem (ver E02b, "O defeito de hoje").
+// ÍNDICE DE COMPASSOS. `measures` é a ordem de **execução**: um compasso
+// repetido aparece uma vez por passagem (E02b). "Em que compasso é ESTE nó"
+// sai da **cena**: o nó de classe `measure` que é ancestral do id, num único
+// percurso que também numera cada compasso em ordem de documento (para achar
+// salto: a ocorrência seguinte não é o próximo compasso dessa ordem). "Que
+// OCORRÊNCIA está tocando" sai do timemap: com `measureOn` (E01b), cada
+// entrada com `measureOn` abre uma ocorrência; sem ele (`.vsb` de antes de
+// E01b), pelas notas de `on`, abrindo uma ocorrência nova quando o par
+// (compasso da cena, passagem) muda — os dois caminhos dão a mesma lista nas
+// peças do corpus (E02b, critério 1). Ids são sempre resolvidos por
+// `VsbDocument.sceneIdOf`/`passOf` (E02a) antes de entrar em `noteIds`, nas
+// bboxes ou na comparação de compasso/passagem.
+//
+// Um salto (ocorrência cujo compasso não é o seguinte, na ordem de
+// documento, do compasso da ocorrência anterior) sempre fecha o `_Run`
+// corrente, mesmo **na mesma página** — é o que impede a haste (abaixo) de
+// tratar esse trecho como uma virada de página comum.
 //
 // REGRA DA HASTE (decidida com o usuário em 2026-09-21; ver A05b). Sejam `P`
 // uma página com uma seguinte, `M` o seu último compasso e `M+1` o primeiro da
@@ -37,34 +44,47 @@ import 'dart:math' as math;
 import 'model.dart';
 import 'score_view.dart' show SweepCurtain, sweepEndX;
 
-/// Um compasso na ordem de execução.
+/// Uma ocorrência de compasso na ordem de execução (E02b): um compasso
+/// repetido aparece uma vez por passagem.
 class MeasureInfo {
   const MeasureInfo({
     required this.id,
     required this.page,
+    required this.pass,
+    required this.timemapId,
     required this.noteIds,
     required this.startMs,
     required this.endMs,
   });
 
-  /// `xml:id` do compasso.
+  /// `xml:id` do compasso **na cena** (compatível com quem já usa; o mesmo
+  /// em todas as ocorrências do mesmo compasso).
   final String id;
 
   /// Página onde ele está.
   final int page;
 
-  /// Notas do compasso, na ordem do timemap.
+  /// A execução: `1` na primeira vez que o compasso toca.
+  final int pass;
+
+  /// O id como está no timemap desta ocorrência (`id`, ou `id-rendN`). Sem
+  /// `measureOn` no `.vsb` (antes de E01b), é reconstruído pela convenção do
+  /// sufixo (`id` na passagem 1, `id-rendN` depois).
+  final String timemapId;
+
+  /// Notas do compasso nesta ocorrência, na ordem do timemap, resolvidas ao
+  /// id da cena (E02a).
   final List<String> noteIds;
 
-  /// `tstamp` da primeira nota do compasso.
+  /// `tstamp` da primeira nota desta ocorrência.
   final int startMs;
 
-  /// `tstamp` da primeira nota do compasso seguinte (o `tstamp` final, no
-  /// último).
+  /// `tstamp` da primeira nota da ocorrência seguinte (o `tstamp` final, na
+  /// última).
   final int endMs;
 
   @override
-  String toString() => 'MeasureInfo($id p$page $startMs-$endMs)';
+  String toString() => 'MeasureInfo($id pass$pass p$page $startMs-$endMs)';
 }
 
 /// Uma nota (ou acorde) do compasso: o instante e o x da borda esquerda da
@@ -76,9 +96,11 @@ class _Onset {
 }
 
 class _Measure {
-  _Measure(this.id, this.page);
+  _Measure(this.id, this.page, this.pass, this.timemapId);
   final String id;
   final int page;
+  final int pass;
+  final String timemapId;
   final List<String> noteIds = [];
   final List<_Onset> onsets = [];
   double startMs = 0;
@@ -111,6 +133,15 @@ class ScoreTimeline {
   /// Entradas do timemap em ordem de `tstamp`.
   late final List<TimemapEntry> entries;
 
+  /// id (nota, ou o próprio compasso) -> id do compasso ancestral na cena.
+  final Map<String, String> _measureOfId = {};
+
+  /// Página de cada compasso.
+  final Map<String, int> _pageOfMeasure = {};
+
+  /// Ordem de documento de cada compasso (0-based; para achar salto).
+  final Map<String, int> _docOrderOfMeasure = {};
+
   /// Compassos em ordem de execução (A05a).
   List<MeasureInfo> get measureInfos => measures;
 
@@ -122,52 +153,70 @@ class ScoreTimeline {
     entries = entriesList;
     durationMs = entriesList.isEmpty ? 0 : entriesList.last.tstamp;
 
-    // id -> compasso (id do compasso), e página de cada compasso.
-    final measureOfId = <String, String>{};
-    final pageOfMeasure = <String, int>{};
     for (final page in document.pages) {
-      _collect(page.root, page.index, null, measureOfId, pageOfMeasure);
+      _collect(page.root, page.index, null);
     }
 
-    final byId = <String, _Measure>{};
-    void touch(
-      String id,
-      double ms,
-      List<String>? notes,
-      Map<_Measure, double> leftAtThisEntry,
-    ) {
-      final mid = measureOfId[id];
-      if (mid == null) {
-        return;
-      }
-      final m = byId.putIfAbsent(mid, () {
-        final created = _Measure(mid, pageOfMeasure[mid]!)..startMs = ms;
-        _measures.add(created);
-        return created;
-      });
-      if (notes != null) {
-        if (!m.noteIds.contains(id)) {
-          m.noteIds.add(id);
+    // com measureOn (E01b): cada entrada com measureOn abre uma ocorrência.
+    // sem ele (.vsb de antes de E01b): pela 1ª nota de `on` que resolve a um
+    // compasso conhecido, abrindo uma ocorrência nova quando o par
+    // (compasso, passagem) muda — mesma regra do script de E01a.
+    final hasMeasureOn = entriesList.any((e) => e.measureOn != null);
+
+    _Measure? cur;
+    String? curKey;
+
+    void openOccurrence(String measureId, int pass, double ms) {
+      final timemapId = pass == 1 ? measureId : '$measureId-rend$pass';
+      cur = _Measure(measureId, _pageOfMeasure[measureId]!, pass, timemapId)
+        ..startMs = ms;
+      _measures.add(cur!);
+      curKey = '$measureId\u0000$pass';
+    }
+
+    for (final e in entriesList) {
+      if (hasMeasureOn) {
+        final mo = e.measureOn;
+        if (mo != null) {
+          final measureId = document.sceneIdOf(mo);
+          if (measureId != null) {
+            openOccurrence(measureId, document.passOf(mo), e.tstamp);
+          }
         }
-        final ref = document.geometry.elementOf(id);
+      } else {
+        for (final id in e.on) {
+          final sceneId = document.sceneIdOf(id);
+          if (sceneId == null) continue;
+          final measureId = _measureOfId[sceneId];
+          if (measureId == null) continue;
+          final pass = document.passOf(id);
+          final key = '$measureId\u0000$pass';
+          if (key != curKey) {
+            openOccurrence(measureId, pass, e.tstamp);
+          }
+          break; // só a 1ª nota de 'on' que resolve decide a ocorrência.
+        }
+      }
+      final m = cur;
+      if (m == null) {
+        continue; // nada tocado ainda, ou id sem correspondente na cena.
+      }
+      final lefts = <_Measure, double>{};
+      for (final id in e.on) {
+        final sceneId = document.sceneIdOf(id);
+        if (sceneId == null) continue;
+        if (!m.noteIds.contains(sceneId)) {
+          m.noteIds.add(sceneId);
+        }
+        final ref = document.geometry.elementOf(sceneId);
         if (ref != null) {
-          final prev = leftAtThisEntry[m];
-          leftAtThisEntry[m] = prev == null
+          final prev = lefts[m];
+          lefts[m] = prev == null
               ? ref.bbox.left
               : math.min(prev, ref.bbox.left);
         }
       }
-    }
-
-    for (final e in entriesList) {
-      final lefts = <_Measure, double>{};
-      for (final id in e.on) {
-        touch(id, e.tstamp, const [], lefts);
-      }
-      for (final id in e.restsOn) {
-        touch(id, e.tstamp, null, lefts);
-      }
-      lefts.forEach((m, x) => m.onsets.add(_Onset(e.tstamp, x)));
+      lefts.forEach((mm, x) => mm.onsets.add(_Onset(e.tstamp, x)));
     }
 
     for (var i = 0; i < _measures.length; i++) {
@@ -179,8 +228,12 @@ class ScoreTimeline {
       if (m.onsets.isEmpty) {
         m.onsets.add(_Onset(m.startMs, m.left));
       }
+      final prev = i > 0 ? _measures[i - 1] : null;
+      final isJump =
+          prev != null &&
+          _docOrderOfMeasure[m.id] != _docOrderOfMeasure[prev.id]! + 1;
       final last = _runs.isEmpty ? null : _runs.last;
-      if (last != null && last.page == m.page) {
+      if (last != null && last.page == m.page && !isJump) {
         last.last = i;
       } else {
         _runs.add(_Run(m.page, i, i));
@@ -191,6 +244,8 @@ class ScoreTimeline {
         MeasureInfo(
           id: m.id,
           page: m.page,
+          pass: m.pass,
+          timemapId: m.timemapId,
           noteIds: List.unmodifiable(m.noteIds),
           startMs: m.startMs.round(),
           endMs: m.endMs.round(),
@@ -198,29 +253,46 @@ class ScoreTimeline {
     ];
   }
 
-  void _collect(
-    SceneNode node,
-    int page,
-    String? measure,
-    Map<String, String> measureOfId,
-    Map<String, int> pageOfMeasure,
-  ) {
+  void _collect(SceneNode node, int page, String? measure) {
     if (node.hidden) {
       return;
     }
     var current = measure;
     if (node.className == 'measure' && node.id != null) {
       current = node.id;
-      pageOfMeasure[node.id!] = page;
+      _pageOfMeasure[node.id!] = page;
+      _docOrderOfMeasure.putIfAbsent(node.id!, () => _docOrderOfMeasure.length);
     }
     if (current != null && node.id != null) {
-      measureOfId[node.id!] = current;
+      _measureOfId[node.id!] = current;
     }
     for (final child in node.children) {
       if (child is SceneNode) {
-        _collect(child, page, current, measureOfId, pageOfMeasure);
+        _collect(child, page, current);
       }
     }
+  }
+
+  /// Índices em [measures] das ocorrências de [id]: compasso ou nota, todas
+  /// as passagens em que aparece; um id expandido (`-rend<N>`), só a sua
+  /// (E02b).
+  List<int> occurrencesOf(String id) {
+    final sceneId = document.sceneIdOf(id);
+    if (sceneId == null) {
+      return const [];
+    }
+    final measureId = _measureOfId[sceneId];
+    if (measureId == null) {
+      return const [];
+    }
+    final expanded = id != sceneId;
+    final pass = document.passOf(id);
+    return [
+      for (var i = 0; i < measures.length; i++)
+        if (measures[i].id == measureId &&
+            (!expanded || measures[i].pass == pass))
+          i,
+    ];
   }
 
   // -------------------------------------------------------------------------
