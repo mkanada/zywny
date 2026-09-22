@@ -359,7 +359,9 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   void _applyWidgetUpdate(ScoreView oldWidget) {
     if (oldWidget.viewController != widget.viewController) {
-      oldWidget.viewController?._state = null;
+      if (oldWidget.viewController?._state == this) {
+        oldWidget.viewController?._state = null;
+      }
       widget.viewController?._state = this;
     }
     if (oldWidget.curtain != widget.curtain) {
@@ -386,7 +388,10 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    widget.viewController?._state = null;
+    // Uma vista nova pode já ter assumido o controller (troca de `key`).
+    if (widget.viewController?._state == this) {
+      widget.viewController?._state = null;
+    }
     widget.curtain?.removeListener(_onCurtainChanged);
     _manual.removeListener(_onCurtainChanged);
     _sweepAnim.dispose();
