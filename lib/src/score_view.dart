@@ -56,10 +56,14 @@ const kDefaultMaxSweepDuration = Duration(seconds: 1);
 /// Azul de alto contraste sobre papel branco (padrão de [ScoreView.barColor]).
 const kDefaultBarColor = Color(0xFF1565C0);
 
-/// Estado da haste, sempre derivado de fora (A05b): o widget só obedece.
+/// Estado da haste, sempre derivado de fora (A05b/E03a): o widget só obedece.
 @immutable
 class SweepCurtain {
-  const SweepCurtain({required this.pageIndex, required this.edgeX});
+  const SweepCurtain({
+    required this.pageIndex,
+    required this.edgeX,
+    this.targetPageIndex,
+  });
 
   /// A página A, a que está sendo varrida.
   final int pageIndex;
@@ -67,17 +71,24 @@ class SweepCurtain {
   /// Borda **direita** da haste, em unidades de viewBox da página A.
   final double edgeX;
 
+  /// A página que a haste revela, atrás de A. `null` é a virada comum,
+  /// `pageIndex + 1` (A05b); um salto de repetição (E03a) usa a página de
+  /// destino, que pode vir antes, na mesma, ou bem depois de A.
+  final int? targetPageIndex;
+
   @override
   bool operator ==(Object other) =>
       other is SweepCurtain &&
       other.pageIndex == pageIndex &&
-      other.edgeX == edgeX;
+      other.edgeX == edgeX &&
+      other.targetPageIndex == targetPageIndex;
 
   @override
-  int get hashCode => Object.hash(pageIndex, edgeX);
+  int get hashCode => Object.hash(pageIndex, edgeX, targetPageIndex);
 
   @override
-  String toString() => 'SweepCurtain(page: $pageIndex, edgeX: $edgeX)';
+  String toString() =>
+      'SweepCurtain(page: $pageIndex, edgeX: $edgeX, target: $targetPageIndex)';
 }
 
 /// Largura padrão da haste: `2 ×` a largura da cabeça de nota preta
@@ -493,18 +504,29 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   double _endX(int page) => sweepEndX(_doc.pages[page], barWidth);
 
+  /// O destino de [c] (a página que ela revela atrás de [SweepCurtain.pageIndex]).
+  int _targetOf(SweepCurtain c) => c.targetPageIndex ?? c.pageIndex + 1;
+
+  /// [c] é uma haste válida: dentro do documento, com um destino diferente
+  /// da própria página (E03a: a última página só tem haste com destino
+  /// explícito — sem ele, `pageIndex + 1` não existiria).
+  bool _isValidCurtain(SweepCurtain c) {
+    if (c.pageIndex < 0 || c.pageIndex >= _pageCount) {
+      return false;
+    }
+    final target = _targetOf(c);
+    return target >= 0 && target < _pageCount && target != c.pageIndex;
+  }
+
   /// A haste em vigor, ou `null` (repouso): a externa, se não-nula, senão a
   /// manual — sempre restrita ao intervalo aberto `(0, fim)`, ao modo
-  /// `pagedSweep` e a uma página que tenha seguinte.
+  /// `pagedSweep` e a uma página com destino válido (E03a).
   SweepCurtain? get _activeCurtain {
     if (widget.mode != ScorePageMode.pagedSweep) {
       return null;
     }
     final c = widget.curtain?.value ?? _manual.value;
-    if (c == null) {
-      return null;
-    }
-    if (c.pageIndex < 0 || c.pageIndex >= _pageCount - 1) {
+    if (c == null || !_isValidCurtain(c)) {
       return null;
     }
     if (c.edgeX <= 0 || c.edgeX >= _endX(c.pageIndex)) {
@@ -519,16 +541,15 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     }
     final c = widget.curtain?.value ?? _manual.value;
     if (c != null &&
-        c.pageIndex >= 0 &&
-        c.pageIndex < _pageCount - 1 &&
+        _isValidCurtain(c) &&
         c.pageIndex == _current &&
         c.edgeX >= _endX(c.pageIndex)) {
-      // Conclusão: B vira a página corrente e a haste some.
+      // Conclusão: o destino vira a página corrente e a haste some.
       _cancelSweepAnim();
       if (_manual.value != null) {
         _manual.value = null;
       }
-      _setCurrent(c.pageIndex + 1);
+      _setCurrent(_targetOf(c));
       setState(() {});
       return;
     }
@@ -803,7 +824,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
         textDirection: TextDirection.ltr,
         fit: StackFit.expand,
         children: [
-          _centered(a + 1, box),
+          _centered(_targetOf(curtain), box),
           ClipRect(clipper: _RightOfClipper(edge), child: _centered(a, box)),
           if (barRight > barLeft)
             Positioned(

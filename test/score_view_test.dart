@@ -464,6 +464,143 @@ void main() {
       expect(find.byType(ClipRect), findsNothing);
     });
 
+    group('página de destino (E03a)', () {
+      testWidgets(
+        'targetPageIndex: página revelada é o destino, não pageIndex+1 (critério 1)',
+        (tester) async {
+          final vc = ScoreViewController();
+          await pumpScoreView(tester, doc, view(doc, vc: vc), page: 1);
+          vc.goToPage(1);
+          await tester.pump();
+          final curtain = SweepCurtain(
+            pageIndex: 1,
+            edgeX: midX(1),
+            targetPageIndex: 0,
+          );
+          await tester.pumpWidget(
+            view(doc, vc: vc, curtain: ValueNotifier<SweepCurtain?>(curtain)),
+          );
+          await tester.pump();
+          // A página A (1) está clipada à direita da haste; o destino (0),
+          // sem clipe algum, é o fundo — visível à esquerda dela.
+          final clippedPageView = tester.widget<ScorePageView>(
+            find.descendant(
+              of: find.byType(ClipRect),
+              matching: find.byType(ScorePageView),
+            ),
+          );
+          expect(clippedPageView.pageIndex, 1);
+          final unclippedPageViews = tester
+              .widgetList<ScorePageView>(find.byType(ScorePageView))
+              .where(
+                (w) => find
+                    .ancestor(
+                      of: find.byWidget(w),
+                      matching: find.byType(ClipRect),
+                    )
+                    .evaluate()
+                    .isEmpty,
+              );
+          expect(unclippedPageViews.map((w) => w.pageIndex), [0]);
+        },
+      );
+
+      testWidgets(
+        'última página só tem haste com destino explícito (critério 2)',
+        (tester) async {
+          final curtain = ValueNotifier<SweepCurtain?>(null);
+          final vc = ScoreViewController();
+          await pumpScoreView(tester, doc, view(doc, vc: vc, curtain: curtain));
+          vc.goToPage(6);
+          await tester.pump();
+          // Sem destino: pageIndex + 1 (7) não existe, recusada.
+          curtain.value = SweepCurtain(pageIndex: 6, edgeX: midX(6));
+          await tester.pump();
+          expect(find.byType(ClipRect), findsNothing);
+          // Com destino explícito (a página anterior, por ex.): aceita.
+          curtain.value = SweepCurtain(
+            pageIndex: 6,
+            edgeX: midX(6),
+            targetPageIndex: 1,
+          );
+          await tester.pump();
+          expect(find.byType(ClipRect), findsOneWidget);
+        },
+      );
+
+      testWidgets('conclusão torna o destino a página corrente (critério 3)', (
+        tester,
+      ) async {
+        final curtain = ValueNotifier<SweepCurtain?>(null);
+        final vc = ScoreViewController();
+        final pages = <int>[];
+        await pumpScoreView(
+          tester,
+          doc,
+          view(doc, vc: vc, curtain: curtain, onPageChanged: pages.add),
+        );
+        vc.goToPage(6);
+        await tester.pump();
+        pages.clear();
+        curtain.value = SweepCurtain(
+          pageIndex: 6,
+          edgeX: sweepEndX(pageOf(6), defaultBarWidth(doc)),
+          targetPageIndex: 1,
+        );
+        await tester.pump();
+        expect(vc.currentPage, 1);
+        expect(pages, [1]);
+      });
+
+      testWidgets(
+        'salto para página não vizinha pinta as duas e não vaza Picture (critério 5)',
+        (tester) async {
+          expect(doc.pages.length, greaterThanOrEqualTo(7));
+          final curtain = ValueNotifier<SweepCurtain?>(null);
+          final vc = ScoreViewController();
+          final state = await pumpScoreView(
+            tester,
+            doc,
+            view(doc, vc: vc, curtain: curtain),
+          );
+          vc.goToPage(5);
+          await tester.pump();
+          curtain.value = SweepCurtain(
+            pageIndex: 5,
+            edgeX: midX(5),
+            targetPageIndex: 0,
+          );
+          await tester.pump();
+          expect(
+            tester
+                .widgetList<ScorePageView>(find.byType(ScorePageView))
+                .map((w) => w.pageIndex)
+                .toSet(),
+            {5, 0},
+          );
+          // Conclusão: só a página 0 fica, sem vazar o Picture da 5.
+          curtain.value = SweepCurtain(
+            pageIndex: 5,
+            edgeX: sweepEndX(pageOf(5), defaultBarWidth(doc)),
+            targetPageIndex: 0,
+          );
+          await tester.pump();
+          expect(vc.currentPage, 0);
+          curtain.value = null;
+          await tester.pump();
+          await tester.pump();
+          expect(
+            tester
+                .widgetList<ScorePageView>(find.byType(ScorePageView))
+                .map((w) => w.pageIndex),
+            [0],
+          );
+          await tester.pumpWidget(const SizedBox());
+          expect(state.pictureStats.live, 0, reason: 'sem vazamento');
+        },
+      );
+    });
+
     testWidgets('destaque atravessa a virada', (tester) async {
       final controller = ScoreController(document: doc);
       addTearDown(controller.dispose);
