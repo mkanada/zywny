@@ -25,61 +25,53 @@ void main() {
   SweepCurtain? at(double ms) =>
       tl.curtainAt(ms, maxSweep: _maxSweep, barWidth: _bar);
 
-  group('salto 39900ms: compasso 34 (página 1) -> 19 (página 0)', () {
+  // P01c: os padrões do bridge (D-VSB-PADRAO) cabem mais compassos por
+  // página, então a paginação da Maple Leaf Rag mudou (o total de páginas
+  // continua 3, mas os pontos de quebra andaram). O único salto que ainda
+  // muda de página é este, da última página (2) para a anterior (1) - o
+  // salto que antes cruzava página perto do meio da peça (era 39900ms,
+  // página 1 -> 0) agora fica inteiro dentro da página 0, sem haste (a
+  // mesma regra do grupo "sem haste nos saltos de mesma página" abaixo).
+  group('salto 153900ms: compasso z1m4pqeg (última página, 2) -> jn8k16x '
+      '(página 1)', () {
     test(
-      'entrada, estacionada e conclusão com targetPageIndex = 0 (critério 1)',
+      'entrada, estacionada e conclusão com targetPageIndex = 1 (critério 1)',
       () {
-        final i = tl.measures.indexWhere((m) => m.startMs == 39900);
-        final m = tl.measures[i - 1]; // compasso 34, última ocorrência antes
-        final next = tl.measures[i]; // compasso 19, passagem 2
-        expect(m.page, 1);
-        expect(next.page, 0);
+        final i = tl.measures.indexWhere((m) => m.startMs == 153900);
+        final m = tl.measures[i - 1]; // última ocorrência antes do salto
+        final next = tl.measures[i]; // destino, passagem 2
+        expect(m.page, 2);
+        expect(next.page, 1);
+        expect(m.page, mapleLeafRag.pages.length - 1);
         final d = (m.endMs - m.startMs) / 4;
-        final endX = sweepEndX(mapleLeafRag.pages[1], _bar);
+        final endX = sweepEndX(mapleLeafRag.pages[2], _bar);
         final x = mapleLeafRag.geometry.elementOf(m.id)!.bbox.left;
 
         // Antes da entrada: repouso.
         expect(at(m.startMs - 1.0), isNull);
         // Entrada: 0 -> x.
         final entering = at(m.startMs + d / 2)!;
-        expect(entering.pageIndex, 1);
-        expect(entering.targetPageIndex, 0);
+        expect(entering.pageIndex, 2);
+        expect(entering.targetPageIndex, 1);
         expect(entering.edgeX, closeTo(x / 2, 1e-6));
         // Estacionada em x.
         final parked = at((m.startMs + d + next.startMs) / 2)!;
         expect(parked.edgeX, closeTo(x, 1e-6));
-        expect(parked.targetPageIndex, 0);
+        expect(parked.targetPageIndex, 1);
         // Conclusão: x -> fim.
         final concluding = at(next.startMs + d / 2)!;
         expect(concluding.edgeX, closeTo(x + (endX - x) / 2, 1e-6));
         // Repouso na página de destino, depois da conclusão.
         expect(at(next.startMs + d), isNull);
-        expect(tl.restPageAt(next.startMs + d), 0);
+        expect(tl.restPageAt(next.startMs + d), 1);
       },
     );
   });
 
-  group('salto 97500ms: compasso 67 (última página, 2) -> 52 (página 1)', () {
-    test('a última página tem haste com destino explícito (critério 1)', () {
-      final i = tl.measures.indexWhere((m) => m.startMs == 97500);
-      final m = tl.measures[i - 1];
-      final next = tl.measures[i];
-      expect(m.page, 2);
-      expect(next.page, 1);
-      expect(m.page, mapleLeafRag.pages.length - 1);
-
-      final d = (m.endMs - m.startMs) / 4;
-      final parked = at((m.startMs + d + next.startMs) / 2)!;
-      expect(parked.pageIndex, 2);
-      expect(parked.targetPageIndex, 1);
-      expect(at(next.startMs + d), isNull);
-      expect(tl.restPageAt(next.startMs + d), 1);
-    });
-  });
-
   group('sem haste nos saltos de mesma página (fora de escopo)', () {
-    test('84 -> 69 (passagem 2, mesma página): repouso o tempo todo', () {
-      final i = tl.measures.indexWhere((m) => m.startMs == 135900);
+    test('mdf3uku -> q1t6l0ej (passagem 2, mesma página): repouso o tempo '
+        'todo', () {
+      final i = tl.measures.indexWhere((m) => m.startMs == 19500);
       final m = tl.measures[i - 1];
       final next = tl.measures[i];
       expect(m.page, next.page);

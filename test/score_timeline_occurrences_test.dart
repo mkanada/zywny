@@ -52,10 +52,20 @@ void main() {
       expect(tl.measures.where((m) => m.pass == 1), hasLength(47));
     });
 
-    test('Maple Leaf Rag: 130 ocorrências, 45 na passagem 2', () {
+    test('Maple Leaf Rag: 145 ocorrências, 60 na passagem 2', () {
+      // P01c: este fixture (só usado por este arquivo e por
+      // score_timeline_jump_curtain_test.dart) datava de E02b e nunca tinha
+      // sido regenerado desde então - ficou parado em 130 ocorrências, o
+      // número de ANTES da correção de E04b (que resolveu a Maple Leaf Rag
+      // perder o 1º ritornelo; README, "Repetições no corpus": 130 -> 145).
+      // Regenerar em P01c (mesmo comando de sempre, -x 42) trouxe esse
+      // fixture para o mesmo estado do resto do corpus, então 145 é a
+      // correção de E04b aparecendo aqui, não um efeito de P01b/P01c em si
+      // (pass1 é o mesmo 85 de antes: E04b só afeta quantas vezes o trecho
+      // repetido toca, não os compassos distintos).
       final tl = ScoreTimeline(mapleLeafRag);
-      expect(tl.measures, hasLength(130));
-      expect(tl.measures.where((m) => m.pass == 2), hasLength(45));
+      expect(tl.measures, hasLength(145));
+      expect(tl.measures.where((m) => m.pass == 2), hasLength(60));
       expect(tl.measures.where((m) => m.pass == 1), hasLength(85));
     });
 
@@ -104,29 +114,36 @@ void main() {
   });
 
   group('página em repouso durante a Maple Leaf Rag (critério 3)', () {
-    test('45000ms -> página 0; 58000ms -> página 1; 97500ms -> página 1', () {
+    test('45000ms -> página 0; 58000ms -> página 0; 97500ms -> página 1', () {
+      // P01c: paginação nova (D-VSB-PADRAO); 58000ms mudou de página 1 para
+      // 0 porque a página 0 agora cabe mais compassos (fixture regenerado,
+      // ver nota do teste "145 ocorrências" acima).
       final tl = ScoreTimeline(mapleLeafRag);
       expect(tl.restPageAt(45000), 0);
-      expect(tl.restPageAt(58000), 1);
+      expect(tl.restPageAt(58000), 0);
       expect(tl.restPageAt(97500), 1);
     });
   });
 
   group('salto leva ao compasso de destino certo (critério 4)', () {
-    test('39900ms: o compasso 19 (2ª passagem) começa a tocar', () {
+    test('19500ms: o compasso q1t6l0ej (2ª passagem, início do 1º '
+        'ritornelo) começa a tocar', () {
+      // P01c: com o fixture regenerado (145 ocorrências, ver acima), o
+      // salto de 39900ms (compasso 19) usado antes já não é mais um salto
+      // (o mesmo caso da nota do arquivo E02b: compasso e sua repetição
+      // ficam sequenciais na ordem de execução com a paginação/expansão
+      // atual). Troquei pelo 1º ritornelo do documento, ainda um salto de
+      // verdade: a ocorrência anterior (fim da 1ª passagem) não é a de
+      // doc-order anterior ao início do ritornelo.
       final tl = ScoreTimeline(mapleLeafRag);
-      // Medido com o mesmo --xml-id-seed 42 (docs/plano/E02b, notas de
-      // execução): o compasso de ordem de documento 19 é 'qqplm6a'.
-      const compasso19 = 'qqplm6a';
-      final atJump = tl.measureIndexAt(39901);
+      const inicioRitornelo = 'q1t6l0ej';
+      final atJump = tl.measureIndexAt(19501);
       final destination = tl.measures[atJump];
-      expect(destination.id, compasso19);
+      expect(destination.id, inicioRitornelo);
       expect(destination.pass, 2);
-      expect(destination.startMs, 39900);
-      // É de fato um salto: a ocorrência anterior (compasso 34, fim da 1ª
-      // passagem do 2º ritornelo) não é a de doc-order anterior a 19.
+      expect(destination.startMs, 19500);
       final before = tl.measures[atJump - 1];
-      expect(before.id, isNot(compasso19));
+      expect(before.id, isNot(inicioRitornelo));
       expect(before.pass, 1);
     });
   });
