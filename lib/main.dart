@@ -5,7 +5,6 @@ import 'dart:math' as math;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
 
@@ -49,8 +48,7 @@ class ScoreHomePage extends StatefulWidget {
 const double kZoomMin = 0.5;
 const double kZoomMax = 8.0;
 
-class _ScoreHomePageState extends State<ScoreHomePage>
-    with SingleTickerProviderStateMixin {
+class _ScoreHomePageState extends State<ScoreHomePage> {
   String? _scoreName;
   String? _inputPath;
   VsbDocument? _document;
@@ -91,17 +89,13 @@ class _ScoreHomePageState extends State<ScoreHomePage>
   /// playback never rebuilds this widget.
   final ScoreController _controller = ScoreController();
 
-  /// Playback walks `document.timemap` against a clock: [_ticker] runs while
-  /// playing, [_playhead] is the score time (ms) it has reached, and
-  /// [_nextEntry] is the first timemap entry not yet fired.
-  late final Ticker _ticker = createTicker(_onTick);
-  bool _playing = false;
-  Duration _playhead = Duration.zero;
-  Duration _resumedAt = Duration.zero;
-  int _nextEntry = 0;
+  /// Page navigation and page-turn animation (sweep bar) of the [ScoreView].
+  final ScoreViewController _viewController = ScoreViewController();
 
-  /// `xml:id` → page index, so playback can follow the notes across pages.
-  Map<String, int> _pageOfId = const {};
+  /// Playback: walks the timemap, highlights notes through [_controller] and
+  /// drives the page-turn sweep. Rebuilt for every new engraving.
+  ScorePlayer? _player;
+  bool _playing = false;
 
   bool get _canPlay => (_document?.timemap?.isNotEmpty ?? false) && !_busy;
 
@@ -134,7 +128,8 @@ class _ScoreHomePageState extends State<ScoreHomePage>
   @override
   void dispose() {
     _resizeDebounce?.cancel();
-    _ticker.dispose();
+    _player?.dispose();
+    _viewController.dispose();
     _controller.dispose();
     _view.dispose();
     super.dispose();
@@ -239,13 +234,21 @@ class _ScoreHomePageState extends State<ScoreHomePage>
       if (!mounted) return;
       // A new engraving has new ids (and possibly new pages): drop the
       // playback that belonged to the old one.
-      _stop();
+      _player?.dispose();
+      _player = null;
+      _playing = false;
+      _controller.clearAll();
       _controller.attachDocument(document);
-      _pageOfId = {
-        for (final page in document.pages)
-          for (final id in page.byId.keys) id: page.index,
-      };
+      final hasTimemap = document.timemap?.isNotEmpty ?? false;
       setState(() {
+        _player = hasTimemap
+            ? ScorePlayer(
+                document: document,
+                controller: _controller,
+                view: _viewController,
+                onEntry: _onEntry,
+              )
+            : null;
         _document = document;
         // New options reflow the score: the page we were on may not exist
         // any more.
@@ -274,65 +277,40 @@ class _ScoreHomePageState extends State<ScoreHomePage>
   }
 
   void _togglePlay() {
+    final player = _player;
+    if (player == null) return;
     if (_playing) {
-      _ticker.stop();
+      player.pause();
       _controller.releaseAll();
       setState(() => _playing = false);
       return;
     }
-    final timemap = _document?.timemap;
-    if (timemap == null || timemap.isEmpty) return;
-    if (_nextEntry >= timemap.length) {
-      _playhead = Duration.zero;
-      _nextEntry = 0;
-    }
-    _resumedAt = _playhead;
-    _ticker.start();
+    player.play();
     setState(() => _playing = true);
   }
 
   /// Stops playback and rewinds to the start.
   void _stop() {
-    if (_ticker.isActive) _ticker.stop();
+    final player = _player;
+    if (player == null) return;
+    player.pause();
+    player.seek(Duration.zero);
     _controller.clearAll();
-    _playhead = Duration.zero;
-    _nextEntry = 0;
     if (_playing && mounted) setState(() => _playing = false);
-    _playing = false;
   }
 
-  /// Fires every timemap entry whose `tstamp` (ms) the clock has passed.
-  void _onTick(Duration elapsed) {
-    final timemap = _document?.timemap;
-    if (timemap == null) return;
-    _playhead = _resumedAt + elapsed;
-    final ms = _playhead.inMicroseconds / 1000;
-    int? followPage;
-    while (_nextEntry < timemap.length && timemap[_nextEntry].tstamp <= ms) {
-      final entry = timemap[_nextEntry++];
-      for (final id in entry.off) {
-        _controller.release(id, duration: const Duration(milliseconds: 120));
-      }
-      _controller.highlightAll(
-        entry.on,
-        release: const Duration(milliseconds: 250),
-        hold: const Duration(days: 1),
-      );
-      for (final id in entry.on) {
-        followPage = _pageOfId[id] ?? followPage;
-      }
-    }
-    if (followPage != null && followPage != _pageIndex) _goToPage(followPage);
-    if (_nextEntry >= timemap.length) {
-      _ticker.stop();
+  /// The player pauses itself at the end of the piece; follow that here.
+  void _onEntry(TimemapEntry entry) {
+    final player = _player;
+    if (player == null || !_playing) return;
+    if (player.position >= player.duration) {
       _controller.releaseAll();
-      setState(() => _playing = false);
+      if (mounted) setState(() => _playing = false);
     }
   }
 
-  void _goToPage(int page) {
-    if (_pageCount == 0) return;
-    final target = page.clamp(0, _pageCount - 1);
+  void _onPageChanged(int target) {
+    if (_pageCount == 0 || !mounted) return;
     setState(() {
       _pageIndex = target;
       _status = _pageCount > 1
@@ -466,14 +444,22 @@ class _ScoreHomePageState extends State<ScoreHomePage>
                   math.min(constraints.maxWidth, constraints.maxHeight) / 2,
                 ),
                 child: hasPage
-                    ? Center(
-                        child: ScorePageView(
+                    // InteractiveViewer gives its child unbounded room, so the
+                    // view is pinned to the score box.
+                    ? SizedBox(
+                        width: constraints.maxWidth,
+                        height: constraints.maxHeight,
+                        child: ScoreView(
                           document: document,
-                          pageIndex: _pageIndex.clamp(
+                          controller: _controller,
+                          viewController: _viewController,
+                          curtain: _player?.curtain,
+                          mode: ScorePageMode.pagedSweep,
+                          initialPage: _pageIndex.clamp(
                             0,
                             document.pages.length - 1,
                           ),
-                          controller: _controller,
+                          onPageChanged: _onPageChanged,
                         ),
                       )
                     : const Center(
@@ -586,7 +572,11 @@ class _ScoreHomePageState extends State<ScoreHomePage>
                 ),
                 IconButton.filledTonal(
                   tooltip: 'Parar',
-                  onPressed: _canPlay && (_playing || _playhead > Duration.zero)
+                  onPressed:
+                      _canPlay &&
+                          (_playing ||
+                              (_player?.position ?? Duration.zero) >
+                                  Duration.zero)
                       ? _stop
                       : null,
                   icon: const Icon(Icons.stop),
@@ -594,7 +584,7 @@ class _ScoreHomePageState extends State<ScoreHomePage>
                 IconButton.filledTonal(
                   tooltip: 'Página anterior',
                   onPressed: _pageIndex > 0 && !_busy
-                      ? () => _goToPage(_pageIndex - 1)
+                      ? _viewController.previousPage
                       : null,
                   icon: const Icon(Icons.chevron_left),
                 ),
@@ -605,7 +595,7 @@ class _ScoreHomePageState extends State<ScoreHomePage>
                 IconButton.filledTonal(
                   tooltip: 'Próxima página',
                   onPressed: _pageIndex < _pageCount - 1 && !_busy
-                      ? () => _goToPage(_pageIndex + 1)
+                      ? _viewController.nextPage
                       : null,
                   icon: const Icon(Icons.chevron_right),
                 ),
