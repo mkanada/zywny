@@ -94,12 +94,31 @@ VsbDocument _fromZipBytes(Uint8List bytes) {
     }
   }
 
+  // Parse preguiçoso (VsbDocument.alternates): o zip já trouxe todos os bytes
+  // para a memória (ZipDecoder.decodeBytes), então só adiamos o json.decode e
+  // a montagem da árvore de página em si — o que mediu 4,6x mais lento na
+  // Maple Leaf Rag (VsbDocument.alternates, notas de P03a).
+  final alternatesFileName = manifest.files.alternates;
+  List<AlternateSequence> loadAlternates() {
+    if (alternatesFileName == null) return const [];
+    final alternatesEntry = archive.findFile(alternatesFileName);
+    if (alternatesEntry == null) return const [];
+    final alternatesDecoded = json.decode(
+      utf8.decode(alternatesEntry.readBytes()!),
+    );
+    return parseAlternatesDocument(
+      _asMap(alternatesDecoded, 'alternates'),
+      path: 'alternates',
+    );
+  }
+
   return VsbDocument(
     manifest: manifest,
     glyphs: glyphs,
     pages: pages,
     timemap: timemap,
     meta: meta,
+    alternatesLoader: loadAlternates,
   );
 }
 
@@ -124,12 +143,25 @@ VsbDocument _fromDocumentJson(Map<String, dynamic> root) {
     meta = parseMetaDocument(root['meta'], path: 'meta');
   }
 
+  // Parse preguiçoso (VsbDocument.alternates): o JSON já está todo decodificado
+  // em memória aqui (era um `Map` só); o que adiamos é a montagem da árvore de
+  // página (ver a mesma nota em _fromZipBytes).
+  final alternatesJson = root['alternates'];
+  List<AlternateSequence> loadAlternates() {
+    if (alternatesJson == null) return const [];
+    return parseAlternatesDocument(
+      _asMap(alternatesJson, 'alternates'),
+      path: 'alternates',
+    );
+  }
+
   return VsbDocument(
     manifest: manifest,
     glyphs: glyphs,
     pages: pages,
     timemap: timemap,
     meta: meta,
+    alternatesLoader: loadAlternates,
   );
 }
 
@@ -173,6 +205,9 @@ VsbManifest parseManifestDocument(
     meta: filesJson['meta'] == null
         ? null
         : _asString(filesJson['meta'], '$path.files.meta'),
+    alternates: filesJson['alternates'] == null
+        ? null
+        : _asString(filesJson['alternates'], '$path.files.alternates'),
   );
   return VsbManifest(
     format: format,
@@ -616,6 +651,47 @@ _ShapeStyle _parseShapeStyle(Map<String, dynamic> json, String path) {
         : _asLineJoin(json['lineJoin'], '$path.lineJoin'),
     dash: json['dash'] == null ? null : _asDash(json['dash'], '$path.dash'),
   );
+}
+
+// ---------------------------------------------------------------------------
+// alternates.json (§2.5)
+// ---------------------------------------------------------------------------
+
+List<AlternateSequence> parseAlternatesDocument(
+  Map<String, dynamic> json, {
+  required String path,
+}) {
+  final sequencesJson = _requireList(
+    json,
+    'sequences',
+    path,
+    fieldPath: '$path.sequences',
+  );
+  return [
+    for (var k = 0; k < sequencesJson.length; k++)
+      _parseAlternateSequence(
+        _asMap(sequencesJson[k], '$path.sequences[$k]'),
+        '$path.sequences[$k]',
+      ),
+  ];
+}
+
+AlternateSequence _parseAlternateSequence(
+  Map<String, dynamic> json,
+  String path,
+) {
+  final start = _asString(_requireField(json, 'start', path), '$path.start');
+  // Mesmo `_parseScenePage` de scene.json (§5): uma página de sequência tem
+  // exatamente a mesma forma de uma página normal (§2.5).
+  final pagesJson = _requireList(json, 'pages', path, fieldPath: '$path.pages');
+  final pages = <ScenePage>[
+    for (var k = 0; k < pagesJson.length; k++)
+      _parseScenePage(
+        _asMap(pagesJson[k], '$path.pages[$k]'),
+        '$path.pages[$k]',
+      ),
+  ];
+  return AlternateSequence(start: start, pages: pages);
 }
 
 // ---------------------------------------------------------------------------

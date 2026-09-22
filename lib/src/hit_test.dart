@@ -82,15 +82,33 @@ class ElementRef {
   double get _area => bbox.width * bbox.height;
 }
 
-/// Mapa `id → (página, bbox, classe)` de um documento, montado **uma vez**, e
-/// as consultas de coordenada e hit-test em cima dele.
+/// Mapa `id → (página, bbox, classe)` de um conjunto de páginas, montado
+/// **uma vez**, e as consultas de coordenada e hit-test em cima dele.
 ///
 /// Todas as consultas em "pixels do widget" recebem a [pageWidth] com que a
 /// página está desenhada (o `ScorePageView` escala o desenho até ela); sem
 /// ela, a página está em tamanho natural (`widthPx`).
+///
+/// Por que **não** é sempre "as páginas do documento" (P03a): as sequências
+/// alternativas de `alternates.json` (§2.5) repetem, de propósito, os mesmos
+/// `xml:id` de nota/compasso das páginas normais e de outras sequências —
+/// juntar tudo num `_byId` só faria `elementOf` devolver a página errada.
+/// [ScoreGeometry.forPages] monta a geometria de **um** conjunto (as normais,
+/// ou uma sequência), cada um com a sua.
 class ScoreGeometry {
-  ScoreGeometry(this.document) {
-    for (final page in document.pages) {
+  /// A geometria das páginas normais de [document] (resolve ids expandidos
+  /// por [VsbDocument.sceneIdOf]). Para uma sequência alternativa, use
+  /// `document.geometryOf(k)` ou `document.alternates[k].geometry`.
+  ScoreGeometry(VsbDocument document)
+    : this.forPages(document.pages, sceneIdOf: document.sceneIdOf);
+
+  /// A geometria de um conjunto de páginas qualquer — as páginas normais de
+  /// um documento, ou as de uma [AlternateSequence]. [sceneIdOf] resolve um
+  /// id expandido do timemap (`-rend<N>`) ao id da cena que ele representa
+  /// (E02a); `null` quando o chamador não tem essa resolução (equivale a
+  /// "todo id já é o da cena").
+  ScoreGeometry.forPages(this.pages, {this.sceneIdOf}) {
+    for (final page in pages) {
       final list = <ElementRef>[];
       for (final e in page.elements) {
         if (e.bbox.width <= 0 || e.bbox.height <= 0) {
@@ -110,24 +128,31 @@ class ScoreGeometry {
     }
   }
 
-  final VsbDocument document;
+  /// As páginas deste escopo (as normais de um documento, ou as de uma
+  /// sequência), na mesma ordem usada para indexar `page.index`.
+  final List<ScenePage> pages;
+
+  /// Resolve um id expandido do timemap (`-rend<N>`) ao id da cena que ele
+  /// representa (E02a); `null` quando o chamador não tem essa resolução.
+  final String? Function(String)? sceneIdOf;
+
   final Map<String, ElementRef> _byId = {};
   final List<List<ElementRef>> _byPage = [];
 
-  /// Quantos elementos com bbox utilizável há no documento.
+  /// Quantos elementos com bbox utilizável há neste escopo.
   int get length => _byId.length;
 
   /// O elemento [id], resolvido pela regra do sufixo (E02a: um id expandido
   /// `-rend<N>` do timemap vira o id da cena), ou `null` se ele não existir
-  /// na cena ou não tiver bbox desenhável.
-  ElementRef? elementOf(String id) => _byId[document.sceneIdOf(id) ?? id];
+  /// neste escopo ou não tiver bbox desenhável.
+  ElementRef? elementOf(String id) => _byId[sceneIdOf?.call(id) ?? id];
 
   /// Índice da página de [id] (resolvido como em [elementOf]), ou `null`.
   int? pageOf(String id) => elementOf(id)?.page;
 
   /// Fator de escala pixels-da-página → pixels-do-widget.
   double _scaleOf(int pageIndex, double? pageWidth) =>
-      pageWidth == null ? 1.0 : pageWidth / document.pages[pageIndex].widthPx;
+      pageWidth == null ? 1.0 : pageWidth / pages[pageIndex].widthPx;
 
   /// Retângulo de [id] (resolvido como em [elementOf]) em pixels lógicos
   /// **da página** desenhada com [pageWidth] (a origem é o canto superior
@@ -142,7 +167,7 @@ class ScoreGeometry {
 
   /// [rectForId] para um [ElementRef] já resolvido.
   ui.Rect rectOf(ElementRef ref, {double? pageWidth}) {
-    final px = pageRectToPagePx(ref.bbox, document.pages[ref.page]);
+    final px = pageRectToPagePx(ref.bbox, pages[ref.page]);
     final s = _scaleOf(ref.page, pageWidth);
     return s == 1.0
         ? px
@@ -163,7 +188,7 @@ class ScoreGeometry {
     double? pageWidth,
     Set<String>? classes,
   }) {
-    final page = document.pages[pageIndex];
+    final page = pages[pageIndex];
     final s = _scaleOf(pageIndex, pageWidth);
     // Ponto em unidades de viewBox: compara com as bboxes sem converter cada
     // uma.
@@ -197,7 +222,7 @@ class ScoreGeometry {
     double? pageWidth,
     Set<String>? classes,
   }) sync* {
-    final page = document.pages[pageIndex];
+    final page = pages[pageIndex];
     final s = _scaleOf(pageIndex, pageWidth);
     final r = pagePxToPageRect(
       ui.Rect.fromLTRB(

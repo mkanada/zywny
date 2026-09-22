@@ -8,6 +8,8 @@ library;
 import 'dart:typed_data';
 import 'dart:ui' show Offset, Rect;
 
+import 'package:flutter/foundation.dart' show immutable;
+
 import 'expansion.dart';
 import 'glyph_cache.dart';
 import 'hit_test.dart';
@@ -64,12 +66,14 @@ class VsbManifestFiles {
   final String glyphs;
   final String? timemap;
   final String? meta;
+  final String? alternates;
 
   const VsbManifestFiles({
     required this.scene,
     required this.glyphs,
     this.timemap,
     this.meta,
+    this.alternates,
   });
 }
 
@@ -103,6 +107,61 @@ class VsbMeta {
   }
 }
 
+/// Referência a **qualquer** página do documento (§2.5, P03a/P00): uma
+/// página normal (`sequence == null`, `index` em [VsbDocument.pages]) ou a
+/// página `index` de uma sequência alternativa (`sequence` é o índice dela em
+/// [VsbDocument.alternates]). A indexação que o usuário vê (`goToPage`,
+/// `currentPage`, `pageCount`) continua falando só de páginas normais
+/// (D-ALT-INDICE) — `PageRef` é usado só no modo player.
+@immutable
+class PageRef {
+  const PageRef(this.index, {this.sequence});
+
+  final int? sequence;
+  final int index;
+
+  /// `false` para a página normal `index`; `true` para uma página de
+  /// [VsbDocument.alternates].
+  bool get isAlternate => sequence != null;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PageRef && other.sequence == sequence && other.index == index;
+
+  @override
+  int get hashCode => Object.hash(sequence, index);
+
+  @override
+  String toString() =>
+      isAlternate ? 'PageRef($index, sequence: $sequence)' : 'PageRef($index)';
+}
+
+/// Uma sequência alternativa de `alternates.json` (§2.5): a paginação do
+/// trecho que começa no compasso [start] até o fim da peça, usada só pelo
+/// player quando um salto de repetição muda de página (P00).
+///
+/// [geometry] é montada sobre **só** as páginas desta sequência, com sua
+/// própria resolução de ids expandidos (E02a) construída sobre os mesmos
+/// `xml:id` — que se repetem entre sequências e páginas normais por
+/// construção (§2.5), o que tornaria um índice único ambíguo:
+/// `elementOf`/`rectForId` têm que devolver a posição **dentro desta
+/// sequência**, não a de outra ocorrência do mesmo id em outro lugar.
+class AlternateSequence {
+  final String start;
+  final List<ScenePage> pages;
+
+  AlternateSequence({required this.start, required this.pages});
+
+  late final IdExpansion _expansion = IdExpansion({
+    for (final page in pages) ...page.byId.keys,
+  });
+
+  late final ScoreGeometry geometry = ScoreGeometry.forPages(
+    pages,
+    sceneIdOf: _expansion.sceneIdOf,
+  );
+}
+
 /// Documento completo: manifest + dicionário de glifos + páginas + timemap e
 /// metadados opcionais (§2.2).
 class VsbDocument {
@@ -115,20 +174,39 @@ class VsbDocument {
   /// tinha nenhum dos dois.
   final VsbMeta? meta;
 
+  /// Sequências alternativas de `alternates.json` (§2.5); vazia quando o
+  /// pacote não tem o arquivo (peça sem repetição, ou leitor de antes de
+  /// P03a). Parse **preguiçoso**: o parser só monta a árvore de página na
+  /// primeira consulta a este campo, não em [VsbDocument.fromBytes]/
+  /// [VsbDocument.fromJson] — medido na Maple Leaf Rag (8 sequências, a peça
+  /// do corpus com mais): montar sempre custava 4,6× o tempo de parse do
+  /// resto do documento (410 ms vs. 89 ms), e a maioria dos hosts só
+  /// consulta `alternates` quando um salto de repetição precisa dela
+  /// (P04a), não a cada arquivo aberto.
+  late final List<AlternateSequence> alternates = _alternatesLoader();
+  final List<AlternateSequence> Function() _alternatesLoader;
+
   VsbDocument({
     required this.manifest,
     required this.glyphs,
     required this.pages,
     this.timemap,
     this.meta,
-  });
+    List<AlternateSequence>? alternates,
+    List<AlternateSequence> Function()? alternatesLoader,
+  }) : assert(
+         alternates == null || alternatesLoader == null,
+         'passe alternates ou alternatesLoader, não os dois',
+       ),
+       _alternatesLoader = alternatesLoader ?? (() => alternates ?? const []);
 
   /// Cache de contornos de glifo (R03a): uma instância por documento,
   /// compartilhada por todas as páginas e painters.
   late final GlyphCache glyphCache = GlyphCache(glyphs);
 
-  /// Mapa `id → (página, bbox, classe)` e hit-test (A04a): montado uma vez,
-  /// na primeira consulta.
+  /// Mapa `id → (página, bbox, classe)` e hit-test (A04a) das páginas
+  /// **normais**, montado uma vez, na primeira consulta. Para uma sequência
+  /// alternativa, use [geometryOf] ou `alternates[k].geometry`.
   late final ScoreGeometry geometry = ScoreGeometry(this);
 
   /// Resolução de ids expandidos do timemap (E02a), montada uma vez, na
@@ -145,6 +223,30 @@ class VsbDocument {
   /// A execução (passagem) que [id] representa: `N` de `-rend<N>`; `1` para
   /// o id da cena.
   int passOf(String id) => _expansion.passOf(id);
+
+  /// A página referenciada por [ref] — normal, ou de uma sequência
+  /// alternativa.
+  ScenePage pageAt(PageRef ref) {
+    final sequence = ref.sequence;
+    return sequence == null
+        ? pages[ref.index]
+        : alternates[sequence].pages[ref.index];
+  }
+
+  /// A geometria (A04a) do escopo de [sequence]: [geometry] (páginas
+  /// normais) quando `null`, senão `alternates[sequence].geometry`.
+  ScoreGeometry geometryOf(int? sequence) =>
+      sequence == null ? geometry : alternates[sequence].geometry;
+
+  /// A sequência alternativa cujo [AlternateSequence.start] é [measureId], ou
+  /// `null` se não houver uma (a peça não tem repetição, ou [measureId] não é
+  /// ponto de chegada de nenhum salto — §2.5).
+  AlternateSequence? alternateStartingAt(String measureId) {
+    for (final sequence in alternates) {
+      if (sequence.start == measureId) return sequence;
+    }
+    return null;
+  }
 
   /// Faz o parse de um `.vsb` (zip) ou de um JSON único (`-t vsb-json`),
   /// detectando o formato pela assinatura `PK` do zip (§2).

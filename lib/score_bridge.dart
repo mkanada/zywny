@@ -27,4 +27,5 @@ export 'src/parser.dart'
         parseMetaDocument,
         parseGlyphsDocument,
         parseSceneDocument,
-        parseTimemapDocument;
+        parseTimemapDocument,
+        parseAlternatesDocument;
