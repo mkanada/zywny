@@ -8,6 +8,7 @@ library;
 import 'dart:typed_data';
 import 'dart:ui' show Offset, Rect;
 
+import 'expansion.dart';
 import 'glyph_cache.dart';
 import 'hit_test.dart';
 import 'parser.dart' as parser;
@@ -129,6 +130,21 @@ class VsbDocument {
   /// Mapa `id → (página, bbox, classe)` e hit-test (A04a): montado uma vez,
   /// na primeira consulta.
   late final ScoreGeometry geometry = ScoreGeometry(this);
+
+  /// Resolução de ids expandidos do timemap (E02a), montada uma vez, na
+  /// primeira consulta.
+  late final IdExpansion _expansion = IdExpansion({
+    for (final page in pages) ...page.byId.keys,
+  });
+
+  /// Id do nó da cena que [id] representa (ele mesmo, ou a base de um
+  /// `-rend<N>`), ou `null` se [id] não pertence à cena. Regra do sufixo de
+  /// D-EXPMAP — docs/formato/especificacao-v1.md §2.4.
+  String? sceneIdOf(String id) => _expansion.sceneIdOf(id);
+
+  /// A execução (passagem) que [id] representa: `N` de `-rend<N>`; `1` para
+  /// o id da cena.
+  int passOf(String id) => _expansion.passOf(id);
 
   /// Faz o parse de um `.vsb` (zip) ou de um JSON único (`-t vsb-json`),
   /// detectando o formato pela assinatura `PK` do zip (§2).

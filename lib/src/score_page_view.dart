@@ -142,7 +142,10 @@ class ScorePageViewState extends State<ScorePageView> {
     final old = _layers;
     _animatableIds = {
       ...(widget.animatableIds ??
-          animatableIdsFromTimemap(widget.document.timemap)),
+          animatableIdsFromTimemap(
+            widget.document.timemap,
+            document: widget.document,
+          )),
       ..._promoted,
     };
     _layers = PageLayers(

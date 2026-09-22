@@ -270,30 +270,39 @@ void main() {
   });
 
   group('destaques (A02b)', () {
-    testWidgets('highlightAll com 50 ids: uma notificação; -rend2 ignorados', (
-      tester,
-    ) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
-      await mount(tester, doc, controller);
-      final real = noteIds.take(50).toList();
-      expect(real, hasLength(50));
-      // A mistura exata do plano: ids reais + ids `-rend2` (só no timemap).
-      final rend2 = [for (final id in real.take(20)) '$id-rend2'];
-      var notifications = 0;
-      controller.addListener(() => notifications++);
-      controller.highlightAll([...real, ...rend2]);
-      expect(notifications, 1);
-      expect(controller.highlightedCount, 50);
-      for (final id in real) {
-        expect(controller.isHighlighted(id), isTrue);
-        expect(controller.colorOf(id), kDefaultHighlightColor);
-      }
-      for (final id in rend2) {
-        expect(controller.isHighlighted(id), isFalse);
-      }
-      controller.clearAll();
-    });
+    testWidgets(
+      'highlightAll com 50 ids: uma notificação; -rend2 resolve à base (E02a)',
+      (tester) async {
+        final controller = ScoreController();
+        addTearDown(controller.dispose);
+        await mount(tester, doc, controller);
+        final real = noteIds.take(50).toList();
+        expect(real, hasLength(50));
+        // A mistura exata do plano: ids reais + ids `-rend2` (só no
+        // timemap) das mesmas notas — antes de E02a, `_known` rejeitava os
+        // `-rend2` em silêncio; agora `sceneIdOf` os resolve à mesma nota
+        // real, então eles não acrescentam nada a `highlightedCount`.
+        final rend2 = [for (final id in real.take(20)) '$id-rend2'];
+        var notifications = 0;
+        controller.addListener(() => notifications++);
+        controller.highlightAll([...real, ...rend2]);
+        expect(notifications, 1);
+        expect(controller.highlightedCount, 50);
+        for (final id in real) {
+          expect(controller.isHighlighted(id), isTrue);
+          expect(controller.colorOf(id), kDefaultHighlightColor);
+        }
+        for (final id in rend2) {
+          expect(
+            controller.isHighlighted(id),
+            isTrue,
+            reason: '$id resolve à mesma nota que já está acesa',
+          );
+          expect(controller.colorOf(id), kDefaultHighlightColor);
+        }
+        controller.clearAll();
+      },
+    );
 
     testWidgets('o Ticker roda só com animação ativa', (tester) async {
       final controller = ScoreController();

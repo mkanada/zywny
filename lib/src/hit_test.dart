@@ -117,21 +117,23 @@ class ScoreGeometry {
   /// Quantos elementos com bbox utilizável há no documento.
   int get length => _byId.length;
 
-  /// O elemento [id], ou `null` se ele não existe na cena (ids do timemap com
-  /// sufixo `-rend2`) ou não tem bbox desenhável.
-  ElementRef? elementOf(String id) => _byId[id];
+  /// O elemento [id], resolvido pela regra do sufixo (E02a: um id expandido
+  /// `-rend<N>` do timemap vira o id da cena), ou `null` se ele não existir
+  /// na cena ou não tiver bbox desenhável.
+  ElementRef? elementOf(String id) => _byId[document.sceneIdOf(id) ?? id];
 
-  /// Índice da página de [id], ou `null`.
-  int? pageOf(String id) => _byId[id]?.page;
+  /// Índice da página de [id] (resolvido como em [elementOf]), ou `null`.
+  int? pageOf(String id) => elementOf(id)?.page;
 
   /// Fator de escala pixels-da-página → pixels-do-widget.
   double _scaleOf(int pageIndex, double? pageWidth) =>
       pageWidth == null ? 1.0 : pageWidth / document.pages[pageIndex].widthPx;
 
-  /// Retângulo de [id] em pixels lógicos **da página** desenhada com
-  /// [pageWidth] (a origem é o canto superior esquerdo da página), ou `null`.
+  /// Retângulo de [id] (resolvido como em [elementOf]) em pixels lógicos
+  /// **da página** desenhada com [pageWidth] (a origem é o canto superior
+  /// esquerdo da página), ou `null`.
   ui.Rect? rectForId(String id, {double? pageWidth}) {
-    final ref = _byId[id];
+    final ref = elementOf(id);
     if (ref == null) {
       return null;
     }

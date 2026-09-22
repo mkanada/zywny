@@ -191,9 +191,10 @@ class ScoreViewController extends ChangeNotifier {
 
   /// Leva a tela até o elemento [id]. Modo paginado: `goToPage` da página dele.
   /// Modo contínuo: rola até a bbox ficar visível, com [alignment] (0 = topo,
-  /// 0,5 = centro, 1 = pé). Devolve `false`, sem lançar e sem mexer na
-  /// posição, se o id não existe na cena (os `-rend2` do timemap) ou se a
-  /// vista ainda não foi montada.
+  /// 0,5 = centro, 1 = pé). [id] é resolvido pela regra do sufixo (E02a:
+  /// `ScoreGeometry.elementOf`), então um `-rend2` do timemap rola até a base
+  /// na cena. Devolve `false`, sem lançar e sem mexer na posição, se [id] não
+  /// resolve a nada na cena ou se a vista ainda não foi montada.
   bool scrollToId(
     String id, {
     double alignment = 0.5,

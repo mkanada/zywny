@@ -158,13 +158,26 @@ extension PageSegmentStats on List<PageSegment> {
 }
 
 /// Ids animáveis padrão de um documento: os que aparecem em `on`/`off` do
-/// timemap. `restsOn`/`restsOff` ficam de fora (pausas não acendem), e o
-/// resultado pode ter ids que não existem na página — [segmentPage] ignora.
-Set<String> animatableIdsFromTimemap(List<TimemapEntry>? timemap) {
+/// timemap. `restsOn`/`restsOff` ficam de fora (pausas não acendem).
+///
+/// Com [document], cada id é resolvido pela regra do sufixo (E02a) antes de
+/// entrar no conjunto: um id expandido (`-rend2`) sem a base solta em
+/// `on`/`off` torna a base dinâmica do mesmo jeito, senão ela ficaria presa
+/// num `ui.Picture` estático e nunca mudaria de cor. Sem [document] (ou um id
+/// que não resolve a nada — repetições que nem a base têm no timemap, hoje
+/// raro no corpus), o id original entra como está, e [segmentPage] o ignora.
+Set<String> animatableIdsFromTimemap(
+  List<TimemapEntry>? timemap, {
+  VsbDocument? document,
+}) {
   final ids = <String>{};
   for (final entry in timemap ?? const <TimemapEntry>[]) {
-    ids.addAll(entry.on);
-    ids.addAll(entry.off);
+    for (final id in entry.on) {
+      ids.add(document?.sceneIdOf(id) ?? id);
+    }
+    for (final id in entry.off) {
+      ids.add(document?.sceneIdOf(id) ?? id);
+    }
   }
   return ids;
 }
@@ -174,9 +187,11 @@ Set<String> animatableIdsFromTimemap(List<TimemapEntry>? timemap) {
 ///
 /// Um nó cujo `id` está em [animatableIds] é dinâmico e entra **inteiro** num
 /// segmento dinâmico: não se desce nele procurando outro dentro. Ids de
-/// [animatableIds] que não existem na página (as repetições `-rend2` da
-/// Gymnopédie, por exemplo) são ignorados. Nós dinâmicos consecutivos na ordem
-/// de documento se fundem num só segmento — é isso que mantém o número de
+/// [animatableIds] que não existem na página são ignorados — com
+/// [animatableIdsFromTimemap] chamado com `document:` (E02a), isso já não
+/// acontece com um id expandido (`-rend2`) cuja base existe na página; sobra
+/// só para um id que não resolve a nada na cena. Nós dinâmicos consecutivos
+/// na ordem de documento se fundem num só segmento — é isso que mantém o número de
 /// `ui.Picture` por página na casa da centena, e não do milhar. Nunca há
 /// segmento vazio, e [animatableIds] vazio dá um só segmento estático.
 ///

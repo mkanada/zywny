@@ -1,4 +1,5 @@
 // `ScorePlayer` (A05a/A05b): relógio, timemap → destaque, viradas.
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -34,13 +35,15 @@ class _Ids implements SceneVisitor {
   void exitGroup(SceneNode node) {}
 }
 
-/// As notas que o timemap diz estarem ativas em [ms].
+/// As notas que o timemap diz estarem ativas em [ms], resolvidas ao id da
+/// cena (E02a: um `-rend2` de repetição vira a base, do mesmo jeito que
+/// `ScoreController` resolve antes de acender).
 Set<String> activeAt(VsbDocument doc, double ms) {
   final active = <String>{};
   for (final e in doc.timemap!) {
     if (e.tstamp > ms) break;
-    active.removeAll(e.off);
-    active.addAll(e.on);
+    active.removeAll(e.off.map((id) => doc.sceneIdOf(id) ?? id));
+    active.addAll(e.on.map((id) => doc.sceneIdOf(id) ?? id));
   }
   return active;
 }
@@ -137,6 +140,66 @@ void main() {
       });
     }
   });
+
+  testPlayer('Gymnopédie: destaque não-vazio durante toda a 2ª passagem (E02a, '
+      'critério 3)', (tester, cleanup) async {
+    final doc = corpusDoc('Gymnopedie')!;
+    final known = knownIds(doc);
+    final controller = ScoreController(document: doc);
+    final player = makePlayer(doc, controller);
+    cleanup.add(() {
+      controller.clearAll();
+      player.dispose();
+      controller.dispose();
+    });
+    final rng = math.Random(7);
+    for (var i = 0; i < 20; i++) {
+      final ms = 92368 + rng.nextDouble() * (165789 - 92368);
+      player.seek(Duration(microseconds: (ms * 1000).round()));
+      final expected = activeAt(doc, ms).intersection(known);
+      expect(controller.highlightedIds.toSet(), expected, reason: 'seek $ms');
+      expect(
+        controller.highlightedIds,
+        isNotEmpty,
+        reason: 'seek $ms não deveria ficar sem destaque nenhum',
+      );
+    }
+  });
+
+  testPlayer(
+    'r13 (repetição de um compasso): a nota repetida acende de novo, sem '
+    'ficar em release (E02a, critério 4)',
+    (tester, cleanup) async {
+      final bytes = File('test/fixtures/r13-um-compasso.vsb').readAsBytesSync();
+      final doc = VsbDocument.fromBytes(bytes);
+      final controller = ScoreController(document: doc);
+      final player = ScorePlayer(
+        document: doc,
+        controller: controller,
+        release: Duration.zero,
+      );
+      cleanup.add(() {
+        controller.clearAll();
+        player.dispose();
+        controller.dispose();
+      });
+      // Timemap: on m1n1 em 0, off m1n1 + on m1n1-rend2 em 2000 (o mesmo
+      // instante: a nota repetida), off m1n1-rend2 + on m2n1 em 4000.
+      player.seek(Duration.zero);
+      player.advance(const Duration(milliseconds: 2001));
+      expect(
+        controller.isHighlighted('m1n1'),
+        isTrue,
+        reason: 'a base deve reacender assim que a 2ª passagem começa',
+      );
+      // Bem depois do salto, mas antes do próximo off (4000 ms): se a nota
+      // tivesse ficado presa no `release` de Duration.zero da 1ª passagem
+      // (o bug de antes de E02a), já estaria apagada aqui.
+      player.advance(const Duration(milliseconds: 1800));
+      expect(controller.isHighlighted('m1n1'), isTrue);
+      expect(controller.colorOf('m1n1'), kDefaultHighlightColor);
+    },
+  );
 
   testPlayer('toca a peça toda e termina com tudo apagado (critério 2)', (
     tester,

@@ -16,10 +16,16 @@
 // um destaque em curso, o `release` dele passa a ir para a cor original.
 //
 // IDS: com um documento associado ([attachDocument], que o `ScorePageView`
-// faz sozinho), ids que **não existem em nenhuma página** são ignorados em
-// silêncio — o timemap traz ids sem correspondente na cena (`-rend2`), e
-// lançar exceção quebraria o playback. Sem documento não há como saber, e
-// tudo é aceito.
+// faz sozinho), todo método público resolve o id recebido com
+// `VsbDocument.sceneIdOf` (E02a) antes de mais nada — um id expandido do
+// timemap (`abc-rend2`) vira o id da cena (`abc`), pela regra do sufixo
+// (D-EXPMAP). Um id que não resolve a nada na cena é ignorado em silêncio:
+// lançar exceção quebraria o playback. Sem documento não há como resolver
+// nem saber se um id existe, e tudo é aceito como está.
+//
+// Estado (cor fixa, destaque, halo) é sempre indexado pelo id **da cena**:
+// `setColor('x-rend2', …)` pinta `x` nas duas passagens, porque é o mesmo
+// desenho.
 //
 // IDS NÃO-ANIMÁVEIS: um id fora de `animatableIds` está dentro de um `Picture`
 // estático e, sozinho, não mudaria de cor. O `ScorePageView` **promove** o id
@@ -119,6 +125,11 @@ class ScoreController extends ChangeNotifier {
     return _originals = visitor.colors;
   }
 
+  /// Ponto de entrada único de todo id recebido de fora: resolve um id
+  /// expandido do timemap (`-rend<N>`) ao id da cena (E02a). Sem documento,
+  /// devolve [id] sem mudar (não há como resolver).
+  String _resolve(String id) => _document?.sceneIdOf(id) ?? id;
+
   bool _known(String id) =>
       _document == null || _originalColors.containsKey(id);
 
@@ -130,7 +141,7 @@ class ScoreController extends ChangeNotifier {
 
   /// A cor que sobrepõe a original de [id] agora (animação ou fixa), ou
   /// `null` quando o nó está com a cor original.
-  ui.Color? colorOf(String id) => _effective[id];
+  ui.Color? colorOf(String id) => _effective[_resolve(id)];
 
   /// Todas as cores que sobrepõem a cena agora, por `id`. Somente leitura, e
   /// é o mesmo objeto a vida toda: o painter o consulta a cada frame.
@@ -150,7 +161,7 @@ class ScoreController extends ChangeNotifier {
   /// interrompe um destaque em curso (a animação tem precedência e passa a
   /// voltar para esta cor).
   void setColor(String id, ui.Color color) {
-    if (_setFixed(id, color)) {
+    if (_setFixed(_resolve(id), color)) {
       notifyListeners();
     }
   }
@@ -158,7 +169,9 @@ class ScoreController extends ChangeNotifier {
   /// Define várias cores de repouso com **uma** notificação.
   void setColors(Map<String, ui.Color> colors) {
     var changed = false;
-    colors.forEach((id, color) => changed = _setFixed(id, color) || changed);
+    colors.forEach(
+      (id, color) => changed = _setFixed(_resolve(id), color) || changed,
+    );
     if (changed) {
       notifyListeners();
     }
@@ -180,6 +193,7 @@ class ScoreController extends ChangeNotifier {
   /// Devolve [id] à cor original. Com destaque em curso, o `release` passa a
   /// ir para a cor original.
   void clearColor(String id) {
+    id = _resolve(id);
     if (_fixed.remove(id) == null) {
       return;
     }
@@ -240,7 +254,8 @@ class ScoreController extends ChangeNotifier {
     Curve curve = Curves.easeOut,
   }) {
     var any = false;
-    for (final id in ids) {
+    for (final rawId in ids) {
+      final id = _resolve(rawId);
       if (!_known(id)) {
         continue;
       }
@@ -266,7 +281,7 @@ class ScoreController extends ChangeNotifier {
   /// Começa agora o `release` de [id] (a partir da cor que ele tem), com a
   /// [duration] e a [curve] dadas ou, se ausentes, as do destaque.
   void release(String id, {Duration? duration, Curve? curve}) {
-    _engine.stop(id, _now, release: duration, curve: curve);
+    _engine.stop(_resolve(id), _now, release: duration, curve: curve);
     _afterEngineChange();
   }
 
@@ -291,7 +306,7 @@ class ScoreController extends ChangeNotifier {
   }
 
   /// [id] tem um destaque em curso.
-  bool isHighlighted(String id) => _engine.isActive(id);
+  bool isHighlighted(String id) => _engine.isActive(_resolve(id));
 
   /// Os ids com destaque em curso (em qualquer fase, `release` incluído).
   Iterable<String> get highlightedIds => _engine.activeIds;

@@ -5,12 +5,16 @@
 // isso `seek`, `pause` e `speed` funcionam sem código extra — a haste é
 // derivada, nunca guardada.
 //
-// ÍNDICE DE COMPASSOS. O timemap embutido não preenche `measureOn` (0 entradas
-// no corpus), então "em que compasso estou" sai da **cena**: o nó de classe
-// `measure` que é ancestral do id. Um único percurso da árvore monta o mapa
-// `id → compasso` e a página de cada compasso; o timemap dá o instante.
-// Compassos e notas que não existem na cena (os `-rend2` de repetição) ficam
-// de fora sem erro.
+// ÍNDICE DE COMPASSOS. "Em que compasso estou" sai da **cena**: o nó de
+// classe `measure` que é ancestral do id. Um único percurso da árvore monta o
+// mapa `id → compasso` e a página de cada compasso; o timemap dá o instante.
+// Compassos e notas com sufixo `-rend<N>` de repetição (ids expandidos, que
+// não existem na cena) ficam de fora sem erro NESTE arquivo — o timemap
+// embutido preenche `measureOn` desde E01b e `VsbDocument.sceneIdOf`/`passOf`
+// resolvem esses ids desde E02a, mas usá-los para que uma ocorrência de
+// compasso repetida apareça na linha do tempo é E02b, ainda não feito aqui.
+// Até lá, uma peça com repetição fica presa no último compasso "novo" antes
+// dela durante toda a 2ª passagem (ver E02b, "O defeito de hoje").
 //
 // REGRA DA HASTE (decidida com o usuário em 2026-09-21; ver A05b). Sejam `P`
 // uma página com uma seguinte, `M` o seu último compasso e `M+1` o primeiro da

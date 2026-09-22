@@ -639,6 +639,13 @@ void main() {
         }
         // ignore: avoid_print
         print('A03c scrollToId ($mode): ${sw.elapsedMicroseconds} µs');
+        // Id expandido (E02a): resolve à base e rola para o mesmo lugar.
+        vc.goToPage(0);
+        await tester.pump();
+        expect(vc.scrollToId('${ref.id}-rend2'), isTrue);
+        await tester.pump();
+        await tester.pump();
+        expect(vc.currentPage, lastPage);
         // Id inexistente: false e sem mexer.
         final before = vc.currentPage;
         expect(vc.scrollToId('nao-existe-rend2'), isFalse);
