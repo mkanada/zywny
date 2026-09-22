@@ -1,7 +1,8 @@
 // Faz o parse de um .vsb real do corpus (Erik Satie - Gymnopédie No.1,
-// exportado em S08 com `-x 42`, copiado para test/fixtures/erik-satie.vsb) e
-// confere contagens/ids conhecidos, além do critério 4 (byId == índice
-// exportado em S04).
+// exportado com `-x 42`, copiado para test/fixtures/erik-satie.vsb;
+// regenerado em E01b para embutir measureOn no timemap) e confere
+// contagens/ids conhecidos, além do critério 4 (byId == índice exportado em
+// S04).
 import 'dart:io';
 import 'dart:ui';
 
