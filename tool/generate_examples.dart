@@ -229,6 +229,132 @@ direita da haste; à esquerda dela aparece a página seguinte.
     player.dispose();
     controller.dispose();
   });
+
+  testWidgets('haste nos saltos de repetição (E03b, D-SALTO)', (tester) async {
+    const piece = 'MapleLeafRag';
+    final doc = VsbDocument.fromBytes(
+      File('test/fixtures/maple-leaf-rag.vsb').readAsBytesSync(),
+    );
+    final controller = ScoreController(document: doc);
+    final vc = ScoreViewController();
+    final player = ScorePlayer(
+      document: doc,
+      controller: controller,
+      view: vc,
+      release: const Duration(milliseconds: 600),
+    );
+    final page = doc.pages[0];
+    final h = (_width * page.heightPx / page.widthPx).round();
+    final key = await pumpAtSize(
+      tester,
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: _width,
+          height: h.toDouble(),
+          child: ScoreView(
+            document: doc,
+            controller: controller,
+            viewController: vc,
+            curtain: player.curtain,
+          ),
+        ),
+      ),
+      _width.round(),
+      h,
+    );
+    final ms = player.measures;
+    final dir = '$_out/repeticao/$piece';
+    final tl = player.timeline;
+
+    // Repouso de verdade (sem nenhuma haste ativa, nem de outro salto perto
+    // dali — a Maple Leaf Rag tem saltos encadeados) a partir de [start],
+    // andando de [step] em [step] (para trás com step negativo).
+    double restNear(double start, double step) {
+      var t = start;
+      for (var i = 0; i < 10; i++) {
+        if (tl.curtainAt(
+              t,
+              maxSweep: vc.maxSweepDuration,
+              barWidth: vc.barWidth,
+            ) ==
+            null) {
+          return t;
+        }
+        t += step;
+      }
+      return t;
+    }
+
+    Future<List<String>> saltoFrames(String prefix, double jumpMs) async {
+      final i = ms.indexWhere((m) => m.startMs == jumpMs);
+      final m = ms[i - 1];
+      final next = ms[i];
+      final d = ((m.endMs - m.startMs) / 4).clamp(0, 1000).toDouble();
+      final steps = <(String, double)>[
+        ('1-repouso', restNear(m.startMs - 800, -200)),
+        ('2-meio-da-entrada', m.startMs + d / 2),
+        ('3-estacionada', (m.startMs + d + next.startMs) / 2),
+        ('4-meio-da-conclusao', next.startMs + d / 2),
+        ('5-repouso-seguinte', restNear(next.startMs + d + 800, 200)),
+      ];
+      final lines = <String>[
+        '### $prefix: compasso `${m.id}` (página ${m.page + 1}) → '
+            '`${next.id}` (página ${next.page + 1}), salto em ${jumpMs.round()} ms',
+        '',
+        '`D = min(1 s, duração/4)` = ${d.round()} ms.',
+        '',
+      ];
+      for (final (label, at) in steps) {
+        player.seek(Duration(microseconds: (at * 1000).round()));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 1));
+        final bytes = await _shot(tester, key, _width.round(), h);
+        await writePng(
+          tester,
+          bytes,
+          _width.round(),
+          h,
+          '$dir/frame-$prefix-$label.png',
+        );
+        lines.add(
+          '- $label: `seek(${at.round()} ms)` — haste '
+          '${player.curtain.value == null ? "ausente" : "edgeX = ${player.curtain.value!.edgeX.toStringAsFixed(0)}, destino página ${player.curtain.value!.targetPageIndex! + 1}"}, '
+          'página corrente ${vc.currentPage + 1}',
+        );
+      }
+      return lines;
+    }
+
+    // Medido com --xml-id-seed 42 (docs/plano/E03b, notas de execução):
+    // 39900 ms = salto 34 → 19 (página 2 → 1, a única entre páginas não
+    // adjacentes fora da última); 97500 ms = salto 67 → 52, da última
+    // página (3) para a 2.
+    final lines1 = await saltoFrames('salto1', 39900);
+    final lines2 = await saltoFrames('salto2', 97500);
+    File('$dir/roteiro.md')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('''# Haste nos saltos de repetição — $piece
+
+Gerado por `flutter test tool/generate_examples.dart` (em `score_bridge/`).
+D-SALTO (decisão do usuário em 2026-09-22): haste generalizada — a mesma
+regra de A05b/E03a, com a página de destino do salto atrás da haste, em
+vez de sempre a seguinte.
+
+`test/fixtures/maple-leaf-rag.vsb` (`-x 42`), `ScorePlayer` com
+`release: 600 ms`.
+
+${lines1.join('\n')}
+
+${lines2.join('\n')}
+
+O quadro "estacionada" de cada salto mostra o compasso de destino já visível
+à esquerda da haste, antes de a música chegar lá.
+''');
+    controller.clearAll();
+    player.dispose();
+    controller.dispose();
+  });
 }
 
 /// Retângulo (px do frame) que cobre as notas [ids], com folga.

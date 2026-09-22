@@ -23,14 +23,23 @@
 // corrente, mesmo **na mesma página** — é o que impede a haste (abaixo) de
 // tratar esse trecho como uma virada de página comum.
 //
-// REGRA DA HASTE (decidida com o usuário em 2026-09-21; ver A05b). Sejam `P`
-// uma página com uma seguinte, `M` o seu último compasso e `M+1` o primeiro da
-// página seguinte, `D = min(teto, duração de M / 4)`:
+// REGRA DA HASTE (decidida com o usuário em 2026-09-21; ver A05b; generalizada
+// para saltos em E03b, D-SALTO = haste generalizada). Sejam `A` a página
+// corrente, `M` o último compasso da execução nela, `M'` o primeiro compasso
+// da **próxima ocorrência na execução** (o `_Run` seguinte — a página
+// seguinte numa virada comum, ou o destino do salto numa repetição) e
+// `B` a página de `M'`, com `D = min(teto, duração de M / 4)`:
 //
 //   * `M.start → M.start + D`   entrada: `0 → xInício(M)`
-//   * `→ (M+1).start`           estacionada em `xInício(M)`
-//   * `(M+1).start → + D`       conclusão: `xInício(M) → fim`
+//   * `→ M'.start`              estacionada em `xInício(M)`
+//   * `M'.start → + D`          conclusão: `xInício(M) → fim`
 //   * antes/depois              repouso
+//
+// `SweepCurtain.targetPageIndex = B` sempre que `B ≠ A` — inclusive quando
+// `B` não é `A + 1` (salto para trás ou para a frente). Sem salto, `B` já é
+// `A + 1`, e os valores não mudam nada em relação à regra original. **Sem**
+// haste quando `B == A` (salto na mesma página, ex.: Gymnopédie 39 → 1): a
+// página já está à mostra, e um aviso visual do salto é do host, fora daqui.
 //
 // Página de **um** compasso com várias notas: a haste acompanha as notas —
 // entra assim que a página aparece, fica logo antes da nota atual e, ao
@@ -377,8 +386,9 @@ class ScoreTimeline {
     for (var r = 0; r + 1 < _runs.length; r++) {
       final run = _runs[r];
       final next = _runs[r + 1];
-      if (next.page != run.page + 1) {
-        continue; // salto de repetição: sem haste
+      if (next.page == run.page) {
+        continue; // salto na mesma página: nada para revelar (fora de
+        // escopo de E03a/E03b — aviso visual é do host)
       }
       final m = _measures[run.last];
       final page = document.pages[run.page];
@@ -398,7 +408,11 @@ class ScoreTimeline {
               singleNoteDelay.inMicroseconds / 1000.0,
             );
       if (edge != null) {
-        return SweepCurtain(pageIndex: run.page, edgeX: edge);
+        return SweepCurtain(
+          pageIndex: run.page,
+          edgeX: edge,
+          targetPageIndex: next.page,
+        );
       }
     }
     return null;
