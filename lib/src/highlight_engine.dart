@@ -74,6 +74,34 @@ class _Entry {
   /// natural); num `stop` antecipado é a cor do instante do `stop`.
   ui.Color? releaseFrom;
 
+  /// Intensidade do halo em [now] (0–1: some fora da janela ativa), na mesma
+  /// fase de [colorAt] mas sem se misturar com [base] — o halo é sempre na
+  /// cor de destaque, só a força dele sobe no `attack` e desce no `release`.
+  double _haloIntensity(Duration now) {
+    final elapsed = (now - start).inMicroseconds;
+    if (elapsed < 0) {
+      return 0;
+    }
+    if (now < releaseStart) {
+      return elapsed < attackUs ? curve.transform(elapsed / attackUs) : 1.0;
+    }
+    final into = (now - releaseStart).inMicroseconds;
+    if (into >= releaseUs) {
+      return 0;
+    }
+    return 1.0 - releaseCurve.transform(into / releaseUs);
+  }
+
+  /// Cor do halo em [now]: [color] com a intensidade acima como alfa; `null`
+  /// fora da janela ativa.
+  ui.Color? haloAt(Duration now) {
+    final intensity = _haloIntensity(now);
+    if (intensity <= 0) {
+      return null;
+    }
+    return color.withValues(alpha: color.a * intensity);
+  }
+
   /// Cor da nota em [now]; `null` quando a animação já terminou.
   ui.Color? colorAt(Duration now) {
     final elapsed = (now - start).inMicroseconds;
@@ -107,6 +135,7 @@ class HighlightEngine {
   final Map<String, ui.Color> _colors = {};
   final List<String> _finished = [];
   final List<String> _pendingRemoval = [];
+  final Map<String, ui.Color> _halos = {};
 
   /// Nenhuma nota ativa: o dono do relógio pode parar o `Ticker`.
   bool get isIdle => _entries.isEmpty;
@@ -165,6 +194,7 @@ class HighlightEngine {
     _entries.clear();
     _colors.clear();
     _pendingRemoval.clear();
+    _halos.clear();
   }
 
   /// Cor de cada nota ativa em [now], só das ativas.
@@ -195,5 +225,20 @@ class HighlightEngine {
       _finished.clear();
     }
     return _colors;
+  }
+
+  /// Cor do halo (a de destaque, com o alfa subindo no `attack` e caindo no
+  /// `release` — nunca misturada com [_Entry.base]) de cada nota com halo
+  /// visível em [now]. Ids fora da janela ativa não aparecem. Chame depois
+  /// de [colorsAt] no mesmo [now], para refletir as notas já concluídas.
+  Map<String, ui.Color> haloColorsAt(Duration now) {
+    _halos.clear();
+    for (final entry in _entries.entries) {
+      final color = entry.value.haloAt(now);
+      if (color != null) {
+        _halos[entry.key] = color;
+      }
+    }
+    return _halos;
   }
 }

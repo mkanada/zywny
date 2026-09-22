@@ -86,6 +86,10 @@ class ScoreController extends ChangeNotifier {
   );
   final Set<String> _animatedIds = {};
 
+  /// Halo (A02d): só as notas com destaque ativo agora, nunca as de cor fixa.
+  final Map<String, ui.Color> _halo = {};
+  late final Map<String, ui.Color> _haloView = UnmodifiableMapView(_halo);
+
   final HighlightEngine _engine = HighlightEngine();
   Ticker? _ticker;
   Duration _epoch = Duration.zero;
@@ -131,6 +135,12 @@ class ScoreController extends ChangeNotifier {
   /// Todas as cores que sobrepõem a cena agora, por `id`. Somente leitura, e
   /// é o mesmo objeto a vida toda: o painter o consulta a cada frame.
   Map<String, ui.Color> get colors => _effectiveView;
+
+  /// Cor do halo de cada nota com destaque ativo agora (A02d): a de destaque,
+  /// com o alfa subindo no `attack` e caindo no `release`. Só as ids
+  /// animadas — uma cor fixa (`setColor`) nunca tem halo. Somente leitura, e
+  /// é o mesmo objeto a vida toda.
+  Map<String, ui.Color> get haloColors => _haloView;
 
   // ---------------------------------------------------------------------
   // Cor instantânea (A01c)
@@ -188,6 +198,7 @@ class ScoreController extends ChangeNotifier {
     _fixed.clear();
     _effective.clear();
     _animatedIds.clear();
+    _halo.clear();
     _engine.clear();
     _stopTicker();
     if (changed) {
@@ -364,6 +375,9 @@ class ScoreController extends ChangeNotifier {
         changed = true;
       }
     }
+    _halo
+      ..clear()
+      ..addAll(_engine.haloColorsAt(_now));
     return changed;
   }
 

@@ -29,6 +29,7 @@ class ScorePageView extends StatefulWidget {
     this.controller,
     this.animatableIds,
     this.backgroundColor = const Color(0xFFFFFFFF),
+    this.haloSigmaScale = 1.0,
     this.stats,
     this.overlayIds = const [],
     this.overlayBuilder,
@@ -50,6 +51,10 @@ class ScorePageView extends StatefulWidget {
 
   /// Fundo da página; `null` deixa transparente.
   final Color? backgroundColor;
+
+  /// Controle do usuário sobre a largura do halo (A02d): `1.0` é o tamanho
+  /// derivado da nota, `0` desliga. Ver [ScenePainter.paintHalo].
+  final double haloSigmaScale;
 
   /// Contadores de `Picture` a usar. Um dono que monta várias páginas (o
   /// `ScoreView`) passa o mesmo objeto a todas para somar a vida útil delas;
@@ -201,6 +206,7 @@ class ScorePageViewState extends State<ScorePageView> {
           _layers!,
           widget.controller,
           widget.backgroundColor,
+          widget.haloSigmaScale,
         ),
       ),
     );
@@ -272,12 +278,17 @@ class ScorePageViewState extends State<ScorePageView> {
 }
 
 class _PagePainter extends CustomPainter {
-  _PagePainter(this.layers, this.controller, this.backgroundColor)
-    : super(repaint: controller);
+  _PagePainter(
+    this.layers,
+    this.controller,
+    this.backgroundColor,
+    this.haloSigmaScale,
+  ) : super(repaint: controller);
 
   final PageLayers layers;
   final ScoreController? controller;
   final Color? backgroundColor;
+  final double haloSigmaScale;
 
   @override
   void paint(ui.Canvas canvas, ui.Size size) {
@@ -294,12 +305,18 @@ class _PagePainter extends CustomPainter {
       canvas.scale(scale);
     }
     layers.applyPageTransform(canvas);
-    layers.paint(canvas, controller?.colors ?? const {});
+    layers.paint(
+      canvas,
+      controller?.colors ?? const {},
+      haloColors: controller?.haloColors ?? const {},
+      haloSigmaScale: haloSigmaScale,
+    );
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(_PagePainter oldDelegate) =>
       !identical(oldDelegate.layers, layers) ||
-      oldDelegate.backgroundColor != backgroundColor;
+      oldDelegate.backgroundColor != backgroundColor ||
+      oldDelegate.haloSigmaScale != haloSigmaScale;
 }

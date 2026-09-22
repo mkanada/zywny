@@ -40,7 +40,7 @@ class ScorePlayer {
     required this.document,
     required this.controller,
     this.view,
-    this.release = const Duration(milliseconds: 300),
+    this.release = const Duration(milliseconds: 500),
     this.highlightColor = kDefaultHighlightColor,
     this.maxSweepDuration,
     this.barWidth,
@@ -63,7 +63,11 @@ class ScorePlayer {
 
   /// Duração do `release` de cada nota ao chegar o `off`.
   final Duration release;
-  final Color highlightColor;
+
+  /// Cor do destaque; mutável para o host trocar sem recriar o player (o
+  /// painel de opções do zywny, por exemplo). Só vale para a **próxima** nota
+  /// que acender — não recolore as que já estão em `attack`/`hold`.
+  Color highlightColor;
 
   /// Onde, na viewport, o compasso corrente fica no modo contínuo.
   final double scrollAlignment;

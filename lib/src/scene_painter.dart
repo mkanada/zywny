@@ -25,6 +25,14 @@ import 'text_run.dart';
 /// cor que a raiz de uma página herda (§6).
 const kPageInitialColor = ui.Color(0xFF000000);
 
+/// Fração do lado mais curto da `bbox` de um nó usada como raio do borrão do
+/// halo ([ScenePainter.paintHalo]) — assim o halo acompanha o tamanho da nota
+/// em vez de um valor fixo em unidades de viewBox.
+const kHaloBlurFraction = 0.35;
+
+/// Raio do borrão do halo quando o nó não traz `bbox`.
+const kHaloBlurFallbackSigma = 24.0;
+
 /// Pinta uma página da cena num [Canvas] (§3/§5.1/§6).
 ///
 /// Aplica a transformação de página uma vez ([PageFit] + `origin` vindos
@@ -110,6 +118,48 @@ class ScenePainter {
       _CanvasVisitor(this, canvas),
       colorOverrides: overrides,
     );
+  }
+
+  /// Pinta o halo (A02d) do subgrafo de [node]: a mesma silhueta do destaque,
+  /// numa camada borrada e **sem deslocamento**, sempre a [color] inteira
+  /// (ignora `fill`/`stroke` por leaf — um halo é uma cor só). Chame **antes**
+  /// de [paintSubtree] no mesmo [node], nunca depois, para a pintura nítida
+  /// ficar por cima.
+  ///
+  /// [color] já traz o alfa da fase (attack/hold/release) — quem chama (o
+  /// `PageLayers`) só entra aqui com um `id` que tem halo agora. O raio do
+  /// borrão acompanha [SceneNode.bbox] do próprio nó, então funciona a
+  /// qualquer `unit`/zoom sem parâmetro extra; sem bbox (raro), cai no
+  /// [kHaloBlurFallbackSigma]. [sigmaScale] é o controle do usuário (painel):
+  /// `1.0` é o tamanho acima, `0` desliga o halo sem custo de `saveLayer`.
+  void paintHalo(
+    ui.Canvas canvas,
+    SceneNode node,
+    ui.Color inheritedColor,
+    ui.Color color, {
+    double sigmaScale = 1.0,
+  }) {
+    if (sigmaScale <= 0) {
+      return;
+    }
+    final bbox = node.bbox;
+    final sigma =
+        (bbox == null
+            ? kHaloBlurFallbackSigma
+            : math.min(bbox.width, bbox.height) * kHaloBlurFraction) *
+        sigmaScale;
+    canvas.saveLayer(
+      null,
+      ui.Paint()
+        ..imageFilter = ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+    );
+    walkScene(
+      node,
+      inheritedColor,
+      _CanvasVisitor(this, canvas),
+      colorOverrides: node.id == null ? const {} : {node.id!: color},
+    );
+    canvas.restore();
   }
 
   void _paintLeaf(ui.Canvas canvas, SceneChild leaf, ui.Color current) {

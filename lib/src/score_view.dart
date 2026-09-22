@@ -214,6 +214,7 @@ class ScoreView extends StatefulWidget {
     this.initialPage = 0,
     this.animatableIds,
     this.backgroundColor = const Color(0xFFFFFFFF),
+    this.haloSigmaScale = 1.0,
     this.barColor = kDefaultBarColor,
     this.barWidth,
     this.maxSweepDuration = kDefaultMaxSweepDuration,
@@ -241,6 +242,10 @@ class ScoreView extends StatefulWidget {
   final int initialPage;
   final Set<String>? animatableIds;
   final Color? backgroundColor;
+
+  /// Controle do usuário sobre a largura do halo (A02d), repassado a cada
+  /// `ScorePageView`. Ver [ScorePageView.haloSigmaScale].
+  final double haloSigmaScale;
 
   /// Cor da haste (A03b). Azul opaco de alto contraste; parâmetro, não
   /// constante espalhada.
@@ -722,6 +727,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     controller: widget.controller,
     animatableIds: widget.animatableIds,
     backgroundColor: widget.backgroundColor,
+    haloSigmaScale: widget.haloSigmaScale,
     stats: _stats,
     overlayIds: widget.overlayIds,
     overlayBuilder: widget.overlayBuilder,

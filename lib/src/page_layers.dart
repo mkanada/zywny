@@ -111,8 +111,16 @@ class PageLayers {
   /// `ScenePainter.applyPageTransform` antes (o `ScorePageView` faz).
   ///
   /// [colorOverrides] troca a cor de nós dinâmicos por `id`; os segmentos
-  /// estáticos o ignoram por construção.
-  void paint(ui.Canvas canvas, Map<String, ui.Color> colorOverrides) {
+  /// estáticos o ignoram por construção. [haloColors] (A02d) pinta, por trás
+  /// da nota, o halo borrado de cada `id` presente — só ids dinâmicos têm
+  /// halo, pela mesma razão. [haloSigmaScale] é o controle do usuário sobre
+  /// a largura do halo (ver [ScenePainter.paintHalo]).
+  void paint(
+    ui.Canvas canvas,
+    Map<String, ui.Color> colorOverrides, {
+    Map<String, ui.Color> haloColors = const {},
+    double haloSigmaScale = 1.0,
+  }) {
     if (_disposed) {
       return;
     }
@@ -127,6 +135,17 @@ class PageLayers {
             if (transform != null) {
               canvas.save();
               canvas.transform(transform.toMatrix4());
+            }
+            final id = item.node.id;
+            final halo = id == null ? null : haloColors[id];
+            if (halo != null) {
+              _painter.paintHalo(
+                canvas,
+                item.node,
+                item.inheritedColor,
+                halo,
+                sigmaScale: haloSigmaScale,
+              );
             }
             _painter.paintSubtree(
               canvas,
