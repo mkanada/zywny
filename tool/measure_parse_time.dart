@@ -1,6 +1,6 @@
 // Mede o tempo de parse (VsbDocument.fromBytes) de cada peça de um diretório
 // de .vsb, 3 execuções por peça, reportando a mediana. Insumo de R01
-// (critério de aceite 5) e do gate de encoding binário de P01 (D-BIN).
+// (critério de aceite 5) e de uma eventual decisão sobre encoding binário.
 //
 // Precisa de dart:ui (VsbDocument usa Offset/Rect), então roda sob o Flutter
 // Tester, não o Dart SDK puro:
