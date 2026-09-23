@@ -40,12 +40,39 @@
 // `A + 1`, e os valores não mudam nada em relação à regra original. **Sem**
 // haste quando `B == A` (salto na mesma página, ex.: Gymnopédie 39 → 1): a
 // página já está à mostra, e um aviso visual do salto é do host, fora daqui.
+// Desde P04a, `A`/`B` são `PageRef` (`SweepCurtain.sequence`/
+// `.targetSequence`): a página revelada por um salto pode ser uma
+// alternativa.
 //
 // Página de **um** compasso com várias notas: a haste acompanha as notas —
 // entra assim que a página aparece, fica logo antes da nota atual e, ao
 // destacar a nota k, começa a saltar para a k+1 em `min(D, tempo até ela)`
 // (nunca chega atrasada). Com **uma** nota só a conclusão começa 0,5 s depois
 // do destaque dela.
+//
+// ROTA DE EXIBIÇÃO (fase P, P04a; regra de P00 "Player (Dart)"). Cada
+// ocorrência de compasso tem uma `view` (`PageRef`): a página normal
+// (`sequence == null`) ou de alternativa que o player **exibe** nela —
+// diferente de `MeasureInfo.page`, que continua sendo sempre a página normal
+// (D-ALT-INDICE). Percorrendo as ocorrências em ordem de execução, com a
+// view atual `(s, p)`:
+//
+//   1. 1ª ocorrência: a página normal do compasso.
+//   2. Sem salto: a página do compasso **na sequência `s`** (toda sequência
+//      vai até o fim da peça, D-ALT-EXTENSAO, então o compasso está lá).
+//   3. Salto para `T`, nesta ordem:
+//      a. `T` está na página exibida (`page_s(T) == p`) → fica, sem haste.
+//      b. `T` é o 1º compasso de alguma página da sequência `s` → essa
+//         página.
+//      c. `T` é o 1º compasso de alguma página normal → essa página normal.
+//      d. Existe uma sequência alternativa que começa em `T` → a página 0
+//         dela.
+//      e. Caso contrário (`.vsb` antigo, sem `alternates.json`) → `page_s(T)`
+//         — o comportamento de antes de P04a (E03).
+//
+// `ScoreTimeline(document, useAlternates: false)` (ou um documento sem
+// `alternates.json`) pula a regra inteira: toda `view` é a página normal, e
+// o resultado é **idêntico** ao de antes de P04a (critério 4).
 library;
 
 import 'dart:math' as math;
@@ -59,6 +86,8 @@ class MeasureInfo {
   const MeasureInfo({
     required this.id,
     required this.page,
+    required this.view,
+    required this.isJump,
     required this.pass,
     required this.timemapId,
     required this.noteIds,
@@ -70,8 +99,22 @@ class MeasureInfo {
   /// em todas as ocorrências do mesmo compasso).
   final String id;
 
-  /// Página onde ele está.
+  /// Página **normal** onde ele está. Nunca muda de sentido (D-ALT-INDICE):
+  /// para a página que o player realmente exibe nesta ocorrência, use
+  /// [view].
   final int page;
+
+  /// Página que o player exibe nesta ocorrência (P04a, regra de P00): a
+  /// normal (`sequence == null`) ou a de uma sequência alternativa, quando
+  /// um salto de repetição levou a ela. `page` continua sendo sempre a
+  /// normal.
+  final PageRef view;
+
+  /// `true` quando esta ocorrência **não** é a continuação, em ordem de
+  /// documento, da ocorrência anterior — um salto de repetição (`false` na
+  /// 1ª ocorrência da peça). É o que decide a `view` (regra de P00) e
+  /// abre um novo `_Run`/possível haste.
+  final bool isJump;
 
   /// A execução: `1` na primeira vez que o compasso toca.
   final int pass;
@@ -105,11 +148,20 @@ class _Onset {
 }
 
 class _Measure {
-  _Measure(this.id, this.page, this.pass, this.timemapId);
+  _Measure(
+    this.id,
+    this.page,
+    this.pass,
+    this.timemapId,
+    this.view,
+    this.isJump,
+  );
   final String id;
   final int page;
   final int pass;
   final String timemapId;
+  final PageRef view;
+  final bool isJump;
   final List<String> noteIds = [];
   final List<_Onset> onsets = [];
   double startMs = 0;
@@ -119,20 +171,24 @@ class _Measure {
   double get durationMs => endMs - startMs;
 }
 
-/// Sequência de compassos consecutivos numa mesma página.
+/// Sequência de ocorrências consecutivas na mesma [view] (P04a), sem salto.
 class _Run {
-  _Run(this.page, this.first, this.last);
-  final int page;
+  _Run(this.view, this.first, this.last);
+  final PageRef view;
   final int first;
   int last;
 }
 
 class ScoreTimeline {
-  ScoreTimeline(this.document) {
+  /// [useAlternates] liga a rota de exibição de P00/P04a. `false` (ou um
+  /// documento sem `alternates.json`) mantém o comportamento de antes de
+  /// P04a: toda `view` é a página normal — usado no critério de regressão 4.
+  ScoreTimeline(this.document, {this.useAlternates = true}) {
     _build();
   }
 
   final VsbDocument document;
+  final bool useAlternates;
 
   final List<_Measure> _measures = [];
   final List<_Run> _runs = [];
@@ -151,6 +207,12 @@ class ScoreTimeline {
   /// Ordem de documento de cada compasso (0-based; para achar salto).
   final Map<String, int> _docOrderOfMeasure = {};
 
+  /// `firstMeasureId` de cada página, por sequência (`null` = normais);
+  /// monta os passos "b"/"c" da regra de rota (1º compasso de página).
+  /// Vazio quando [useAlternates] é `false` ou o documento não tem
+  /// alternativas.
+  final Map<int?, Map<String, int>> _firstMeasureOfSequence = {};
+
   /// Compassos em ordem de execução (A05a).
   List<MeasureInfo> get measureInfos => measures;
 
@@ -166,6 +228,11 @@ class ScoreTimeline {
       _collect(page.root, page.index, null);
     }
 
+    final routeAlternates = useAlternates && document.alternates.isNotEmpty;
+    if (routeAlternates) {
+      _buildFirstMeasureIndex();
+    }
+
     // com measureOn (E01b): cada entrada com measureOn abre uma ocorrência.
     // sem ele (.vsb de antes de E01b): pela 1ª nota de `on` que resolve a um
     // compasso conhecido, abrindo uma ocorrência nova quando o par
@@ -177,8 +244,29 @@ class ScoreTimeline {
 
     void openOccurrence(String measureId, int pass, double ms) {
       final timemapId = pass == 1 ? measureId : '$measureId-rend$pass';
-      cur = _Measure(measureId, _pageOfMeasure[measureId]!, pass, timemapId)
-        ..startMs = ms;
+      final prev = _measures.isEmpty ? null : _measures.last;
+      final isJump =
+          prev != null &&
+          _docOrderOfMeasure[measureId] != _docOrderOfMeasure[prev.id]! + 1;
+      final view = !routeAlternates
+          ? PageRef(_pageOfMeasure[measureId]!)
+          : prev == null
+          ? PageRef(_pageOfMeasure[measureId]!)
+          : !isJump
+          ? PageRef(
+              _pageInView(prev.view.sequence, measureId) ??
+                  _pageOfMeasure[measureId]!,
+              sequence: prev.view.sequence,
+            )
+          : _resolveJump(prev.view, measureId);
+      cur = _Measure(
+        measureId,
+        _pageOfMeasure[measureId]!,
+        pass,
+        timemapId,
+        view,
+        isJump,
+      )..startMs = ms;
       _measures.add(cur!);
       curKey = '$measureId\u0000$pass';
     }
@@ -210,6 +298,7 @@ class ScoreTimeline {
       if (m == null) {
         continue; // nada tocado ainda, ou id sem correspondente na cena.
       }
+      final geometry = document.geometryOf(m.view.sequence);
       final lefts = <_Measure, double>{};
       for (final id in e.on) {
         final sceneId = document.sceneIdOf(id);
@@ -217,7 +306,7 @@ class ScoreTimeline {
         if (!m.noteIds.contains(sceneId)) {
           m.noteIds.add(sceneId);
         }
-        final ref = document.geometry.elementOf(sceneId);
+        final ref = geometry.elementOf(sceneId);
         if (ref != null) {
           final prev = lefts[m];
           lefts[m] = prev == null
@@ -233,19 +322,16 @@ class ScoreTimeline {
       m.endMs = i + 1 < _measures.length
           ? _measures[i + 1].startMs
           : durationMs;
-      m.left = document.geometry.elementOf(m.id)?.bbox.left ?? 0;
+      m.left =
+          document.geometryOf(m.view.sequence).elementOf(m.id)?.bbox.left ?? 0;
       if (m.onsets.isEmpty) {
         m.onsets.add(_Onset(m.startMs, m.left));
       }
-      final prev = i > 0 ? _measures[i - 1] : null;
-      final isJump =
-          prev != null &&
-          _docOrderOfMeasure[m.id] != _docOrderOfMeasure[prev.id]! + 1;
       final last = _runs.isEmpty ? null : _runs.last;
-      if (last != null && last.page == m.page && !isJump) {
+      if (last != null && last.view == m.view && !m.isJump) {
         last.last = i;
       } else {
-        _runs.add(_Run(m.page, i, i));
+        _runs.add(_Run(m.view, i, i));
       }
     }
     measures = [
@@ -253,6 +339,8 @@ class ScoreTimeline {
         MeasureInfo(
           id: m.id,
           page: m.page,
+          view: m.view,
+          isJump: m.isJump,
           pass: m.pass,
           timemapId: m.timemapId,
           noteIds: List.unmodifiable(m.noteIds),
@@ -280,6 +368,67 @@ class ScoreTimeline {
         _collect(child, page, current);
       }
     }
+  }
+
+  /// Monta [_firstMeasureOfSequence]: `firstMeasureId` de cada página das
+  /// páginas normais (`null`) e de cada sequência alternativa, uma vez.
+  void _buildFirstMeasureIndex() {
+    final normal = <String, int>{};
+    for (final page in document.pages) {
+      final id = page.firstMeasureId;
+      if (id != null) {
+        normal[id] = page.index;
+      }
+    }
+    _firstMeasureOfSequence[null] = normal;
+    for (var s = 0; s < document.alternates.length; s++) {
+      final pages = document.alternates[s].pages;
+      final map = <String, int>{};
+      for (var p = 0; p < pages.length; p++) {
+        final id = pages[p].firstMeasureId;
+        if (id != null) {
+          map[id] = p;
+        }
+      }
+      _firstMeasureOfSequence[s] = map;
+    }
+  }
+
+  /// Página de [measureId] na sequência [sequence] (`null` = normal), ou
+  /// `null` se ele não existir nela — "`page_s(T)`" da regra de P00.
+  int? _pageInView(int? sequence, String measureId) => sequence == null
+      ? _pageOfMeasure[measureId]
+      : document.geometryOf(sequence).pageOf(measureId);
+
+  /// Página cujo [ScenePage.firstMeasureId] é [measureId], na sequência
+  /// [sequence] (`null` = normal), ou `null` se nenhuma começar nele.
+  int? _firstMeasurePage(int? sequence, String measureId) =>
+      _firstMeasureOfSequence[sequence]?[measureId];
+
+  /// Resolve a `view` de um salto para [measureId], vindo de [atual] — os
+  /// passos "a"-"e" da regra de P00 ("ROTA DE EXIBIÇÃO", no topo do
+  /// arquivo).
+  PageRef _resolveJump(PageRef atual, String measureId) {
+    final s = atual.sequence;
+    final pageInS = _pageInView(s, measureId);
+    if (pageInS == atual.index) {
+      return atual; // a. já está na página exibida.
+    }
+    final sameSequencePage = _firstMeasurePage(s, measureId);
+    if (sameSequencePage != null) {
+      return PageRef(sameSequencePage, sequence: s); // b.
+    }
+    final normalPage = _firstMeasurePage(null, measureId);
+    if (normalPage != null) {
+      return PageRef(normalPage); // c.
+    }
+    final altIndex = document.alternates.indexWhere(
+      (seq) => seq.start == measureId,
+    );
+    if (altIndex != -1) {
+      return PageRef(0, sequence: altIndex); // d.
+    }
+    return PageRef(pageInS ?? _pageOfMeasure[measureId]!, sequence: s); // e.
   }
 
   /// Índices em [measures] das ocorrências de [id]: compasso ou nota, todas
@@ -364,10 +513,16 @@ class ScoreTimeline {
     return found;
   }
 
-  /// A página que fica em repouso em [ms] quando não há haste: a do compasso
-  /// corrente.
+  /// A página **normal** que fica em repouso em [ms] quando não há haste: a
+  /// do compasso corrente. Continua sempre normal (D-ALT-INDICE); para a que
+  /// o player realmente exibe, use [restViewAt].
   int restPageAt(double ms) =>
       _measures.isEmpty ? 0 : _measures[measureIndexAt(ms)].page;
+
+  /// A `view` (P04a) que fica em repouso em [ms] quando não há haste: a do
+  /// compasso corrente.
+  PageRef restViewAt(double ms) =>
+      _measures.isEmpty ? const PageRef(0) : _measures[measureIndexAt(ms)].view;
 
   double _dOf(_Measure m, double maxSweepMs) =>
       math.min(maxSweepMs, m.durationMs / 4);
@@ -386,12 +541,12 @@ class ScoreTimeline {
     for (var r = 0; r + 1 < _runs.length; r++) {
       final run = _runs[r];
       final next = _runs[r + 1];
-      if (next.page == run.page) {
-        continue; // salto na mesma página: nada para revelar (fora de
+      if (next.view == run.view) {
+        continue; // salto na mesma view: nada para revelar (fora de
         // escopo de E03a/E03b — aviso visual é do host)
       }
       final m = _measures[run.last];
-      final page = document.pages[run.page];
+      final page = document.pageAt(run.view);
       final end = sweepEndX(page, barWidth);
       final d = _dOf(m, maxMs);
       final count = run.last - run.first + 1;
@@ -409,9 +564,11 @@ class ScoreTimeline {
             );
       if (edge != null) {
         return SweepCurtain(
-          pageIndex: run.page,
+          pageIndex: run.view.index,
           edgeX: edge,
-          targetPageIndex: next.page,
+          sequence: run.view.sequence,
+          targetPageIndex: next.view.index,
+          targetSequence: next.view.sequence,
         );
       }
     }
@@ -450,7 +607,7 @@ class ScoreTimeline {
     var appear = 0.0;
     if (prev != null) {
       appear = first.startMs;
-      if (prev.page == run.page - 1) {
+      if (prev.view != run.view) {
         appear += _dOf(_measures[prev.last], maxMs);
       }
     }

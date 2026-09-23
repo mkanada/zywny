@@ -28,20 +28,26 @@ void main() {
   // P01c: os padrões do bridge (D-VSB-PADRAO) cabem mais compassos por
   // página, então a paginação da Maple Leaf Rag mudou (o total de páginas
   // continua 3, mas os pontos de quebra andaram). O único salto que ainda
-  // muda de página é este, da última página (2) para a anterior (1) - o
-  // salto que antes cruzava página perto do meio da peça (era 39900ms,
-  // página 1 -> 0) agora fica inteiro dentro da página 0, sem haste (a
-  // mesma regra do grupo "sem haste nos saltos de mesma página" abaixo).
+  // muda de página é este, da última página (2) para a anterior (1).
+  //
+  // P04a: `jn8k16x` não é o 1º compasso da página normal 1 (ver a tabela
+  // "Saltos e pontos de chegada" do README), então é ponto de chegada de
+  // alternativa (P02b) — a sequência 6 de `alternates.json` começa nele. Com
+  // `useAlternates: true` (padrão), a regra de P00 escolhe a página 0 dela
+  // no lugar da página normal 1 (`MeasureInfo.page` continua sendo 1,
+  // D-ALT-INDICE; é `.view`/`SweepCurtain.target` que muda).
   group('salto 153900ms: compasso z1m4pqeg (última página, 2) -> jn8k16x '
-      '(página 1)', () {
+      '(alternativa 6, página 0)', () {
     test(
-      'entrada, estacionada e conclusão com targetPageIndex = 1 (critério 1)',
+      'entrada, estacionada e conclusão com target = PageRef(0, sequence: 6) '
+      '(critério 1)',
       () {
         final i = tl.measures.indexWhere((m) => m.startMs == 153900);
         final m = tl.measures[i - 1]; // última ocorrência antes do salto
         final next = tl.measures[i]; // destino, passagem 2
         expect(m.page, 2);
-        expect(next.page, 1);
+        expect(next.page, 1); // página normal do compasso, inalterada
+        expect(next.view, const PageRef(0, sequence: 6));
         expect(m.page, mapleLeafRag.pages.length - 1);
         final d = (m.endMs - m.startMs) / 4;
         final endX = sweepEndX(mapleLeafRag.pages[2], _bar);
@@ -52,18 +58,22 @@ void main() {
         // Entrada: 0 -> x.
         final entering = at(m.startMs + d / 2)!;
         expect(entering.pageIndex, 2);
-        expect(entering.targetPageIndex, 1);
+        expect(entering.targetPageIndex, 0);
+        expect(entering.targetSequence, 6);
         expect(entering.edgeX, closeTo(x / 2, 1e-6));
         // Estacionada em x.
         final parked = at((m.startMs + d + next.startMs) / 2)!;
         expect(parked.edgeX, closeTo(x, 1e-6));
-        expect(parked.targetPageIndex, 1);
+        expect(parked.targetPageIndex, 0);
+        expect(parked.targetSequence, 6);
         // Conclusão: x -> fim.
         final concluding = at(next.startMs + d / 2)!;
         expect(concluding.edgeX, closeTo(x + (endX - x) / 2, 1e-6));
-        // Repouso na página de destino, depois da conclusão.
+        // Repouso na alternativa, depois da conclusão; a página normal
+        // (D-ALT-INDICE) continua sendo a 1.
         expect(at(next.startMs + d), isNull);
         expect(tl.restPageAt(next.startMs + d), 1);
+        expect(tl.restViewAt(next.startMs + d), const PageRef(0, sequence: 6));
       },
     );
   });
