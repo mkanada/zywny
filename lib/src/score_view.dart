@@ -62,33 +62,58 @@ class SweepCurtain {
   const SweepCurtain({
     required this.pageIndex,
     required this.edgeX,
+    this.sequence,
     this.targetPageIndex,
+    this.targetSequence,
   });
 
-  /// A página A, a que está sendo varrida.
+  /// A página A, a que está sendo varrida (dentro de [sequence]).
   final int pageIndex;
 
   /// Borda **direita** da haste, em unidades de viewBox da página A.
   final double edgeX;
 
+  /// Sequência alternativa de [pageIndex] (§2.5, P03b); `null` é página
+  /// normal.
+  final int? sequence;
+
   /// A página que a haste revela, atrás de A. `null` é a virada comum,
-  /// `pageIndex + 1` (A05b); um salto de repetição (E03a) usa a página de
-  /// destino, que pode vir antes, na mesma, ou bem depois de A.
+  /// `pageIndex + 1` **dentro da mesma sequência de [page]** (A05b); um
+  /// salto de repetição (E03a) usa a página de destino, que pode vir antes,
+  /// na mesma, ou bem depois de A — em qualquer sequência ([targetSequence]).
   final int? targetPageIndex;
+
+  /// Sequência alternativa do destino; só importa quando [targetPageIndex]
+  /// não é `null` (sem ele, o destino já está implícito na mesma sequência
+  /// de [page] — ver [target]). `null` é página normal.
+  final int? targetSequence;
+
+  /// A página A como [PageRef].
+  PageRef get page => PageRef(pageIndex, sequence: sequence);
+
+  /// O destino como [PageRef]: sem [targetPageIndex], `pageIndex + 1` **na
+  /// mesma sequência da frente**; com ele, [targetPageIndex] em
+  /// [targetSequence] (página normal se omitido).
+  PageRef get target => targetPageIndex == null
+      ? PageRef(pageIndex + 1, sequence: sequence)
+      : PageRef(targetPageIndex!, sequence: targetSequence);
 
   @override
   bool operator ==(Object other) =>
       other is SweepCurtain &&
       other.pageIndex == pageIndex &&
       other.edgeX == edgeX &&
-      other.targetPageIndex == targetPageIndex;
+      other.sequence == sequence &&
+      other.targetPageIndex == targetPageIndex &&
+      other.targetSequence == targetSequence;
 
   @override
-  int get hashCode => Object.hash(pageIndex, edgeX, targetPageIndex);
+  int get hashCode =>
+      Object.hash(pageIndex, edgeX, sequence, targetPageIndex, targetSequence);
 
   @override
   String toString() =>
-      'SweepCurtain(page: $pageIndex, edgeX: $edgeX, target: $targetPageIndex)';
+      'SweepCurtain(page: $page, edgeX: $edgeX, target: $target)';
 }
 
 /// Largura padrão da haste: `2 ×` a largura da cabeça de nota preta
@@ -167,7 +192,22 @@ class ScoreViewController extends ChangeNotifier {
   Duration get maxSweepDuration => _s.widget.maxSweepDuration;
 
   /// A página em repouso (ou, durante a virada, a que está sendo varrida).
+  /// Sempre uma página **normal** (D-ALT-INDICE) — para saber se uma
+  /// alternativa está exibida, use [displayedPage].
   int get currentPage => _state?._current ?? 0;
+
+  /// A página realmente exibida agora: normal (`sequence == null`) ou uma
+  /// alternativa que [showPage] pediu (P03b/P04b). `currentPage`/`goToPage`
+  /// continuam falando só de páginas normais (D-ALT-INDICE); `displayedPage`
+  /// é o que aparece na tela.
+  PageRef get displayedPage => _state?.displayedPage ?? const PageRef(0);
+
+  /// Mostra [ref] (normal ou alternativa) - API do player (P04b). Com uma
+  /// [PageRef] normal, é o [goToPage] de hoje (sem animação). Com uma
+  /// alternativa, `currentPage` passa a ser a página normal do primeiro
+  /// compasso dela (D-ALT-INDICE: o usuário continua vendo "página X" com
+  /// sentido), mas a tela mostra a alternativa.
+  void showPage(PageRef ref) => _s.showPage(ref);
 
   int get pageCount => _s.widget.document.pages.length;
 
@@ -291,9 +331,16 @@ class ScoreView extends StatefulWidget {
 
 class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   final PictureStats _stats = PictureStats();
-  final Map<int, GlobalKey> _keys = {};
+  final Map<PageRef, GlobalKey> _keys = {};
 
   int _current = 0;
+
+  /// Página exibida quando **não** é a normal [_current] (P03b): uma
+  /// alternativa que [showPage] pediu. `null` em repouso normal.
+  PageRef? _shown;
+
+  /// A página realmente na tela: [_shown], ou a normal [_current].
+  PageRef get displayedPage => _shown ?? PageRef(_current);
 
   // Haste manual (sweepTo/finishSweep/nextPage sem curtain externo).
   final ValueNotifier<SweepCurtain?> _manual = ValueNotifier(null);
@@ -302,7 +349,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   // Trilha horizontal (pagedSlide).
   late final AnimationController _slideAnim = AnimationController(vsync: this);
-  int? _slideTo;
+  PageRef? _slideTo;
   int _slideDir = 1;
 
   // Rolagem contínua.
@@ -333,7 +380,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   double get barWidth =>
       widget.barWidth ?? (_barWidth ??= defaultBarWidth(_doc));
 
-  GlobalKey _keyOf(int page) => _keys.putIfAbsent(page, GlobalKey.new);
+  GlobalKey _keyOf(PageRef ref) => _keys.putIfAbsent(ref, GlobalKey.new);
 
   // -------------------------------------------------------------------------
   // Ciclo de vida
@@ -388,6 +435,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     if (oldWidget.document != widget.document) {
       _barWidth = null;
       _keys.clear();
+      _shown = null;
       _current = _current.clamp(0, _pageCount - 1);
       _cancelTurn();
     }
@@ -447,6 +495,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   int goToPage(int index) {
     final target = index.clamp(0, _pageCount - 1);
+    _shown = null;
     _cancelTurn();
     if (widget.mode == ScorePageMode.continuousScroll) {
       _setCurrent(target);
@@ -459,6 +508,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   }
 
   int nextPage({bool animate = true}) {
+    _shown = null;
     final from = _current;
     if (widget.mode == ScorePageMode.continuousScroll) {
       return goToPage(from + 1);
@@ -478,44 +528,105 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
       if (_manual.value != null || _sweepAnim.isAnimating) {
         unawaited(finishSweep());
       } else {
-        unawaited(_animateSweep(0, _endX(from), widget.maxSweepDuration));
+        unawaited(
+          _animateSweep(0, _endX(PageRef(from)), widget.maxSweepDuration),
+        );
       }
       return from + 1;
     }
-    _startSlide(from + 1);
+    _startSlide(PageRef(from + 1));
     return from + 1;
   }
 
   int previousPage({bool animate = true}) {
+    _shown = null;
     final from = _current;
     if (widget.mode == ScorePageMode.pagedSlide &&
         animate &&
         from > 0 &&
         !_slideAnim.isAnimating) {
-      _startSlide(from - 1);
+      _startSlide(PageRef(from - 1));
       return from - 1;
     }
     return goToPage(from - 1);
   }
 
   // -------------------------------------------------------------------------
+  // Página exibida (P03b): normal ou alternativa
+  // -------------------------------------------------------------------------
+
+  /// `true` se [ref] existe (índice dentro do intervalo, sequência dentro de
+  /// `document.alternates`).
+  bool _refInRange(PageRef ref) {
+    final sequence = ref.sequence;
+    if (sequence == null) {
+      return ref.index >= 0 && ref.index < _pageCount;
+    }
+    if (sequence < 0 || sequence >= _doc.alternates.length) {
+      return false;
+    }
+    return ref.index >= 0 && ref.index < _doc.alternates[sequence].pages.length;
+  }
+
+  /// Aplica [ref] a `_shown`/`_current`, sem cancelar nenhuma virada em
+  /// curso (decisão de quem chama) nem chamar `setState`. Com uma
+  /// alternativa, `_current` vira a página normal do primeiro compasso dela
+  /// (D-ALT-INDICE) — a mesma pesquisa de `ScenePage.firstMeasureId` +
+  /// `ScoreGeometry.pageOf` que P02b faz em C++ para achar `firstOfNormalPage`.
+  void _applyDisplayed(PageRef ref) {
+    final sequence = ref.sequence;
+    if (sequence == null) {
+      _shown = null;
+      _setCurrent(ref.index);
+      return;
+    }
+    _shown = ref;
+    final firstMeasureId =
+        _doc.alternates[sequence].pages[ref.index].firstMeasureId;
+    final normalPage = firstMeasureId == null
+        ? _current
+        : (_doc.geometry.pageOf(firstMeasureId) ?? _current);
+    _setCurrent(normalPage);
+  }
+
+  /// Mostra [ref] (normal ou alternativa) — API do player (P04b/A05b).
+  void showPage(PageRef ref) {
+    if (widget.mode == ScorePageMode.continuousScroll) {
+      // Fora de escopo (P03b): rolagem contínua não mostra alternativas —
+      // uma alternativa vira a página normal equivalente (D-ALT-INDICE).
+      if (!ref.isAlternate) {
+        goToPage(ref.index);
+        return;
+      }
+      final firstMeasureId =
+          _doc.alternates[ref.sequence!].pages[ref.index].firstMeasureId;
+      goToPage(
+        firstMeasureId == null
+            ? _current
+            : (_doc.geometry.pageOf(firstMeasureId) ?? _current),
+      );
+      return;
+    }
+    _cancelTurn();
+    _applyDisplayed(ref);
+    setState(() {});
+  }
+
+  // -------------------------------------------------------------------------
   // Haste
   // -------------------------------------------------------------------------
 
-  double _endX(int page) => sweepEndX(_doc.pages[page], barWidth);
+  double _endX(PageRef ref) => sweepEndX(_doc.pageAt(ref), barWidth);
 
-  /// O destino de [c] (a página que ela revela atrás de [SweepCurtain.pageIndex]).
-  int _targetOf(SweepCurtain c) => c.targetPageIndex ?? c.pageIndex + 1;
-
-  /// [c] é uma haste válida: dentro do documento, com um destino diferente
-  /// da própria página (E03a: a última página só tem haste com destino
-  /// explícito — sem ele, `pageIndex + 1` não existiria).
+  /// [c] é uma haste válida: página e destino dentro do documento, com um
+  /// destino diferente da própria página (E03a: a última página só tem
+  /// haste com destino explícito — sem ele, `pageIndex + 1` não existiria).
   bool _isValidCurtain(SweepCurtain c) {
-    if (c.pageIndex < 0 || c.pageIndex >= _pageCount) {
+    if (!_refInRange(c.page)) {
       return false;
     }
-    final target = _targetOf(c);
-    return target >= 0 && target < _pageCount && target != c.pageIndex;
+    final target = c.target;
+    return _refInRange(target) && target != c.page;
   }
 
   /// A haste em vigor, ou `null` (repouso): a externa, se não-nula, senão a
@@ -529,7 +640,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     if (c == null || !_isValidCurtain(c)) {
       return null;
     }
-    if (c.edgeX <= 0 || c.edgeX >= _endX(c.pageIndex)) {
+    if (c.edgeX <= 0 || c.edgeX >= _endX(c.page)) {
       return null;
     }
     return c;
@@ -542,20 +653,20 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     final c = widget.curtain?.value ?? _manual.value;
     if (c != null &&
         _isValidCurtain(c) &&
-        c.pageIndex == _current &&
-        c.edgeX >= _endX(c.pageIndex)) {
-      // Conclusão: o destino vira a página corrente e a haste some.
+        c.page == displayedPage &&
+        c.edgeX >= _endX(c.page)) {
+      // Conclusão: o destino vira a página exibida e a haste some.
       _cancelSweepAnim();
       if (_manual.value != null) {
         _manual.value = null;
       }
-      _setCurrent(_targetOf(c));
+      _applyDisplayed(c.target);
       setState(() {});
       return;
     }
     final active = _activeCurtain;
     if (active != null) {
-      _setCurrent(active.pageIndex);
+      _applyDisplayed(active.page);
     }
     setState(() {});
   }
@@ -631,7 +742,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
         : 0.0;
     return _animateSweep(
       from,
-      _endX(_current),
+      _endX(PageRef(_current)),
       duration ?? widget.maxSweepDuration,
     );
   }
@@ -640,8 +751,8 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   // Trilha horizontal
   // -------------------------------------------------------------------------
 
-  void _startSlide(int to) {
-    _slideDir = to > _current ? 1 : -1;
+  void _startSlide(PageRef to) {
+    _slideDir = (to.sequence == null && to.index < _current) ? -1 : 1;
     _slideTo = to;
     setState(() {});
     _slideAnim
@@ -653,7 +764,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     if (status == AnimationStatus.completed && _slideTo != null) {
       final to = _slideTo!;
       _slideTo = null;
-      _setCurrent(to);
+      _applyDisplayed(to);
       setState(() {});
     }
   }
@@ -742,10 +853,11 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   // Construção
   // -------------------------------------------------------------------------
 
-  Widget _page(int index, {Key? key}) => ScorePageView(
-    key: key ?? _keyOf(index),
+  Widget _page(PageRef ref, {Key? key}) => ScorePageView(
+    key: key ?? _keyOf(ref),
     document: _doc,
-    pageIndex: index,
+    pageIndex: ref.index,
+    sequence: ref.sequence,
     controller: widget.controller,
     animatableIds: widget.animatableIds,
     backgroundColor: widget.backgroundColor,
@@ -757,11 +869,11 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     tapClasses: widget.tapClasses,
   );
 
-  /// Tamanho da página [index] desenhada dentro de [box]: a maior escala que
+  /// Tamanho da página [ref] desenhada dentro de [box]: a maior escala que
   /// a mantém inteira (`meet`). Com a caixa do tamanho da página a escala é
   /// exatamente 1.
-  Size _fit(int index, Size box) {
-    final p = _doc.pages[index];
+  Size _fit(PageRef ref, Size box) {
+    final p = _doc.pageAt(ref);
     final w = p.widthPx.toDouble();
     final h = p.heightPx.toDouble();
     final s = box.width.isFinite && box.height.isFinite
@@ -770,10 +882,10 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     return Size(w * s, h * s);
   }
 
-  Widget _centered(int index, Size box, {Key? key}) => Center(
+  Widget _centered(PageRef ref, Size box, {Key? key}) => Center(
     child: SizedBox.fromSize(
-      size: _fit(index, box),
-      child: _page(index, key: key),
+      size: _fit(ref, box),
+      child: _page(ref, key: key),
     ),
   );
 
@@ -794,7 +906,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   }
 
   Size _box(BoxConstraints c) {
-    final page = _doc.pages[_current];
+    final page = _doc.pageAt(displayedPage);
     return Size(
       c.hasBoundedWidth ? c.maxWidth : page.widthPx.toDouble(),
       c.hasBoundedHeight ? c.maxHeight : page.heightPx.toDouble(),
@@ -804,12 +916,12 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   Widget _buildSweep(BoxConstraints constraints) {
     final box = _box(constraints);
     final curtain = _activeCurtain;
-    final a = curtain?.pageIndex ?? _current;
+    final a = curtain?.page ?? displayedPage;
     Widget stack;
     if (curtain == null) {
       stack = _centered(a, box);
     } else {
-      final pageA = _doc.pages[a];
+      final pageA = _doc.pageAt(a);
       final size = _fit(a, box);
       final s = size.width / pageA.widthPx;
       final offset = Offset(
@@ -824,7 +936,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
         textDirection: TextDirection.ltr,
         fit: StackFit.expand,
         children: [
-          _centered(_targetOf(curtain), box),
+          _centered(curtain.target, box),
           ClipRect(clipper: _RightOfClipper(edge), child: _centered(a, box)),
           if (barRight > barLeft)
             Positioned(
@@ -844,7 +956,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     final box = _box(constraints);
     final to = _slideTo;
     if (to == null) {
-      return SizedBox.fromSize(size: box, child: _centered(_current, box));
+      return SizedBox.fromSize(size: box, child: _centered(displayedPage, box));
     }
     return SizedBox.fromSize(
       size: box,
@@ -860,7 +972,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
               children: [
                 Transform.translate(
                   offset: Offset(-dx * t, 0),
-                  child: _centered(_current, box),
+                  child: _centered(displayedPage, box),
                 ),
                 Transform.translate(
                   offset: Offset(dx * (1 - t), 0),
@@ -912,7 +1024,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
       itemCount: _pageCount,
       scrollCacheExtent: ScrollCacheExtent.pixels(cache),
       itemExtentBuilder: (i, _) => heights[i],
-      itemBuilder: (context, i) => _page(i, key: ValueKey<int>(i)),
+      itemBuilder: (context, i) => _page(PageRef(i), key: ValueKey<int>(i)),
     );
   }
 }

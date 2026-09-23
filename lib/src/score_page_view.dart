@@ -26,6 +26,7 @@ class ScorePageView extends StatefulWidget {
     super.key,
     required this.document,
     required this.pageIndex,
+    this.sequence,
     this.controller,
     this.animatableIds,
     this.backgroundColor = const Color(0xFFFFFFFF),
@@ -39,6 +40,13 @@ class ScorePageView extends StatefulWidget {
 
   final VsbDocument document;
   final int pageIndex;
+
+  /// `null` (padrão) = página normal (`PageRef(pageIndex)`). Um índice de
+  /// sequência mostra `PageRef(pageIndex, sequence: sequence)` — uma página
+  /// alternativa (§2.5, P03b) — com os mesmos ids de nota/compasso das
+  /// páginas normais, então cor e destaque (`ScoreController`) acendem sem
+  /// código novo.
+  final int? sequence;
 
   /// Cor por id e destaques. Sem controller a página só mostra o repouso.
   final ScoreController? controller;
@@ -98,7 +106,9 @@ class ScorePageViewState extends State<ScorePageView> {
   // `_collectPromotions`); zerado quando muda documento/página.
   final Set<String> _promoted = {};
 
-  ScenePage get _page => widget.document.pages[widget.pageIndex];
+  ScenePage get _page => widget.document.pageAt(
+    PageRef(widget.pageIndex, sequence: widget.sequence),
+  );
 
   @override
   void initState() {
@@ -121,6 +131,7 @@ class ScorePageViewState extends State<ScorePageView> {
     final structural =
         oldWidget.document != widget.document ||
         oldWidget.pageIndex != widget.pageIndex ||
+        oldWidget.sequence != widget.sequence ||
         !setEquals(oldWidget.animatableIds, widget.animatableIds);
     if (structural) {
       _promoted.clear();
@@ -230,7 +241,7 @@ class ScorePageViewState extends State<ScorePageView> {
   /// Camadas de widget por cima da página (A04b): overlays por id e o
   /// detector de toque. Só existe se o host pediu.
   Widget _withInteraction(BuildContext context, double width, Widget base) {
-    final geometry = widget.document.geometry;
+    final geometry = widget.document.geometryOf(widget.sequence);
     final builder = widget.overlayBuilder;
     Widget result = base;
     if (builder != null && widget.overlayIds.isNotEmpty) {

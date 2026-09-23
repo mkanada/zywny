@@ -395,6 +395,18 @@ class ScenePage {
     required this.elements,
     required this.byId,
   });
+
+  /// `xml:id` do primeiro nó de classe `measure` em pré-ordem (§5.5), ou
+  /// `null` se a página não tiver nenhum. Usado por `ScoreViewState.showPage`
+  /// (P03b) para achar a página normal "equivalente" a uma sequência
+  /// alternativa (D-ALT-INDICE) — a mesma regra que P02b usa em C++
+  /// (`FindFirstMeasureNode`) para `firstOfNormalPage`.
+  String? get firstMeasureId {
+    for (final e in elements) {
+      if (e.className.split(' ').contains('measure')) return e.id;
+    }
+    return null;
+  }
 }
 
 /// Cor de preenchimento/traço (§5.2): herdar do ancestral, não pintar, ou uma
