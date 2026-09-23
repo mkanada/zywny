@@ -355,6 +355,223 @@ O quadro "estacionada" de cada salto mostra o compasso de destino já visível
     player.dispose();
     controller.dispose();
   });
+
+  for (final piece in const [
+    (name: 'MapleLeafRag', fixture: 'maple-leaf-rag.vsb'),
+    (name: 'Mazurka', fixture: 'mazurka.vsb'),
+  ]) {
+    testWidgets(
+      'páginas alternativas nos saltos de repetição (P04c) — ${piece.name}',
+      (tester) async {
+        await _repeticaoAlternativaExample(
+          tester,
+          piece.name,
+          'test/fixtures/${piece.fixture}',
+        );
+      },
+    );
+  }
+}
+
+/// Gera `docs/exemplos/repeticao-alternativa/<piece>/`: os 6 quadros do
+/// único salto que cruza página desta peça (P01c), com a página alternativa
+/// atrás da haste (P04a/P04b) — e um quadro de comparação com
+/// `useAlternates: false` (o comportamento de antes da fase P, E03b).
+Future<void> _repeticaoAlternativaExample(
+  WidgetTester tester,
+  String piece,
+  String fixturePath,
+) async {
+  final doc = VsbDocument.fromBytes(File(fixturePath).readAsBytesSync());
+  final dir = '$_out/repeticao-alternativa/$piece';
+
+  Future<
+    ({
+      GlobalKey key,
+      int w,
+      int h,
+      ScorePlayer player,
+      ScoreViewController vc,
+      ScoreController controller,
+    })
+  >
+  setup({required bool useAlternates}) async {
+    final controller = ScoreController(document: doc);
+    final vc = ScoreViewController();
+    final player = ScorePlayer(
+      document: doc,
+      controller: controller,
+      view: vc,
+      release: const Duration(milliseconds: 600),
+      useAlternates: useAlternates,
+    );
+    final page = doc.pages[0];
+    final h = (_width * page.heightPx / page.widthPx).round();
+    final key = await pumpAtSize(
+      tester,
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: _width,
+          height: h.toDouble(),
+          child: ScoreView(
+            document: doc,
+            controller: controller,
+            viewController: vc,
+            curtain: player.curtain,
+          ),
+        ),
+      ),
+      _width.round(),
+      h,
+    );
+    return (
+      key: key,
+      w: _width.round(),
+      h: h,
+      player: player,
+      vc: vc,
+      controller: controller,
+    );
+  }
+
+  final active = await setup(useAlternates: true);
+  final tl = active.player.timeline;
+
+  // Repouso de verdade (sem nenhuma haste ativa nem de outro salto perto
+  // dali — mesma cautela de `saltoFrames`/E03b acima).
+  double restNear(double start, double step) {
+    var t = start;
+    for (var i = 0; i < 10; i++) {
+      if (tl.curtainAt(
+            t,
+            maxSweep: active.vc.maxSweepDuration,
+            barWidth: active.vc.barWidth,
+          ) ==
+          null) {
+        return t;
+      }
+      t += step;
+    }
+    return t;
+  }
+
+  // O único salto desta peça que cruza para uma página alternativa (P01c):
+  // a 1ª ocorrência cuja `view` é alternativa é exatamente o destino dele —
+  // uma sequência alternativa, uma vez alcançada, dura até o fim da peça
+  // (D-ALT-EXTENSAO), então não há um 2º "primeiro salto" a achar.
+  final i = tl.measures.indexWhere((m) => m.view.isAlternate);
+  expect(i, greaterThan(0), reason: '$piece devia ter 1 salto alternativo');
+  final m = tl.measures[i - 1];
+  final next = tl.measures[i];
+  expect(next.view.isAlternate, isTrue);
+  final sequence = next.view.sequence!;
+
+  // Critério 2 de P04c: o compasso de chegada é o 1º da página de trás.
+  expect(
+    doc.alternates[sequence].pages[next.view.index].firstMeasureId,
+    next.id,
+  );
+
+  final d = ((m.endMs - m.startMs) / 4).clamp(0, 1000).toDouble();
+  final steps = <(String, double)>[
+    ('1-repouso', restNear(m.startMs - 800, -200)),
+    ('2-meio-da-entrada', m.startMs + d / 2),
+    ('3-estacionada', (m.startMs + d + next.startMs) / 2),
+    ('4-meio-da-conclusao', next.startMs + d / 2),
+    ('5-repouso-na-alternativa', restNear(next.startMs + d + 800, 200)),
+  ];
+  final lines = <String>[];
+  for (final (label, at) in steps) {
+    active.player.seek(Duration(microseconds: (at * 1000).round()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    final bytes = await _shot(tester, active.key, active.w, active.h);
+    await writePng(tester, bytes, active.w, active.h, '$dir/frame-$label.png');
+    lines.add(
+      '- $label: `seek(${at.round()} ms)` — displayedPage '
+      '${active.vc.displayedPage} — haste '
+      '${active.player.curtain.value == null ? "ausente" : "edgeX = ${active.player.curtain.value!.edgeX.toStringAsFixed(0)}"}',
+    );
+  }
+
+  // Quadro 6: uma nota da 2ª passagem acesa, já na alternativa — depois da
+  // conclusão da haste (`next.startMs + d`), não durante ela (`displayedPage`
+  // só muda na conclusão).
+  final atNotaAcesa = next.startMs + d + 50;
+  active.player.seek(Duration(microseconds: (atNotaAcesa * 1000).round()));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 1));
+  expect(active.vc.displayedPage, next.view, reason: 'critério 2 do quadro 6');
+  final bytes6 = await _shot(tester, active.key, active.w, active.h);
+  await writePng(
+    tester,
+    bytes6,
+    active.w,
+    active.h,
+    '$dir/frame-6-nota-acesa.png',
+  );
+  lines.add(
+    '- 6-nota-acesa: `seek(${atNotaAcesa.round()} ms)` — '
+    'displayedPage ${active.vc.displayedPage}, nota `${next.noteIds.isEmpty ? next.id : next.noteIds.first}` '
+    '(passagem ${next.pass}) acesa na alternativa',
+  );
+
+  // Quadro de comparação: o mesmo instante "estacionada", com
+  // `useAlternates: false` — o comportamento de antes da fase P (E03b): a
+  // haste revela a página **normal**, não a alternativa.
+  final before = await setup(useAlternates: false);
+  final atEstacionada = (m.startMs + d + next.startMs) / 2;
+  before.player.seek(Duration(microseconds: (atEstacionada * 1000).round()));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 1));
+  final bytesBefore = await _shot(tester, before.key, before.w, before.h);
+  await writePng(
+    tester,
+    bytesBefore,
+    before.w,
+    before.h,
+    '$dir/frame-antes-3-estacionada.png',
+  );
+  lines.add(
+    '- antes-3-estacionada (`useAlternates: false`, comparação com E03b): '
+    '`seek(${atEstacionada.round()} ms)` — displayedPage '
+    '${before.vc.displayedPage} (a página normal, não a alternativa)',
+  );
+
+  File('$dir/roteiro.md')
+    ..createSync(recursive: true)
+    ..writeAsStringSync(
+      '''# Páginas alternativas nos saltos de repetição — $piece
+
+Gerado por `flutter test tool/generate_examples.dart` (em `score_bridge/`).
+P04a-P04c (fase P): no único salto desta peça que cruza página (P01c), a
+vista não volta para a página normal de destino — mostra uma página
+**alternativa**, redesenhada a partir do compasso de chegada
+(`Toolkit::Select`, P02c), atrás da haste (D-SALTO/E03a generalizados a
+`PageRef` em P04a).
+
+Compasso `${m.id}` (${m.startMs.round()}–${m.endMs.round()} ms) → `${next.id}`
+(sequência alternativa $sequence, página ${next.view.index}), salto em
+${next.startMs.round()} ms. `D = min(1 s, duração/4)` = ${d.round()} ms.
+`ScorePlayer` com `release: 600 ms`.
+
+${lines.join('\n')}
+
+O quadro "estacionada" mostra o compasso de chegada já visível à esquerda da
+haste, no canto superior esquerdo da página alternativa — o 1º compasso
+dela, por construção (P02c/P00). O quadro "antes" (`useAlternates: false`)
+mostra a mesma haste revelando, em vez disso, a página normal de destino,
+como antes desta fase.
+''',
+    );
+
+  active.controller.clearAll();
+  active.player.dispose();
+  active.controller.dispose();
+  before.controller.clearAll();
+  before.player.dispose();
+  before.controller.dispose();
 }
 
 /// Retângulo (px do frame) que cobre as notas [ids], com folga.
