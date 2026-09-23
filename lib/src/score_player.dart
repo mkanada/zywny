@@ -15,9 +15,16 @@
 // notas que o timemap diz estarem ativas no instante.
 //
 // LIGAÇÃO COM A VISTA: `curtain` é o `ValueListenable` para `ScoreView.curtain`.
-// Sem haste, o player leva a vista à página de repouso (`goToPage`) só quando
+// Sem haste, o player leva a vista à página de repouso (`showPage`) só quando
 // ela difere; em `continuousScroll` não há haste, e a rolagem acompanha o
 // compasso corrente (`scrollToId`).
+//
+// PÁGINAS ALTERNATIVAS (P04b): a página de repouso e a de trás da haste vêm
+// de `ScoreTimeline.restViewAt`/`curtainAt` (a rota de P00/P04a) — em
+// execução, a vista pode mostrar uma alternativa num salto de repetição.
+// `currentPage`/`goToPage` (do host, parado) continuam só na numeração
+// normal (D-ALT-INDICE); é `displayedPage` que muda. `continuousScroll` não
+// participa da rota: sempre a faixa de páginas normais, por `scrollToId`.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -48,7 +55,11 @@ class ScorePlayer {
     this.scrollDuration = const Duration(milliseconds: 300),
     this.singleNoteDelay = const Duration(milliseconds: 500),
     this.onEntry,
-  }) : timeline = ScoreTimeline(document) {
+    // Repassado a `ScoreTimeline` (P04a): `false` desliga a rota de páginas
+    // alternativas — a vista, em execução, só mostra páginas normais, como
+    // antes de P04a/P04b.
+    bool useAlternates = true,
+  }) : timeline = ScoreTimeline(document, useAlternates: useAlternates) {
     _measureIndex = ValueNotifier<int>(0);
     _tempo = ValueNotifier<double?>(null);
     _publish(force: true);
@@ -325,9 +336,9 @@ class ScorePlayer {
       _curtain.value = c;
     }
     if (c == null && attached) {
-      final page = timeline.restPageAt(_positionMs);
-      if (v.currentPage != page) {
-        v.goToPage(page);
+      final ref = timeline.restViewAt(_positionMs);
+      if (v.displayedPage != ref) {
+        v.showPage(ref);
       }
     }
   }
