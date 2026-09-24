@@ -47,6 +47,18 @@ a partitura com o relógio do `AudioContext` mandando no destaque; monitor
   mostre progresso de download. SpessaSynth lê SF3 (menor) — opção só na Web
   se o tamanho doer; registre.
 - Cross-origin isolation **não** é necessária (sem SharedArrayBuffer).
+- Alternativas descartadas (pesquisa de 2026-09-24):
+  - **WebAudioFont** (`surikov/webaudiofont`, ativo, **GPL-3.0**): catálogo
+    de ~2000 instrumentos GM pré-convertidos em `.js`. Descartado porque usa
+    formato próprio (não o `.sf2` de D-SF, então a Web soaria diferente das
+    outras plataformas e "carregar outro `.sf2`" não funcionaria), porque a
+    GPL contaminaria o bundle (cada instrumento ainda herda a licença da
+    soundfont de origem) e porque toca amostras com `AudioBufferSourceNode`
+    na thread principal, sem AudioWorklet nem síntese SF2 completa. Única
+    vantagem, download mínimo (só o piano), já coberta pelo SF3.
+  - **soundfont-player** (danigb): arquivado desde 2023. Sucessor **smplr**
+    (ativo, sem licença declarada no GitHub) usa amostras pré-renderizadas,
+    não SF2; mesmos problemas de consistência.
 
 ## O que fazer
 
