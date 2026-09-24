@@ -372,8 +372,9 @@ const kLayoutGroups = <LayoutGroup>[
 
 /// Values the app starts from: Verovio's defaults, except where the app has
 /// always deviated. The footer would take a strip off the bottom of every
-/// page, shrinking the usable notation area.
-const kAppDefaults = <String, Object>{'footer': 'none'};
+/// page, shrinking the usable notation area; a `unit` of 4.5 (the smallest
+/// the panel allows) fits more music on a desktop-sized page.
+const kAppDefaults = <String, Object>{'footer': 'none', 'unit': 4.5};
 
 /// The options that differ from Verovio's own defaults — all it takes to
 /// reproduce a render, e.g. as `verovio --<key> <value>`.

@@ -14,30 +14,38 @@ import 'native_paths.dart';
 import 'verovio_render.dart';
 import 'verovio_resources.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   // Liberation Serif (the `t` runs of the scene, §5.4) ships inside
   // score_bridge and has to be registered before the first paint —
   // otherwise the engine falls back to a system serif without warning.
   await loadScoreFonts();
-  runApp(const MyApp());
+  runApp(MyApp(debugMode: args.contains('--debug')));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.debugMode = false});
+
+  final bool debugMode;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'zywny • partitura → .vsb',
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
-      home: const ScoreHomePage(),
+      home: ScoreHomePage(debugMode: debugMode),
     );
   }
 }
 
 class ScoreHomePage extends StatefulWidget {
-  const ScoreHomePage({super.key});
+  const ScoreHomePage({super.key, this.debugMode = false});
+
+  /// `--debug` on the command line: asks Verovio to also embed the
+  /// effective options and source document inside the rendered `.vsb`
+  /// (`vsbDebug`, score_bridge's own debug mode), so a render can be
+  /// reproduced from the `.vsb` alone.
+  final bool debugMode;
 
   @override
   State<ScoreHomePage> createState() => _ScoreHomePageState();
@@ -96,6 +104,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// drives the page-turn sweep. Rebuilt for every new engraving.
   ScorePlayer? _player;
   bool _playing = false;
+
+  /// Appearance, set from the "Opções" panel — pure paint-time settings, none
+  /// of them reach Verovio or reflow the score.
+  Color _highlightColor = kDefaultHighlightColor;
+  double _haloWidth = 1.0;
+  Color _barColor = kDefaultBarColor;
 
   bool get _canPlay => (_document?.timemap?.isNotEmpty ?? false) && !_busy;
 
@@ -189,6 +203,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     'pageWidth': _pageWidth,
     'pageHeight': _pageHeight,
     ...layoutOptionsToSend(_layout),
+    if (widget.debugMode) 'vsbDebug': true,
   };
 
   /// Renders [_inputPath] with the current options and displays it. The
@@ -204,7 +219,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
     final pageWidth = _pageWidth;
     final pageHeight = _pageHeight;
-    final options = layoutOptionsToSend(_layout);
+    final options = {
+      ...layoutOptionsToSend(_layout),
+      if (widget.debugMode) 'vsbDebug': true,
+    };
 
     setState(() {
       _busy = true;
@@ -247,6 +265,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 controller: _controller,
                 view: _viewController,
                 onEntry: _onEntry,
+                highlightColor: _highlightColor,
               )
             : null;
         _document = document;
@@ -322,6 +341,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void _setLayoutValue(String key, Object value) =>
       setState(() => _layout = {..._layout, key: value});
 
+  /// Only the **next** note to light up gets the new color — [ScorePlayer]
+  /// doesn't recolor one that's already animating.
+  void _setHighlightColor(Color color) {
+    setState(() => _highlightColor = color);
+    _player?.highlightColor = color;
+  }
+
   void _resetLayout() {
     setState(() {
       _layout = initialLayoutValues();
@@ -360,63 +386,59 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         _view.value;
   }
 
-  /// Zoom control floating over the score. It sits in the [Stack] of
-  /// [_buildScoreArea], so it takes no room from the page.
+  /// Zoom control embedded in [LayoutPanel] (the "Opções" panel) — it used
+  /// to float over the score, but that hid the score under it on a small
+  /// window, so it moved in with the rest of the controls.
   Widget _zoomControls() {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 3,
-      child: ValueListenableBuilder<Matrix4>(
-        valueListenable: _view,
-        builder: (context, matrix, _) {
-          final scale = matrix.getMaxScaleOnAxis();
-          final untouched = matrix.isIdentity();
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                tooltip: 'Diminuir zoom',
-                onPressed: scale > kZoomMin ? () => _zoomBy(1 / 1.25) : null,
-                icon: const Icon(Icons.remove),
-              ),
-              // Logarithmic: equal steps are equal ratios, so 50%→100% takes
-              // as much travel as 400%→800%.
-              SizedBox(
-                width: 150,
-                child: Slider(
-                  min: math.log(kZoomMin) / math.ln2,
-                  max: math.log(kZoomMax) / math.ln2,
-                  value: (math.log(scale) / math.ln2).clamp(
-                    math.log(kZoomMin) / math.ln2,
-                    math.log(kZoomMax) / math.ln2,
-                  ),
-                  onChanged: (v) => _zoomTo(math.pow(2, v).toDouble()),
+    return ValueListenableBuilder<Matrix4>(
+      valueListenable: _view,
+      builder: (context, matrix, _) {
+        final scale = matrix.getMaxScaleOnAxis();
+        final untouched = matrix.isIdentity();
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Diminuir zoom',
+              onPressed: scale > kZoomMin ? () => _zoomBy(1 / 1.25) : null,
+              icon: const Icon(Icons.remove),
+            ),
+            // Logarithmic: equal steps are equal ratios, so 50%→100% takes
+            // as much travel as 400%→800%.
+            Expanded(
+              child: Slider(
+                min: math.log(kZoomMin) / math.ln2,
+                max: math.log(kZoomMax) / math.ln2,
+                value: (math.log(scale) / math.ln2).clamp(
+                  math.log(kZoomMin) / math.ln2,
+                  math.log(kZoomMax) / math.ln2,
                 ),
+                onChanged: (v) => _zoomTo(math.pow(2, v).toDouble()),
               ),
-              IconButton(
-                tooltip: 'Aumentar zoom',
-                onPressed: scale < kZoomMax ? () => _zoomBy(1.25) : null,
-                icon: const Icon(Icons.add),
-              ),
-              Tooltip(
-                message: 'Voltar a 100%',
-                child: TextButton(
-                  onPressed: untouched
-                      ? null
-                      : () => _view.value = Matrix4.identity(),
-                  child: SizedBox(
-                    width: 44,
-                    child: Text(
-                      '${(scale * 100).round()}%',
-                      textAlign: TextAlign.center,
-                    ),
+            ),
+            IconButton(
+              tooltip: 'Aumentar zoom',
+              onPressed: scale < kZoomMax ? () => _zoomBy(1.25) : null,
+              icon: const Icon(Icons.add),
+            ),
+            Tooltip(
+              message: 'Voltar a 100%',
+              child: TextButton(
+                onPressed: untouched
+                    ? null
+                    : () => _view.value = Matrix4.identity(),
+                child: SizedBox(
+                  width: 44,
+                  child: Text(
+                    '${(scale * 100).round()}%',
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -460,6 +482,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                             document.pages.length - 1,
                           ),
                           onPageChanged: _onPageChanged,
+                          haloSigmaScale: _haloWidth,
+                          barColor: _barColor,
                         ),
                       )
                     : const Center(
@@ -478,7 +502,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 right: 0,
                 child: LinearProgressIndicator(),
               ),
-            Positioned(left: 12, bottom: 12, child: _zoomControls()),
             if (_panelOpen)
               Positioned(
                 top: 8,
@@ -498,6 +521,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   onReset: _resetLayout,
                   onCopy: _copyOptions,
                   onClose: () => setState(() => _panelOpen = false),
+                  zoomSection: _zoomControls(),
+                  highlightColor: _highlightColor,
+                  onHighlightColorChanged: _setHighlightColor,
+                  haloWidth: _haloWidth,
+                  onHaloWidthChanged: (v) => setState(() => _haloWidth = v),
+                  barColor: _barColor,
+                  onBarColorChanged: (c) => setState(() => _barColor = c),
                 ),
               )
             else
@@ -505,7 +535,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 top: 8,
                 right: 8,
                 child: IconButton.filledTonal(
-                  tooltip: 'Parâmetros do Verovio',
+                  tooltip: 'Opções',
                   onPressed: () => setState(() => _panelOpen = true),
                   icon: const Icon(Icons.tune),
                 ),

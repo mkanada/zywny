@@ -1,8 +1,10 @@
 // Testes de widget do app, sem partitura aberta (nada nativo é tocado até um
 // arquivo ser escolhido): a tela inicial, e o contrato de que o zoom e o
-// painel de parâmetros são camadas sobre a partitura — abrir, mover ou
+// painel de opções são camadas sobre a partitura — abrir, mover ou
 // usar qualquer um deles não altera a caixa da partitura nem o tamanho de
-// página pedido ao Verovio (que só o mudaria por um re-render).
+// página pedido ao Verovio (que só o mudaria por um re-render). O zoom vive
+// dentro do painel (não mais flutuando sobre a partitura), então os testes
+// que o exercitam abrem o painel primeiro.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +22,7 @@ String _fittedPage(WidgetTester tester) => tester
     .data!;
 
 Future<void> _openPanel(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('Parâmetros do Verovio'));
+  await tester.tap(find.byTooltip('Opções'));
   await tester.pump();
 }
 
@@ -38,11 +40,9 @@ void main() {
     expect(find.byType(ScorePageView), findsNothing);
     expect(find.text('—'), findsOneWidget);
 
-    // Zoom flutuando sobre a partitura, começando em 100%; o painel de
-    // parâmetros começa fechado.
-    expect(find.text('100%'), findsOneWidget);
-    expect(find.byTooltip('Parâmetros do Verovio'), findsOneWidget);
-    expect(find.text('Parâmetros do Verovio'), findsNothing);
+    // O painel de opções (que hospeda o zoom) começa fechado.
+    expect(find.byTooltip('Opções'), findsOneWidget);
+    expect(find.text('Opções'), findsNothing);
   });
 
   testWidgets('o painel mostra a página derivada da caixa da partitura',
@@ -51,7 +51,7 @@ void main() {
     await tester.pump(); // primeiro layout: a caixa passa a ser conhecida
     await _openPanel(tester);
 
-    expect(find.text('Parâmetros do Verovio'), findsOneWidget);
+    expect(find.text('Opções'), findsOneWidget);
     expect(find.text('Página acompanha a área'), findsOneWidget);
     expect(_fittedPage(tester), matches(RegExp(r'^\d+×\d+ \(\d+×\d+ mm\)$')));
   });
@@ -94,13 +94,14 @@ void main() {
 
     await tester.tap(find.byTooltip('Fechar'));
     await tester.pump();
-    expect(find.text('Parâmetros do Verovio'), findsNothing);
+    expect(find.text('Opções'), findsNothing);
     expect(_scoreBox(tester), box);
   });
 
   testWidgets('o zoom não passa dos limites', (tester) async {
     await tester.pumpWidget(const MyApp());
     await tester.pump();
+    await _openPanel(tester);
 
     for (var i = 0; i < 20; i++) {
       await tester.tap(find.byTooltip('Diminuir zoom'), warnIfMissed: false);
