@@ -15,6 +15,8 @@ partitura, como no Linux. Sem som. Pré-requisito de K06.
 - `windows/CMakeLists.txt` (seção `install`).
 - `/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart/build_linux_so.sh`
   (quais alvos/flags do CMake do Verovio ele usa).
+- `docs/plano/windows-a-partir-do-linux.md` — build mingw já testado, os
+  dois ajustes que o fork precisa e as opções de VM/CI.
 
 ## Contexto que você precisa
 

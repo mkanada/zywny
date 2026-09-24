@@ -166,6 +166,11 @@ zywny
   falha). O Windows MIDI Services (Win11 24H2/25H2, a partir de fev/2026)
   torna tudo multi-cliente, inclusive para WinMM. **Win10 continua
   exclusivo** → tratar "porta ocupada" com mensagem clara.
+- **Windows a partir do Linux**: a `verovio.dll` cross-compila com
+  mingw-w64 (testado: 14,9 MB, só `KERNEL32`/`msvcrt`, carrega no Wine),
+  mas precisa de dois ajustes no fork. O app Flutter **não** compila no
+  Linux (`"build windows" only supported on Windows hosts`). Detalhes, VM e
+  CI gratuito em [windows-a-partir-do-linux.md](windows-a-partir-do-linux.md).
 - **Latência**: alvo tecla→som ≤ 20 ms (bom ≤ 10 ms). Fone Bluetooth soma
   150-250 ms — avise o usuário. Android varia muito por aparelho → calibração
   (T04).
@@ -179,7 +184,7 @@ zywny
 | --- | --- | --- | --- | --- |
 | D-SF | Qual soundfont empacotar (tamanho × licença × qualidade)? | K01 | GeneralUser GS (~30 MB, licença permissiva, GM completo) como padrão; permitir o usuário carregar outro `.sf2` | **aberta** |
 | D-MIDI | Pilha MIDI: `flutter_midi_command` ou `midir` (Rust)? | M01 | `flutter_midi_command` (pronto nas 4 plataformas); `midir` só se M01 medir problema | **aberta** (recomendação pronta) |
-| D-WIN | Como compilar e testar no Windows (máquina própria, VM, CI)? | X02, K06 | Uma máquina/VM Windows 11 com VS Build Tools + Flutter; cross-compile só se não houver | **aberta** |
+| D-WIN | Como compilar e testar no Windows (máquina própria, VM, CI)? | X02, K06 | DLLs cross-compiladas no Linux (mingw) + app compilado e testado numa VM Windows 11 no KVM; CI opcional — ver [windows-a-partir-do-linux.md](windows-a-partir-do-linux.md) | **aberta** (pesquisa feita) |
 | D-WEB | A Web entra na 1.0 com o mesmo peso? | ordem da fase W | Sim, mas por último: o custo é portar o render (Verovio→wasm), não o som | **aberta** |
 | D-WEB-SYNTH | Síntese na Web: SpessaSynth (JS) ou o crate Rust em wasm? | W04 | SpessaSynth (maduro, AudioWorklet pronto); mesmo `.sf2` nos dois lados | **aberta** |
 | D-TREINO | Tolerâncias e UX do treino (janela de acerto, o que conta como erro) | T03 | ±75 ms "certo", ±150 ms "quase", fora disso "errado/perdido"; ornamentos e apojaturas não cobrados na 1.0 | **aberta** |
