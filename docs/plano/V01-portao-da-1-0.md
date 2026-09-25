@@ -22,7 +22,8 @@ passo novo no README).
   (8va), mais **uma peça de fora do corpus com 20+ páginas** (o
   usuário indica, ou baixe uma de domínio público do MuseScore/IMSLP em
   MusicXML e registre a origem).
-- Roteiro por plataforma (Linux, Android, Windows, Web/Chrome):
+- Roteiro por plataforma, na ordem de implementação (Linux, Android,
+  Web/Chrome, Windows):
   1. Abrir a peça; tempo até a primeira página.
   2. Play com o sintetizador do app; sincronia som × destaque; pause/seek.
   3. Conectar teclado; monitor; saída MIDI para o teclado.
@@ -39,7 +40,7 @@ passo novo no README).
 2. `docs/relatorio-1.0.md` com a matriz, números (latências, tamanhos,
    tempos) e pendências priorizadas.
 
-| Item | Linux | Android | Windows | Web |
+| Item | Linux | Android | Web | Windows |
 | --- | --- | --- | --- | --- |
 | Abrir peça / tempo | | | | |
 | Play com som / sincronia | | | | |

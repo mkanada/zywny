@@ -3,7 +3,9 @@
 Meta da 1.0: o usuário **treina qualquer música no teclado MIDI**. A
 apresentação da partitura está pronta (no Linux). Falta a parte sonora e
 MIDI: tocar a música por soundfont, tocar por MIDI no teclado plugado,
-receber e avaliar o que o usuário toca — em **Android, Linux, Windows e Web**.
+receber e avaliar o que o usuário toca — em **Linux, Android, Web e Windows**
+(ordem de implementação, decidida pelo usuário: Windows por último por causa
+do custo de infraestrutura — sem máquina local, precisa de VM/CI).
 
 Este diretório divide o trabalho em passos pequenos, cada um executável por um
 modelo com contexto limitado (~250k tokens). Leia **só** este README e o
@@ -185,14 +187,16 @@ zywny
 | D-SF | Qual soundfont empacotar (tamanho × licença × qualidade)? | K01 | GeneralUser GS (~30 MB, licença permissiva, GM completo) como padrão; permitir o usuário carregar outro `.sf2` | **aberta** |
 | D-MIDI | Pilha MIDI: `flutter_midi_command` ou `midir` (Rust)? | M01 | `flutter_midi_command` (pronto nas 4 plataformas); `midir` só se M01 medir problema | **aberta** (recomendação pronta) |
 | D-WIN | Como compilar e testar no Windows (máquina própria, VM, CI)? | X02, K06 | DLLs cross-compiladas no Linux (mingw) + app compilado e testado numa VM Windows 11 no KVM; CI opcional — ver [windows-a-partir-do-linux.md](windows-a-partir-do-linux.md) | **aberta** (pesquisa feita) |
-| D-WEB | A Web entra na 1.0 com o mesmo peso? | ordem da fase W | Sim, mas por último: o custo é portar o render (Verovio→wasm), não o som | **aberta** |
+| D-WEB | A Web entra na 1.0 com o mesmo peso? | ordem da fase W | Sim, mas depois do Android e antes do Windows (ordem do usuário: Linux → Android → Web → Windows); o custo é portar o render (Verovio→wasm), não o som | **aberta** |
 | D-WEB-SYNTH | Síntese na Web: SpessaSynth (JS) ou o crate Rust em wasm? | W04 | SpessaSynth (maduro, AudioWorklet pronto); mesmo `.sf2` nos dois lados | **aberta** |
 | D-TREINO | Tolerâncias e UX do treino (janela de acerto, o que conta como erro) | T03 | ±75 ms "certo", ±150 ms "quase", fora disso "errado/perdido"; ornamentos e apojaturas não cobrados na 1.0 | **aberta** |
 
 ## Riscos conhecidos
 
 1. **Web é o item mais caro** e não é por causa do som: o pipeline do `.vsb`
-   é todo FFI. Mitigação: protótipo W01 cedo (pode rodar em paralelo à fase K).
+   é todo FFI. Mitigação: protótipo W01 cedo (pode rodar em paralelo à fase
+   K), mesmo com a fase W só entrando de fato depois do Android na ordem de
+   implementação.
 2. **Latência no Android**. Mitigação: K05 mede de ponta a ponta antes de
    construir o treino em cima.
 3. **Drift áudio × vídeo** se o `Ticker` continuar mandando. Mitigação: C01
@@ -207,8 +211,6 @@ zywny
 
 | Passo | Título | Depende de | Decisão | Status |
 | --- | --- | --- | --- | --- |
-| [X01](X01-android-render.md) | Android: `.vsb` e partitura rodando (sem som) | — | — | pendente |
-| [X02](X02-windows-render.md) | Windows: `verovio.dll` e partitura rodando (sem som) | — | D-WIN | pendente |
 | [N01](N01-notes-json-no-fork.md) | Fork: `notes.json` no `.vsb` (pitch, pauta, canal, ligadura) | — | — | pendente |
 | [N02](N02-notes-no-score-bridge.md) | `score_bridge`: modelo e parser de `notes.json` | N01 | — | pendente |
 | [N03](N03-performance-track.md) | `PerformanceTrack`: eventos tocáveis por id, com ligaduras e mãos | N02 | — | pendente |
@@ -217,8 +219,6 @@ zywny
 | [K02](K02-api-ffi-do-motor.md) | API C do motor: comandos, agenda por amostra, relógio | K01 | — | pendente |
 | [K03](K03-sound-engine-dart.md) | `SoundEngine` (Dart) + `NativeSoundEngine` via FFI no Linux | K02 | — | pendente |
 | [K04](K04-agendador-e-play-com-som.md) | Agendador da partitura + botão Play com som, relógio do áudio | K03, N03, C01 | — | pendente |
-| [K05](K05-motor-no-android.md) | Motor de áudio no Android (cargo-ndk, AAudio) e latência | K04, X01 | — | pendente |
-| [K06](K06-motor-no-windows.md) | Motor de áudio no Windows (WASAPI) | K04, X02 | D-WIN | pendente |
 | [M01](M01-entrada-midi.md) | Dispositivos MIDI e entrada (monitor de notas) | — | D-MIDI | pendente |
 | [M02](M02-monitor-pelo-sintetizador.md) | Tocar a entrada pelo sintetizador do app (monitor) | M01, K03 | — | pendente |
 | [M03](M03-saida-midi.md) | Tocar a partitura no teclado externo (MIDI out) | M01, K04 | — | pendente |
@@ -226,12 +226,25 @@ zywny
 | [T02](T02-modo-espera.md) | Modo espera + escolha de mão + app toca a outra | T01, K04, M01 | — | pendente |
 | [T03](T03-modo-tempo-real-e-nota.md) | Modo tempo real com avaliação e resumo | T02 | D-TREINO | pendente |
 | [T04](T04-calibracao-loop-metronomo.md) | Calibração de latência, loop A-B, metrônomo | T03 | — | pendente |
+| [X01](X01-android-render.md) | Android: `.vsb` e partitura rodando (sem som) | — | — | pendente |
+| [K05](K05-motor-no-android.md) | Motor de áudio no Android (cargo-ndk, AAudio) e latência | K04, X01 | — | pendente |
 | [W01](W01-verovio-wasm.md) | Protótipo: fork do Verovio em wasm gerando `.vsb` no navegador | — | D-WEB | pendente |
 | [W02](W02-app-na-web.md) | zywny compilando e desenhando a partitura na Web | W01 | — | pendente |
 | [W03](W03-web-midi.md) | Web MIDI (entrada e saída) | W02, M03 | — | pendente |
 | [W04](W04-som-na-web.md) | Som na Web: `WebSoundEngine` (SpessaSynth) | W02, K04 | D-WEB-SYNTH | pendente |
+| [X02](X02-windows-render.md) | Windows: `verovio.dll` e partitura rodando (sem som) | — | D-WIN | pendente |
+| [K06](K06-motor-no-windows.md) | Motor de áudio no Windows (WASAPI) | K04, X02 | D-WIN | pendente |
 | [V01](V01-portao-da-1-0.md) | Portão da 1.0: matriz de plataformas | todos | — | pendente |
 
-Ordem sugerida: N01→N02→N03 e C01 (dá para fazer em paralelo) → K01…K04
-(som no Linux) → M01…M03 → T01…T04 → X01/K05, X02/K06 → W01…W04 → V01.
-X01, X02 e W01 não dependem de nada e podem ser adiantados.
+Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
+Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em
+paralelo) → K01…K04 (som no Linux) → M01…M03 → T01…T04 → X01/K05 (Android) →
+W01…W04 (Web) → X02/K06 (Windows) → V01.
+
+X01 e W01 não dependem de nada e podem ser adiantados a qualquer momento
+(inclusive como protótipo em paralelo à fase K, ver Riscos #1). **X02 e K06
+(Windows) ficam deliberadamente por último**, mesmo sem dependência técnica
+que os obrigue — é decisão de prioridade do usuário, não uma restrição de
+código: Windows não tem máquina de dev local (ver D-WIN e
+[windows-a-partir-do-linux.md](windows-a-partir-do-linux.md)), então convém
+deixá-lo para quando o resto já estiver estável.
