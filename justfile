@@ -37,6 +37,30 @@ build-release:
 run-release: build-release
     FLUTTER_ENGINE_SWITCHES=1 FLUTTER_ENGINE_SWITCH_1=enable-impeller=false ./{{linux_bundle}}
 
+# Mockup de interface (lib/mockup/): telas sem o Verovio ligado no app,
+# imagens de partitura pré-renderizadas em assets/mockup/. Entrada própria
+# (lib/main_mockup.dart) — não mexe no banco de testes do motor acima.
+
+# Roda o mockup no Linux, sem Impeller.
+run-mockup *ARGS:
+    flutter run -d linux --no-enable-impeller -t lib/main_mockup.dart {{ARGS}}
+
+# APK de release do mockup (arm64 só, para instalar direto no celular).
+build-mockup-apk:
+    flutter build apk --release -t lib/main_mockup.dart --target-platform android-arm64
+
+# Instala o APK de release do mockup no aparelho conectado (via adb).
+install-mockup-apk: build-mockup-apk
+    flutter install --release -t lib/main_mockup.dart -d android
+
+# Bundle de release do mockup para Linux.
+build-mockup-linux:
+    flutter build linux --release -t lib/main_mockup.dart
+
+# Regenera assets/mockup/partitura_*.png (verovio CLI + Chrome headless).
+mockup-images:
+    tool/build_mockup_images.sh
+
 # Preparação completa a partir de um clone limpo.
 setup: native assets
     flutter pub get

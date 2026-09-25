@@ -47,6 +47,7 @@ dependencies:
     path: /home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart
   score_bridge:
     path: /home/mauricio/rust_projects/verovio_flutter_bridge/score_bridge
+  google_fonts: ^8.2.1
 
 dev_dependencies:
   flutter_test:
@@ -77,6 +78,13 @@ flutter:
     # por tool/build_verovio_assets.sh a partir do verovio_flutter_bridge e extraído em
     # runtime por lib/verovio_resources.dart. Não versionado.
     - assets/verovio_data.zip
+    # Imagens de partitura pré-renderizadas para lib/mockup/ (telas de
+    # celular do artefato "zywny — interface de estudo") — geradas por
+    # tool/build_mockup_images.sh a partir do verovio_flutter_bridge, sem o
+    # motor Verovio ligado no app. Versionadas (ao contrário do zip acima):
+    # são poucos KB e o mockup precisa rodar sem recompilar nada nativo.
+    - assets/mockup/partitura_padrao.png
+    - assets/mockup/partitura_grande.png
   # A serifada do texto comum (Liberation Serif) vem do pacote
   # score_bridge, registrada por loadScoreFonts().
 
