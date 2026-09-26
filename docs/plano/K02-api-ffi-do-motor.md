@@ -101,4 +101,72 @@ tudo e informar o relógio do áudio.
 
 ## Notas de execução
 
-(preencher)
+**Implementado em 2026-09-25.** `native/zywny_audio/` virou biblioteca de
+verdade: `Cargo.toml` com `crate-type = ["cdylib", "lib"]` (o `"lib"` é o
+que deixa `examples/`/`cargo test` linkarem normalmente — só `"cdylib"`
+não geraria rlib) e `rtrb` adicionado; `anyhow` saiu de
+`[dev-dependencies]` para `[dependencies]` (a camada segura `ZyEngine`/
+`EngineCore` também usa, não só o exemplo de K01).
+
+- **`src/engine.rs`**: `EngineCore` (a metade "áudio": `Synthesizer` +
+  heap de eventos de capacidade fixa 16 384, `BinaryHeap<HeapEvent>`
+  invertido para virar min-heap) e `render_block` (corta o bloco exatamente
+  nos `frame` vencidos, aplica, continua — testável sem `cpal` nenhum).
+  `ZyEngine` (a metade "controle"): abre o dispositivo em `new`; `load_sf2`
+  é quem de fato cria o `Synthesizer` e sobe o `cpal::Stream` — chamável de
+  novo depois (pausa o stream anterior, troca a fila SPSC — `rtrb` — e o
+  heap, mantém os `Arc<AtomicU64>` do relógio). Todo comando (`send`,
+  `schedule`, `clear_scheduled`, `all_notes_off`, `set_gain`) vira um
+  `Command` empurrado na fila (produtor atrás de um `Mutex`, só no lado de
+  controle); o callback de áudio drena a fila inteira no início de cada
+  bloco — zero alocação, zero lock no caminho quente (o `Mutex` só existe
+  do lado do produtor).
+- **Relógio**: `frames_rendered`/`cb_instant_nanos` (um par consistente,
+  atualizado no FIM do callback, depois de renderizar) mais
+  `extrapolate_frame` (aritmética pura sobre `Instant` monotônico) dão
+  `render_frame()`/`now_frame()` (este último subtrai a latência de saída
+  estimada, recalculada a cada callback a partir de
+  `OutputCallbackInfo.timestamp()`, igual a K01). Ressalva: entre
+  `ZyEngine::new` e o primeiro callback de verdade rodar, `render_frame()`
+  extrapola a partir do par inicial (0 quadros, no instante da criação do
+  engine) — superestima levemente o quanto já tocou (nunca subestima:
+  sempre do lado seguro, nunca agenda "no passado"). Só importa no
+  arranque; o exemplo `schedule.rs` não teve problema com isso.
+- **`src/ffi.rs`**: as 13 funções da API sugerida, escritas à mão (não
+  `cbindgen`) — `include/zywny_audio.h` também à mão, mantido em sincronia
+  manualmente. `catch_unwind` só em `zy_engine_new`/`zy_engine_load_sf2`
+  (as únicas que fazem trabalho de verdade — abrir dispositivo, parsear
+  bytes de SF2); as demais só leem atômicos ou empurram um `Command` na
+  fila, e `ZyEngine::push_command` já recupera de um `Mutex` envenenado em
+  vez de depender de `catch_unwind` para isso. `zy_last_error`:
+  `thread_local!` de `CString`, como pedido.
+- **Testes Rust sem dispositivo** (critérios 1-3, `src/engine.rs`, módulo
+  `tests`): abrem um `Synthesizer` real (sem `cpal`) com um `.sf2` de teste
+  — `ZYWNY_TEST_SF2` ou, senão, `/usr/share/sounds/sf2/TimGM6mb.sf2`
+  (mesmo SF de teste do K01; ausência de qualquer um dos dois faz o teste
+  pular com uma mensagem, mesmo padrão do `score_bridge` para corpus
+  ausente). `note_on_agendado_soa_no_quadro_certo`: agenda em F, primeira
+  amostra não-nula aparece em **exatamente F** (atraso 0, dentro da
+  tolerância de 64 quadros do critério). `all_notes_off_silencia_ate_o_release`:
+  confirma a nota soando (RMS > 1e-4) antes do corte, silencia (RMS < 1e-4)
+  bem dentro da folga de 3 s dada. `heap_cheio_descarta_sem_panico`: empurra
+  `SCHEDULE_CAPACITY + 10` eventos, heap para em `SCHEDULE_CAPACITY`,
+  `dropped_events` bate exatamente 10, sem pânico.
+- **`examples/schedule.rs` (critério 4, manual)**: agenda a escala de dó
+  maior a 120 bpm com `engine.render_frame() + 200 ms` de margem, toca via
+  `ZyEngine` direto (API segura do Rust, não a FFI crua — mais simples
+  dentro do próprio crate) com o mesmo SF de teste do K01. Rodou sem
+  underruns nem `dropped_events`; não tenho como confirmar "sem galope"
+  *ouvindo* — fica para checagem manual do usuário, como em K01.
+- **Build/bundle**: `tool/build_audio_linux.sh` (`cargo build --release` +
+  `strip`, mesmo tratamento do `.so` do Verovio), receita `just
+  native-audio`, e `linux/CMakeLists.txt` instala
+  `native/zywny_audio/target/release/libzywny_audio.so` em `lib/` do bundle
+  (mesmo RPATH `$ORIGIN/lib`, `WARNING` em vez de erro se a lib não existir
+  — igual ao padrão do Verovio). Validado de ponta a ponta: `flutter build
+  linux --release` roda limpo e `libzywny_audio.so` (612 KB, stripped)
+  aparece em `build/linux/x64/release/bundle/lib/` ao lado de
+  `libverovio.so` — a Dart/K03 ainda não referencia a lib nenhuma, só a
+  bundling em si foi exercitada.
+- **`cargo clippy --all-targets -- -D warnings`**, **`cargo fmt --check`**
+  e **`cargo test`**: limpos (crate inteiro, incluindo os dois exemplos).

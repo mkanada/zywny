@@ -118,6 +118,17 @@ else()
   message(WARNING "libverovio.so not found at ${VEROVIO_LIB}; run tool/build_verovio_linux.sh")
 endif()
 
+# zywny_audio native library, built from native/zywny_audio/ in this repo
+# (tool/build_audio_linux.sh, K02). Same RPATH ($ORIGIN/lib) as above.
+set(ZYWNY_AUDIO_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../native/zywny_audio/target/release/libzywny_audio.so")
+if(EXISTS "${ZYWNY_AUDIO_LIB}")
+  install(FILES "${ZYWNY_AUDIO_LIB}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+else()
+  message(WARNING "libzywny_audio.so not found at ${ZYWNY_AUDIO_LIB}; run tool/build_audio_linux.sh")
+endif()
+
 # Verovio engraving resources (Bravura, Liberation text fonts, ...) are not
 # installed here: they ship as the single zip asset assets/verovio_data.zip
 # (tool/build_verovio_assets.sh), unpacked at runtime by

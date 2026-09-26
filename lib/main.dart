@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
 
+import 'audio/sound_engine_debug_panel.dart';
 import 'layout_options.dart';
 import 'layout_panel.dart';
 import 'native_paths.dart';
@@ -631,6 +632,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 ),
               ],
             ),
+            if (widget.debugMode) ...[
+              const SizedBox(height: 8),
+              const SoundEngineDebugPanel(),
+            ],
           ],
         ),
       ),

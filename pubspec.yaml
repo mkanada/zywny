@@ -39,6 +39,10 @@ dependencies:
   # diretório de destino da extração — ver lib/verovio_resources.dart.
   archive: ^4.0.7
   path_provider: ^2.1.5
+  # Bindings de dart:ffi (Pointer<Utf8>, malloc) usados por
+  # lib/audio/native_sound_engine.dart (K03) — já vinha transitivo via o
+  # binding do Verovio; direto aqui porque é usado direto aqui também.
+  ffi: ^2.1.0
 
   # Bindings FFI do fork do Verovio que exporta `.vsb` (Verovio Score
   # Bridge) e o pacote que lê esse formato e o desenha com CustomPaint.

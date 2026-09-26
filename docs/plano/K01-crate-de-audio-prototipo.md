@@ -80,4 +80,48 @@ buffer e a latência de saída reportada.
 
 ## Notas de execução
 
-(preencher)
+**Implementado em 2026-09-25.** `native/zywny_audio/` (crate `lib`, sem
+`crate-type` especial ainda — isso é K02): `Cargo.toml` (`rustysynth
+1.3.6`, `cpal 0.18`, `anyhow` só em `[dev-dependencies]`, usado apenas pelo
+exemplo), `src/lib.rs` mínimo (só doc-comment, a lógica mora no exemplo, como
+sugerido) e `examples/play.rs`:
+`cargo run --release --example play -- <sf2> scale|<arquivo.mid>`.
+
+**cpal 0.18 divergiu um pouco do que o "Ler antes" descrevia** (a doc do
+crate mudou desde então): `Device` não tem mais `.name()`, é `.id() ->
+Result<DeviceId, Error>`; `err_cb` recebe `cpal::Error` (com `.kind()`,
+`ErrorKind::Xrun` existe e é o que conto como underrun) em vez de um
+`StreamError` à parte; `build_output_stream` toma `StreamConfig` por valor,
+não por referência. Escala de teste: dó maior (C4-C5), notas de 450 ms + 50
+ms de silêncio, agendada manualmente (`note_on`/`note_off`) com granularidade
+de bloco do callback (~5 ms a 256 quadros/48 kHz) — suficiente aqui; a
+agenda por amostra exata é K02. Peça de teste: `.mid` gerado do fork
+(`verovio -r <verovio/data> -t midi
+corpus/musicxml/Erik_Satie_-_Gymnopedie_No.1.mxl`), tocado via
+`MidiFileSequencer` do próprio rustysynth (não precisei agendar nada à mão
+para esse caminho).
+
+**D-SF continua aberta** (README). Testei com
+`/usr/share/sounds/sf2/TimGM6mb.sf2` (pacote Debian/Ubuntu
+`timgm6mb-soundfont`, ~6 MB, já instalado no sistema, domínio público
+declarado pelo autor — Tim Brechbill) por já estar disponível na máquina;
+não é o `GeneralUser GS` proposto como padrão na tabela de decisões, só o SF
+GM livre mais à mão para o protótipo. Não versionado (nem esse nem nenhum
+outro `.sf2`), como pedido.
+
+**Números medidos** (`aplay`/PipeWire, saída ALSA padrão): host `Alsa`,
+device `alsa:default`, 48000 Hz, 2 canais, `F32`. Buffer pedido 256 quadros,
+obtido `Fixed(256)` (o range do dispositivo permitia). Latência estimada
+(`playback - callback`, 200 primeiros callbacks): média 15,84 ms / máxima
+16,00 ms tocando a escala; 15,85 ms / 16,00 ms tocando a Gymnopédie —
+consistente entre os dois modos, e compatível com um buffer de 256 quadros
+(5,3 ms) mais duas ou três voltas de latência da pilha PipeWire/ALSA.
+**Underruns: 0** nos dois testes.
+
+**Critério 1 (manual, "toca... audível e limpa")**: rodei os dois comandos
+de ponta a ponta (escala completa, Gymnopédie inteira) sem erros, sem
+underruns e sem que o processo travasse — não tenho como confirmar a
+qualidade do áudio *ouvindo*, isso fica para uma checagem manual do usuário.
+
+**`cargo clippy --all-targets -- -D warnings`** e **`cargo fmt --check`**:
+limpos.

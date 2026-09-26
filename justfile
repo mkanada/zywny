@@ -73,6 +73,11 @@ native:
 assets:
     tool/build_verovio_assets.sh
 
+# Compila a libzywny_audio.so nativa (native/zywny_audio/, K02; não
+# versionada).
+native-audio:
+    tool/build_audio_linux.sh
+
 # Refaz .so e assets depois que o verovio_flutter_bridge mudar.
 rebuild-deps: native assets
 
