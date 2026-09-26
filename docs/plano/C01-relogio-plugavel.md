@@ -76,4 +76,33 @@ frame, e ainda pode ficar **parado esperando** (modo espera do treino, T02).
 
 ## Notas de execução
 
-(preencher)
+**Implementado em 2026-09-25** (`verovio_flutter_bridge/score_bridge/`).
+`PlaybackClock` (abstract, `positionMs`/`isRunning`) e `ScorePlayer.clock`
+(nullable) em `score_player.dart`, exportado via `score_bridge.dart` (o
+export em bloco já cobria, sem precisar listar o nome). `_onTick`: com
+`clock` definido, ignora `elapsed`/`speed` e lê `clock.positionMs` a cada
+tick — adiantou → `_advanceToMs` (mesmo caminho do `advance` de sempre);
+recuou mais que 20 ms (tolerância) → `seek`; recuou até 20 ms (jitter do
+relógio de áudio interpolado) ou ficou parado → nada, é o modo espera (T02).
+`play`/`pause` continuam só ligando/desligando o `Ticker`, sem mudança —
+desenho igual ao proposto.
+
+**`ManualClock`** (`test/score_player_test.dart`): implementação mínima com
+`positionMs`/`isRunning` mutáveis — prova do contrato e exemplo de uso, como
+sugerido.
+
+**Testes novos** (grupo "relógio plugável (C01)", 3 testes): (1) saltos
+irregulares via `ManualClock` acendem o mesmo conjunto de ids que `advance`
+direto na mesma peça — reusa o padrão de comparação de conjuntos do
+critério 4 de A05a (`onEntry` coletando `e.on`), em vez de comparar
+`highlightedIds` passo a passo; (2) posição parada por 100 frames não muda
+destaque, compasso corrente nem posição — sem exceção; (3) recuo de 10 ms é
+ignorado (< tolerância de 20 ms), recuo de 5 s refaz como `seek` — destaques
+comparados com um segundo player que faz `seek` direto pro mesmo instante.
+
+**`flutter test` (score_bridge)**: 325/325 verdes (era 322 antes: 3 testes
+novos, nenhuma quebra nos existentes — critério 1). `flutter analyze` limpo
+(critério 5).
+
+**Fora de escopo, como previsto**: relógio de áudio de verdade fica para K04;
+loop A-B fica para T04.

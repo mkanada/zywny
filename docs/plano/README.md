@@ -223,7 +223,7 @@ zywny
 | [N01](N01-notes-json-no-fork.md) | Fork: eventos MIDI no `.vsb` (`midi.json`, ex-`notes.json`) | — | — | concluído (via G01 no bridge) |
 | [N02](N02-notes-no-score-bridge.md) | `score_bridge`: modelo e parser de `midi.json` | N01 | — | concluído (via G02 no bridge + verificação aqui) |
 | [N03](N03-performance-track.md) | `PerformanceTrack`: eventos tocáveis por id, com ligaduras e mãos | N02 | — | concluído |
-| [C01](C01-relogio-plugavel.md) | `ScorePlayer` com relógio plugável | — | — | pendente |
+| [C01](C01-relogio-plugavel.md) | `ScorePlayer` com relógio plugável | — | — | concluído |
 | [K01](K01-crate-de-audio-prototipo.md) | Crate `zywny_audio`: rustysynth + cpal tocando no Linux (CLI) | — | D-SF | pendente |
 | [K02](K02-api-ffi-do-motor.md) | API C do motor: comandos, agenda por amostra, relógio | K01 | — | pendente |
 | [K03](K03-sound-engine-dart.md) | `SoundEngine` (Dart) + `NativeSoundEngine` via FFI no Linux | K02 | — | pendente |
