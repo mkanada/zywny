@@ -8,9 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
 
+import 'audio/audio_playback_clock.dart';
+import 'audio/score_audio_scheduler.dart';
+import 'audio/sound_engine.dart';
 import 'audio/sound_engine_debug_panel.dart';
+import 'audio/sound_engine_factory.dart';
 import 'layout_options.dart';
 import 'layout_panel.dart';
+import 'music/performance_track.dart';
 import 'native_paths.dart';
 import 'verovio_render.dart';
 import 'verovio_resources.dart';
@@ -106,6 +111,27 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   ScorePlayer? _player;
   bool _playing = false;
 
+  /// Notas tocáveis da peça corrente (N03), reconstruída a cada nova
+  /// gravura junto com [_player] — o que [ScoreAudioScheduler] agenda.
+  PerformanceTrack? _track;
+
+  /// Motor de áudio (K03): criado sob demanda no primeiro "ligar som", não
+  /// no início do app — mudo por padrão, como antes de K04. Sobrevive a
+  /// novas gravuras (só [_scheduler] é recriado, um por `.vsb`).
+  SoundEngine? _engine;
+  ScoreAudioScheduler? _scheduler;
+  AudioPlaybackClock? _audioClock;
+
+  /// Interruptor "som" (K04): liga o agendador de áudio sobre [_player];
+  /// desligado, o player volta ao próprio relógio interno (`speed`), o
+  /// modo mudo de sempre.
+  bool _soundOn = false;
+  bool _loadingSoundFont = false;
+
+  /// 0,5×–1,5×; alimenta [_scheduler] com som ligado, ou `ScorePlayer.speed`
+  /// mudo (C01: o relógio externo ignora `speed`).
+  double _speed = 1.0;
+
   /// Appearance, set from the "Opções" panel — pure paint-time settings, none
   /// of them reach Verovio or reflow the score.
   Color _highlightColor = kDefaultHighlightColor;
@@ -143,6 +169,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   @override
   void dispose() {
     _resizeDebounce?.cancel();
+    _scheduler?.dispose();
+    unawaited(_engine?.dispose());
     _player?.dispose();
     _viewController.dispose();
     _controller.dispose();
@@ -256,10 +284,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _player?.dispose();
       _player = null;
       _playing = false;
+      _scheduler?.dispose();
+      _scheduler = null;
+      _audioClock = null;
       _controller.clearAll();
       _controller.attachDocument(document);
       final hasTimemap = document.timemap?.isNotEmpty ?? false;
+      final track = PerformanceTrack.fromDocument(document);
       setState(() {
+        _track = track;
         _player = hasTimemap
             ? ScorePlayer(
                 document: document,
@@ -269,6 +302,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 highlightColor: _highlightColor,
               )
             : null;
+        final engine = _engine;
+        if (_player != null && _soundOn && engine != null) {
+          _attachAudio(engine, track);
+        }
         _document = document;
         // New options reflow the score: the page we were on may not exist
         // any more.
@@ -301,11 +338,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (player == null) return;
     if (_playing) {
       player.pause();
+      _scheduler?.pause();
       _controller.releaseAll();
       setState(() => _playing = false);
       return;
     }
     player.play();
+    _scheduler?.play(player.position.inMicroseconds / 1000, speed: _speed);
     setState(() => _playing = true);
   }
 
@@ -315,6 +354,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (player == null) return;
     player.pause();
     player.seek(Duration.zero);
+    _scheduler?.stop();
     _controller.clearAll();
     if (_playing && mounted) setState(() => _playing = false);
   }
@@ -324,9 +364,99 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final player = _player;
     if (player == null || !_playing) return;
     if (player.position >= player.duration) {
+      _scheduler?.pause();
       _controller.releaseAll();
       if (mounted) setState(() => _playing = false);
     }
+  }
+
+  /// Tocar numa nota (E02c) move o player; K04 reflete o mesmo instante no
+  /// agendador de áudio, senão os dois relógios divergem.
+  void _onScoreTap(String id) {
+    final player = _player;
+    if (player == null) return;
+    if (!player.seekToElement(id)) return;
+    _scheduler?.seek(player.position.inMicroseconds / 1000);
+  }
+
+  /// 0,5×–1,5×: alimenta o que estiver tocando de verdade agora — o
+  /// agendador de áudio com som ligado, ou `ScorePlayer.speed` mudo.
+  void _setSpeed(double value) {
+    setState(() => _speed = value);
+    if (_soundOn) {
+      _scheduler?.setSpeed(value);
+    } else {
+      _player?.speed = value;
+    }
+  }
+
+  /// Liga [_scheduler] sobre [engine]/[track] e passa o relógio de áudio ao
+  /// player — chamado ao ligar o som e de novo a cada nova gravura enquanto
+  /// ele já estiver ligado.
+  void _attachAudio(SoundEngine engine, PerformanceTrack track) {
+    final scheduler = ScoreAudioScheduler(engine: engine, track: track);
+    _scheduler = scheduler;
+    _audioClock = AudioPlaybackClock(scheduler);
+    _player?.clock = _audioClock;
+  }
+
+  /// Interruptor "som" (K04). Desligar volta ao modo mudo de sempre
+  /// (relógio interno do player); ligar abre o motor (K03) e — só na
+  /// primeira vez, D-SF ainda em aberto — pede um `.sf2` ao usuário.
+  Future<void> _toggleSound() async {
+    if (_soundOn) {
+      _scheduler?.pause();
+      _engine?.allNotesOff();
+      _player?.clock = null;
+      _player?.speed = _speed;
+      setState(() => _soundOn = false);
+      return;
+    }
+    final track = _track;
+    if (track == null || _loadingSoundFont) return;
+
+    var engine = _engine;
+    if (engine == null) {
+      setState(() => _loadingSoundFont = true);
+      try {
+        engine = await _pickEngineWithSoundFont();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('som: erro ao iniciar ($e)')));
+        }
+        engine = null;
+      } finally {
+        if (mounted) setState(() => _loadingSoundFont = false);
+      }
+      if (engine == null || !mounted) return;
+      _engine = engine;
+    }
+    _attachAudio(engine, track);
+    // Já estava tocando (mudo) quando o som foi ligado: sem isto o
+    // agendador ficaria parado na âncora 0 e o próximo tick do player veria
+    // o relógio de áudio "voltar" para o início e daria um seek indevido.
+    final player = _player;
+    if (_playing && player != null) {
+      _scheduler!.play(player.position.inMicroseconds / 1000, speed: _speed);
+    }
+    setState(() => _soundOn = true);
+  }
+
+  /// Abre o motor e pede um soundfont ao usuário; `null` se o motor não
+  /// abriu (sem dispositivo de áudio) ou o usuário cancelou o `.sf2`.
+  Future<SoundEngine?> _pickEngineWithSoundFont() async {
+    final engine = createSoundEngine();
+    await engine.start();
+    const typeGroup = XTypeGroup(label: 'soundfont', extensions: ['sf2']);
+    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    if (file == null) {
+      await engine.dispose();
+      return null;
+    }
+    await engine.loadSoundFont(await file.readAsBytes());
+    return engine;
   }
 
   void _onPageChanged(int target) {
@@ -483,6 +613,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                             document.pages.length - 1,
                           ),
                           onPageChanged: _onPageChanged,
+                          onElementTap: _onScoreTap,
                           haloSigmaScale: _haloWidth,
                           barColor: _barColor,
                         ),
@@ -611,6 +742,38 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                       ? _stop
                       : null,
                   icon: const Icon(Icons.stop),
+                ),
+                IconButton.filledTonal(
+                  tooltip: _soundOn
+                      ? 'Desligar som'
+                      : 'Ligar som (escolhe um .sf2)',
+                  onPressed: _loadingSoundFont ? null : _toggleSound,
+                  icon: _loadingSoundFont
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(_soundOn ? Icons.volume_up : Icons.volume_off),
+                ),
+                SizedBox(
+                  width: 160,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.speed, size: 18),
+                      Expanded(
+                        child: Slider(
+                          min: 0.5,
+                          max: 1.5,
+                          divisions: 10,
+                          label: '${_speed.toStringAsFixed(2)}×',
+                          value: _speed,
+                          onChanged: _canPlay ? _setSpeed : null,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton.filledTonal(
                   tooltip: 'Página anterior',

@@ -90,4 +90,55 @@ virada de página **dirigidos pelo relógio do áudio**. Pause, Stop, seek
 
 ## Notas de execução
 
-(preencher)
+- `lib/audio/score_audio_scheduler.dart` (`ScoreAudioScheduler`) e
+  `lib/audio/audio_playback_clock.dart` (`AudioPlaybackClock`), como
+  planejado. `ScoreAudioScheduler` expõe `pump()` público em vez de manter o
+  tick só interno: com `autoTick: false` (usado pelos testes) nenhum
+  `Timer.periodic` de verdade é criado — os testes chamam `pump()` direto,
+  avançando `FakeSoundEngine.now` manualmente, sem depender de tempo real
+  nem de `fake_async` (não é dependência do projeto).
+- Note-off pendente além da janela: em vez do mapa `(ch,pitch) → at`
+  sugerido como alternativa, cada evento agenda seu par on/off **junto**,
+  no mesmo `pump()` em que `onMs` entra na janela — mesmo que `offMs` caia
+  bem além do `lookahead`. Já temos os dois instantes prontos no
+  `SoundEvent` (`PerformanceTrack` já funde ligadura), e K02 documenta que o
+  motor aceita agendamento bem no futuro; o mapa só adicionaria estado sem
+  ganhar nada.
+- Program Change (`0xC0 | canal`) só é reenviado em `play()`, não em
+  `seek()`/`setSpeed()`: `Command::AllNotesOff` no motor nativo
+  (`native/zywny_audio/src/engine.rs`) manda `0xB0,123,0`/`0xB0,64,0` por
+  canal, mas não mexe no patch do canal — reenviar a cada seek seria
+  redundante.
+- **Limitação encontrada no motor nativo (K01-K03), fora do escopo Dart
+  deste passo**: `render_block` (`native/zywny_audio/src/engine.rs:118`)
+  chama `synth.process_midi_message(0, e.msg[0], ...)` com o canal
+  **fixo em 0**, e `rustysynth::Synthesizer::process_midi_message` espera
+  o parâmetro `command` **sem** o nibble de canal (`0x90`, não `0x90|ch`) —
+  hoje só o canal 0 realmente soa; qualquer nota com canal ≠ 0 não bate em
+  nenhum case do `match` e é silenciosamente ignorada. Não afeta os
+  critérios manuais (Gymnopédie e Maple Leaf Rag só usam o canal 0 —
+  conferido lendo os dois `.vsb` de teste), então não bloqueia K04, mas
+  bloqueia qualquer peça futura com canais diferentes de 0 e deveria virar
+  um item separado (arrumar `render_block` para separar canal de comando,
+  ou o Dart parar de OR'ar o canal no status byte).
+- Sobreposição real de mesma tecla no próprio corpus: `maple-leaf-rag.vsb`
+  tem 2 pares de eventos (pitch 65 e 73, por volta de 133,35–133,65 s) cuja
+  janela `[onMs, offMs)` já se sobrepõe na fonte (resolução de ornamento
+  antes do fim da nota anterior) — o agendador não tem como evitar um 2º
+  note-on antes do note-off do 1º nesses casos pontuais (é uma limitação de
+  representar duas vozes na mesma tecla/canal MIDI, não um bug do
+  agendador). O teste de seek (critério 3) contabiliza isso a partir do
+  próprio `PerformanceTrack`, não com um número fixo.
+- UI (`lib/main.dart`): interruptor "som" (`_soundOn`, ícone
+  volume_up/volume_off) e um `Slider` de velocidade (0,5×–1,5×) ao lado do
+  Play/Stop, como pedido. O motor (`createSoundEngine`, K03) só é aberto na
+  primeira vez que o som é ligado, e como não há soundfont embutida (D-SF
+  segue em aberto — o próprio `SoundEngineDebugPanel` já tinha essa
+  decisão pendente), ligar o som pede um `.sf2` por `file_selector`,
+  reaproveitando o motor já aberto nas vezes seguintes. Toque numa nota
+  (`onElementTap`, ainda não ligado antes de K04) chama
+  `player.seekToElement` e replica a posição resultante no agendador.
+- `just analyze` e `just test` limpos (critério 6). Critérios 4 e 5
+  (manual: ouvir a Gymnopédie/Maple Leaf Rag no Linux e medir a deriva) não
+  foram executados nesta sessão — pendente de verificação manual com um
+  dispositivo de áudio e um `.sf2` à mão.
