@@ -60,6 +60,15 @@ class Cleanup {
   }
 }
 
+/// Relógio com posição setável à mão — prova mínima do contrato de
+/// [PlaybackClock] e exemplo de uso (`ScorePlayer.clock`, C01).
+class ManualClock implements PlaybackClock {
+  @override
+  double positionMs = 0;
+  @override
+  bool isRunning = true;
+}
+
 void testPlayer(
   String name,
   Future<void> Function(WidgetTester tester, Cleanup cleanup) body,
@@ -708,5 +717,138 @@ void main() {
       expect(edges.contains(450), isTrue);
       expect(edges.last, greaterThan(450), reason: 'conclusão em curso');
     });
+  });
+
+  group('relógio plugável (C01)', () {
+    testPlayer(
+      'ManualClock em saltos irregulares acende os mesmos ids que `advance` '
+      '(critério 2, reusa a comparação do critério 4 de A05a)',
+      (tester, cleanup) async {
+        final doc = corpusDoc('Scarlatti')!;
+        final durationMs = ScoreTimeline(doc).durationMs;
+        final rng = math.Random(11);
+        final steps = <int>[];
+        var ms = 0.0;
+        while (ms < durationMs) {
+          final step = 1 + rng.nextInt(1500);
+          steps.add(step);
+          ms += step;
+        }
+
+        final seenAdvance = <String>{};
+        final controllerA = ScoreController(document: doc);
+        final playerA = ScorePlayer(
+          document: doc,
+          controller: controllerA,
+          release: Duration.zero,
+          onEntry: (e) => seenAdvance.addAll(e.on),
+        );
+        for (final step in steps) {
+          playerA.advance(Duration(milliseconds: step));
+        }
+
+        final seenClock = <String>{};
+        final controllerC = ScoreController(document: doc);
+        final clock = ManualClock();
+        final playerC =
+            ScorePlayer(
+              document: doc,
+              controller: controllerC,
+              release: Duration.zero,
+              onEntry: (e) => seenClock.addAll(e.on),
+            )..clock = clock;
+        playerC.play();
+        for (final step in steps) {
+          clock.positionMs += step;
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+
+        cleanup.add(() {
+          controllerA.clearAll();
+          controllerC.clearAll();
+          playerA.dispose();
+          playerC.dispose();
+          controllerA.dispose();
+          controllerC.dispose();
+        });
+
+        expect(seenClock, seenAdvance);
+      },
+    );
+
+    testPlayer(
+      'ManualClock parado (posição não anda) por 100 frames: nada muda, sem '
+      'exceção — modo espera (critério 3)',
+      (tester, cleanup) async {
+        final doc = corpusDoc('Scarlatti')!;
+        final controller = ScoreController(document: doc);
+        final clock = ManualClock()..positionMs = 30000;
+        final player =
+            ScorePlayer(document: doc, controller: controller, release: Duration.zero)
+              ..clock = clock;
+        cleanup.add(() {
+          controller.clearAll();
+          player.dispose();
+          controller.dispose();
+        });
+        player.seek(Duration(milliseconds: clock.positionMs.round()));
+        final lit = controller.highlightedIds.toSet();
+        final index = player.currentMeasureIndex.value;
+        player.play();
+        for (var i = 0; i < 100; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(controller.highlightedIds.toSet(), lit);
+        expect(player.currentMeasureIndex.value, index);
+        expect(player.position, const Duration(milliseconds: 30000));
+      },
+    );
+
+    testPlayer(
+      'ManualClock: recuo de 5 s refaz como `seek`; recuo de 10 ms é '
+      'ignorado (critério 4)',
+      (tester, cleanup) async {
+        final doc = corpusDoc('Scarlatti')!;
+        final controller = ScoreController(document: doc);
+        final clock = ManualClock()..positionMs = 30000;
+        final player =
+            ScorePlayer(document: doc, controller: controller, release: Duration.zero)
+              ..clock = clock;
+        cleanup.add(() {
+          controller.clearAll();
+          player.dispose();
+          controller.dispose();
+        });
+        player.play();
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(player.position, const Duration(milliseconds: 30000));
+
+        // Recuo de 10 ms: jitter do relógio de áudio interpolado — ignorado.
+        clock.positionMs -= 10;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(player.position, const Duration(milliseconds: 30000));
+
+        // Recuo de 5 s: o host fez seek no áudio — refaz o estado do zero,
+        // igual a `seek` para aquele instante.
+        clock.positionMs = 25000;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(player.position, const Duration(milliseconds: 25000));
+        final viaClock = controller.highlightedIds.toSet();
+
+        final controller2 = ScoreController(document: doc);
+        final player2 = ScorePlayer(
+          document: doc,
+          controller: controller2,
+          release: Duration.zero,
+        );
+        cleanup.add(() {
+          controller2.clearAll();
+          player2.dispose();
+          controller2.dispose();
+        });
+        player2.seek(const Duration(milliseconds: 25000));
+        expect(viaClock, controller2.highlightedIds.toSet());
+      },
+    );
   });
 }

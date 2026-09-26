@@ -8,6 +8,15 @@
 // [advance] direto. `pause`/`play` não movem a posição e não tocam nas
 // animações em curso do controller (que têm o relógio delas).
 //
+// RELÓGIO PLUGÁVEL (C01): com [ScorePlayer.clock] definido, quem manda é
+// `clock.positionMs` a cada tick — `speed` deixa de valer (a fonte já dá
+// posição musical). Posição adiantou: aplica como [advance] até lá. Recuou
+// mais que 20 ms (o host fez seek no áudio): refaz como [seek]. Recuou menos
+// que isso (jitter do relógio de áudio interpolado): ignora — parada
+// (posição não anda) também não faz nada, é o modo espera (T02). `play`/
+// `pause` continuam só ligando/desligando o `Ticker`; o host coordena os
+// dois relógios.
+//
 // A CADA AVANÇO aplicam-se **todas** as entradas com `tstamp` ultrapassado
 // desde o último tick, não só a próxima: com `speed` alto ou um frame perdido,
 // pular entradas deixaria notas acesas para sempre. `seek` recalcula do zero:
@@ -41,6 +50,22 @@ export 'score_timeline.dart' show MeasureInfo, ScoreTimeline;
 /// Quanto tempo um destaque "sem fim conhecido" espera pelo `off`: acima de
 /// qualquer peça.
 const _kForever = Duration(days: 365);
+
+/// Abaixo disso, uma posição de [PlaybackClock] que recuou é jitter do
+/// relógio de áudio interpolado, não um seek do host — ignore.
+const _kClockSeekToleranceMs = 20.0;
+
+/// Fonte de posição musical, em ms, que o [ScorePlayer] pode ler no lugar de
+/// avançar sozinho por `delta * speed` (C01) — ver RELÓGIO PLUGÁVEL no
+/// cabeçalho do arquivo.
+abstract class PlaybackClock {
+  /// Posição musical atual, em ms.
+  double get positionMs;
+
+  /// Se a fonte está tocando (reservado para o host coordenar `play`/
+  /// `pause`; o `ScorePlayer` não lê isto — K04).
+  bool get isRunning;
+}
 
 class ScorePlayer {
   ScorePlayer({
@@ -110,8 +135,15 @@ class ScorePlayer {
   bool _playing = false;
   bool _disposed = false;
 
-  /// 1.0 = o tempo do timemap.
+  /// 1.0 = o tempo do timemap. Não é usado quando [clock] está definido (a
+  /// fonte externa já dá a posição musical).
   double speed = 1.0;
+
+  /// Fonte de posição plugável (C01): `null` (padrão) mantém o `Ticker`
+  /// somando `delta * speed`, o comportamento de sempre. Definida, o player
+  /// passa a ler a posição daqui a cada tick — ver RELÓGIO PLUGÁVEL no
+  /// cabeçalho do arquivo.
+  PlaybackClock? clock;
 
   /// A haste de virada em [position]; passe a `ScoreView.curtain`.
   ValueListenable<SweepCurtain?> get curtain => _curtain;
@@ -168,6 +200,19 @@ class ScorePlayer {
   }
 
   void _onTick(Duration elapsed) {
+    final c = clock;
+    if (c != null) {
+      final ms = c.positionMs;
+      if (ms > _positionMs) {
+        _advanceToMs(ms.clamp(0.0, timeline.durationMs));
+      } else if (_positionMs - ms > _kClockSeekToleranceMs) {
+        seek(Duration(microseconds: (ms * 1000).round()));
+      }
+      if (_positionMs >= timeline.durationMs) {
+        pause();
+      }
+      return;
+    }
     final delta = elapsed - _lastElapsed;
     _lastElapsed = elapsed;
     advance(Duration(microseconds: (delta.inMicroseconds * speed).round()));
