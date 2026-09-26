@@ -1,122 +1,53 @@
-# N01 — Fork: `notes.json` no `.vsb` (pitch, pauta, canal, ligadura)
+# N01 — Fork: eventos MIDI no `.vsb` (pitch, tempo, ligadura, pedal)
 
 **Repo:** verovio_flutter_bridge (C++ + spec) · **Depende de:** — ·
-**Decisão necessária:** não
+**Decisão necessária:** não · **Status: concluído** (via G01, 2026-09-25)
 
-## Objetivo
+## Este passo mudou de repositório
 
-O timemap diz **quando** cada id liga e desliga, mas não **qual nota** é.
-Acrescentar ao `.vsb` um arquivo opcional `notes.json` com, por id de nota
-(expandido, `-rend<N>`, os mesmos do timemap): altura MIDI, pauta, camada,
-canal, programa, velocity e papel na ligadura. É a base de tocar (K04), de
-mandar MIDI (M03) e de avaliar o aluno (T01).
+Todo o trabalho de N01 é código do fork (C++) e da especificação do
+formato — nenhuma linha é do zywny. Foi detalhado e executado **lá**, como
+**G01**:
 
-## Ler antes (só isto)
+- `docs/plano/G01-gravador-de-notas-midi.md` no repo
+  `verovio_flutter_bridge` (`/home/mauricio/rust_projects/verovio_flutter_bridge`).
 
-- No bridge: `CLAUDE.md` (convenções) e `docs/formato/especificacao-v1.md`
-  §2 a §2.6 (L25-L318) e §9 (compatibilidade).
-- `verovio/src/toolkit.cpp` `Toolkit::RenderToBridgeFile` (~L2364-L2450) e
-  `RenderToBridgeJson` (mesmo padrão, JSON único).
-- `verovio/src/doc.cpp` `Doc::ExportMIDI` (~L450-L620).
-- `verovio/src/midifunctor.cpp` `GenerateMIDIFunctor::VisitNote` (L807-L905)
-  e `GetMIDIPitch` (L1149); `verovio/include/vrv/midifunctor.h`
-  `GenerateMIDIFunctor` (~L349-L480).
-- `verovio/include/vrv/bridgewriter.h` / `src/bridgewriter.cpp`
-  `WriteManifest` (L622) e `WriteMeta` (modelo de um writer pequeno).
+A letra **G** é nova no plano do bridge (as fases de lá são F/S/R/A/E/P) e
+foi escolhida por não colidir com nenhum prefixo usado nos dois planos.
 
-## Contexto que você precisa
+## O que mudou em relação ao plano original (importante para N03)
 
-- **Por que não `getMIDIValuesForElement`**: ele usa `note->GetMIDIPitch()`
-  sem argumentos, ignorando `transSemi` (instrumento transpositor) e 8va/8vb
-  (`HandleOctave` → `m_octaveShift`). O `GenerateMIDIFunctor` aplica os dois
-  (`GetMIDIPitch(note)` = `note->GetMIDIPitch(m_transSemi, m_octaveShift)`,
-  ou afinação customizada). O corpus tem 8va (classe `octave` no Chopin
-  Étude e no Clair de Lune) — use-os no teste.
-- **Estratégia recomendada** (mínima, sem duplicar lógica): um "gravador"
-  opcional no `GenerateMIDIFunctor`:
-  - `struct MIDINoteRecord { std::string id; int pitch; int staff; int layer;
-    int channel; int program; int velocity; bool tieContinuation; bool
-    expanded; }` (em `midifunctor.h`).
-  - `void SetNoteLog(std::vector<MIDINoteRecord> *log)`; `nullptr` por padrão
-    → zero mudança de comportamento no MIDI.
-  - Em `VisitNote`, gravar **antes** dos `return` de ligadura secundária
-    (`GetScoreTimeTiedDuration() < 0` → `tieContinuation = true`, grava e
-    retorna como hoje). Notas `HasSameasLink` e cue puladas não entram.
-    `velocity == 0` (silenciosa) não entra. Nota de trinado/tremolo
-    (`m_expandedNotes`) entra uma vez com o pitch principal e
-    `expanded = true`.
-  - `staff = m_staffN`, `layer = m_layerN`, `channel = m_midiChannel`,
-    `program` = `m_instrDef && m_instrDef->HasMidiInstrnum() ?
-    GetMidiInstrnum() : 0`.
-  - `Doc::ExportMIDI(smf::MidiFile *, std::vector<MIDINoteRecord> *noteLog =
-    nullptr)` repassa o ponteiro para cada `GenerateMIDIFunctor` que ele cria
-    no laço por pauta/camada.
-  - `Toolkit::RenderToBridgeFile`/`RenderToBridgeJson`: `SetMidiDoc()`, rodar
-    `m_midiDoc->ExportMIDI(&scratchMidi, &log)` num `smf::MidiFile` descartado
-    e serializar `log`.
-- **Ids**: o `m_midiDoc` é o documento expandido; seus ids são exatamente os
-  do timemap (inclusive `-rend<N>`). Critério 2 prova isso.
-- **Ligadura**: o timemap traz **toda** nota, inclusive a secundária, com
-  on/off próprios. Com `tieContinuation`, o Dart (N03) junta a cadeia: soa do
-  `on` da primeira até o `off` da última; o aluno aperta só a primeira.
-  Para achar a cabeça da cadeia, grave também `tieHead`: o id da primeira nota
-  (percorra `Tie::GetStart/GetEnd` — ver `InitTimemapTiesFunctor::VisitTie`
-  L313 — ou, mais simples, mantenha no functor um mapa `pitch+staff →
-  id da última nota com ligadura aberta`; escolha e documente).
-- **Formato proposto** (mesma regra de omissão do timemap: sem notas, sem
-  arquivo nem entrada no manifest; aditivo, `version` continua `1`):
+**G01 não gravou o `notes.json` original** (atributos por nota, tempo só no
+timemap). Durante a execução, o usuário decidiu por um formato mais rico —
+`midi.json` — que grava o **fluxo de eventos que o exportador MIDI do
+Verovio emite**, já com:
 
-  ```json
-  { "notes": [
-      {"id":"n1a2b","p":64,"s":1,"l":1,"c":0,"pg":0,"v":90},
-      {"id":"n9f-rend2","p":52,"s":2,"l":1,"c":0,"pg":0,"v":90,"tie":"cont","th":"n77-rend2"},
-      {"id":"n33","p":71,"s":1,"l":1,"c":0,"pg":0,"v":90,"orn":true}
-  ]}
-  ```
-  Chaves curtas porque o corpus tem ~10 mil notas; campos com valor padrão
-  podem ser omitidos se a spec disser (decida e documente na spec). Ordem:
-  por id do timemap não é necessária — o Dart indexa por id.
-- `manifest.files.notes = "notes.json"`; no JSON único, propriedade `notes`.
-  `WriteManifest` ganha `bool hasNotes` (atualize as duas chamadas).
-- Atualize `docs/formato/especificacao-v1.md` (nova §2.7, tabela do manifest,
-  histórico de revisões com data) e `docs/formato/schema-v1.json`
-  (`$defs/notesDocument`).
-- Saídas de teste em `compare/out/n01/`.
+- tempo em **ms** por evento (`on`/`off`/`t`), no mesmo relógio do timemap;
+- **ligaduras já fundidas**: a nota principal carrega `tied: [...]` com os
+  ids de continuação; o host não precisa mais juntar cadeia nenhuma;
+- **ornamentos já expandidos**: trinado/tremolo viram várias entradas com o
+  mesmo `id` e `orn: true` — o host não expande nada;
+- **pedal** incluído (`pedal[]`, sustain down/up).
 
-## O que fazer
+Isso **simplifica N03** (`PerformanceTrack`): a fusão de ligadura e a
+expansão de ornamento, que N03 previa fazer em Dart, já vêm prontas do
+bridge. Reveja N03 antes de implementá-lo — o arquivo daquele passo ainda
+descreve o design antigo (notes.json + timemap) e precisa ser atualizado
+para `VsbMidi`/`MidiNote` (G02).
 
-1. Gravador no `GenerateMIDIFunctor` + parâmetro em `Doc::ExportMIDI`.
-2. `BridgeWriter::WriteNotes` + manifest + zip + JSON único.
-3. Spec e schema.
-4. Script de verificação (Python 3 da máquina, sem dependências — leia o
-   `.mid` com um parser mínimo ou use `verovio -t midi` + `mido` se estiver
-   instalado; registre qual).
+Também foi encontrado e corrigido no fork um bug real de dois relógios
+divergentes (D-RELOGIO, Chopin Étude: `scoreDef/@midi.bpm` conflitando com
+um `<tempo>` no compasso 1) — ver as notas de execução de G01 se precisar
+do detalhe.
 
-## Fora de escopo
+## O que fica aqui
 
-- Qualquer código Dart (N02). Velocity de dinâmicas (`p`, `f`) — o Verovio
-  não converte; fica `MIDI_VELOCITY` salvo `@vel` explícito.
-- Pedal, CCs, andamento (o andamento já está no `tstamp`).
-
-## Critérios de aceite
-
-1. `verovio -t vsb` nas 10 peças do corpus gera `notes.json`; `-t svg` e os
-   `scene.json`/`glyphs.json`/`timemap.json` ficam **byte-idênticos** aos de
-   antes (compare com uma geração feita antes da mudança).
-2. Para cada peça: todo id em `timemap[].on` que é nota tem entrada em
-   `notes.json` (exceto notas silenciosas/cue, contadas e listadas); nenhum
-   id em `notes.json` fora do timemap.
-3. **Pitch = MIDI**: o multiconjunto `(onset arredondado, pitch)` das notas
-   **sem** `tie:"cont"` e sem `orn` bate com os note-on do `verovio -t midi`
-   da mesma peça (onset em ms do timemap vs. tick convertido pelo andamento —
-   ou compare só a sequência ordenada de pitches por pauta). Divergência zero
-   no Chopin Étude e no Clair de Lune (8va).
-4. Gymnopédie e Maple Leaf Rag: ids `-rend2` presentes com o mesmo pitch da
-   passagem 1.
-5. `score_bridge` continua lendo os pacotes novos (`flutter test` verde —
-   leitor antigo ignora o arquivo extra).
-6. Spec/schema atualizados; um `notes.json` do corpus valida contra o schema.
+Nada além deste ponteiro: N01 não tem "O que fazer" nem "Critérios de
+aceite" próprios do zywny.
 
 ## Notas de execução
 
-(preencher)
+G01 concluído em 2026-09-25 no bridge (ver notas de execução de lá para os
+números completos). Nenhum ajuste específico do zywny foi necessário além
+de atualizar a terminologia em N02/N03 (`notes.json` → `midi.json`,
+`NoteInfo` → `MidiNote`/`VsbMidi`).

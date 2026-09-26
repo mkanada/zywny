@@ -1,83 +1,58 @@
-# N02 — `score_bridge`: modelo e parser de `notes.json`
+# N02 — `score_bridge`: modelo e parser de eventos MIDI (`midi.json`)
 
-**Repo:** verovio_flutter_bridge (`score_bridge/`) · **Depende de:** N01 ·
-**Decisão necessária:** não
+**Repo:** verovio_flutter_bridge (`score_bridge/`) + zywny ·
+**Depende de:** N01 · **Decisão necessária:** não · **Status: concluído**
+(2026-09-25)
 
-## Objetivo
+## Este passo mudou de repositório (em parte)
 
-`VsbDocument.notes`: mapa `id (expandido) → NoteInfo`, lido de
-`notes.json` quando o pacote o traz. Fixtures regeneradas. O zywny passa a
-recebê-lo (a `libverovio.so` refeita).
+`score_bridge/` é um pacote **do bridge**, não do zywny (o zywny só o usa
+por `path:` no `pubspec.yaml`). O modelo, o parser, as fixtures e os testes
+de `midi.json` (antes chamado `notes.json` — ver N01) foram detalhados e
+executados **lá**, como **G02**:
 
-## Ler antes (só isto)
+- `docs/plano/G02-notas-no-score-bridge.md` no repo
+  `verovio_flutter_bridge` (`/home/mauricio/rust_projects/verovio_flutter_bridge`).
 
-- `docs/formato/especificacao-v1.md` §2.7 (escrita em N01).
-- `score_bridge/lib/src/parser.dart` L50-L130 (como `meta`/`timemap`/
-  `alternates` são lidos do zip e do JSON único).
-- `score_bridge/lib/src/model.dart`: `VsbDocument` (L167-L215), `VsbMeta` e
-  `VsbManifest` (procure `class VsbManifest`, `files`).
-- `score_bridge/lib/score_bridge.dart` (exports).
+G02 expõe `VsbDocument.midi` (`VsbMidi?`): `notes` (`List<MidiNote>`, uma
+por tecla apertada — ligaduras já fundidas em `tied`, ornamentos já
+expandidos com `ornament: true` e o mesmo `id` repetido) e `pedal`
+(`List<MidiPedal>`), com `onMs`/`offMs`/`timeMs` prontos no relógio do
+timemap. `notesOf(id)` resolve tanto a cabeça quanto uma continuação de
+ligadura para a(s) nota(s) correspondente(s).
 
-## Contexto que você precisa
+## O que foi feito aqui (zywny)
 
-- Padrão existente: `manifest.files.<x>` opcional → se presente, ler a entrada
-  do zip, `json.decode`, `parseXDocument(decoded, path: 'x')` com erros de
-  formato apontando o caminho JSON. Copie o de `meta`.
-- `alternates` é **preguiçoso** (`late final` + loader) porque custava 4,6× o
-  parse. `notes` é pequeno (uma linha por nota: ~10 mil no corpus inteiro) —
-  leia direto, mas **meça** o tempo de parse com
-  `score_bridge/tool/measure_parse_time.dart` (roda com `flutter test`, não
-  `dart run`) antes e depois e registre.
-- Modelo sugerido (imutável, como o resto do `model.dart`):
+1. `just native` — refeita a `libverovio.so` a partir do bridge com
+   G01/G02 (18 MB, build OK).
+2. `flutter pub get` (path dependency, sem mudança de versão a resolver).
+3. `just analyze` — limpo.
+4. `just test` — 15/15 verde.
+5. `test/vsb_render_test.dart`: acrescentei `expect(document.midi, isNotNull)`
+   e `expect(document.midi!.notes, isNotEmpty)` ao teste de integração
+   ponta a ponta existente (MEI → FFI → `.vsb` → parser), em vez de um
+   `print` descartável — prova que `document.midi` chega populado pelo
+   caminho real (isolate + FFI), não só no bridge isoladamente.
 
-  ```dart
-  enum TieRole { none, start, continuation }   // start opcional: ver N01
-  class NoteInfo {
-    final String id;          // id expandido, igual ao timemap
-    final int pitch;          // MIDI 0-127, já com 8va/transposição
-    final int staff;          // n da pauta (1 = de cima; piano: 1 = MD, 2 = ME)
-    final int layer;
-    final int channel;        // 0-15
-    final int program;        // 0-127 (GM)
-    final int velocity;       // 1-127
-    final TieRole tie;
-    final String? tieHead;    // id da 1ª nota da cadeia, se continuation
-    final bool ornament;      // trinado/tremolo expandido no MIDI
-  }
-  // VsbDocument:
-  final Map<String, NoteInfo> notes;   // vazio quando não há notes.json
-  ```
-- Fixtures em `score_bridge/test/fixtures/` (`erik-satie.vsb`,
-  `maple-leaf-rag.vsb`, `mazurka.vsb` e as de `repeticoes/`): regenere com o
-  CLI de N01 usando **as mesmas flags** com que foram geradas (procure nas
-  notas de P01c/P04c/P05 do plano do bridge, ex.: `-x 42` = `--xml-id-seed
-  42`). Confira com `git diff --stat` que só mudou o que devia.
-- No zywny: `just native` refaz a `libverovio.so`; `pubspec` usa `path:`,
-  então nada a publicar.
-
-## O que fazer
-
-1. `NoteInfo`, `TieRole`, `VsbDocument.notes`, parser (zip e JSON único),
-   exports.
-2. Regenerar fixtures.
-3. Testes: parse de fixture; nota ligada; id `-rend2`; pacote sem
-   `notes.json` → mapa vazio sem erro; `notes.json` malformado → erro com
-   caminho.
-4. No zywny: `just native`, rodar o app, conferir (em modo `--debug`,
-   `print` temporário ou teste) que `document.notes` vem cheio.
+Não rodei o app interativamente (sem display neste ambiente); a integração
+ponta a ponta acima cobre o mesmo caminho de código que `_renderAndShow`
+usa em `lib/main.dart`.
 
 ## Fora de escopo
 
-- Juntar com o timemap em eventos tocáveis (N03).
+- Modelo, parser, fixtures e testes de `midi.json` (G02, no bridge).
+- Juntar eventos em `PerformanceTrack`/agendar som (N03 — **revise o design
+  desse passo antes de implementar**: o `midi.json` novo já funde ligaduras
+  e expande ornamentos, o que N03 previa fazer sozinho).
 
 ## Critérios de aceite
 
-1. `cd score_bridge && flutter test` verde, com os testes novos.
-2. Para cada fixture com timemap: todo id de nota em `timemap[].on` tem
-   `NoteInfo` (mesma regra de exceções de N01).
-3. Tempo de parse antes/depois registrado (mesma peça, mesma máquina).
-4. zywny: `just analyze`, `just test` limpos; app abre e toca como antes.
+1. `just analyze`, `just test` limpos. ✅
+2. App abre e toca como antes (sem regressão visual/funcional) — coberto
+   indiretamente pelos testes existentes (`layout_options_test.dart`,
+   `widget_test.dart`) continuarem verdes; não verificado interativamente.
 
 ## Notas de execução
 
-(preencher)
+Ver "O que foi feito aqui" acima. Nenhuma anomalia encontrada. Próximo
+passo do plano: **N03**, mas com o design atualizado (ver nota em N01).

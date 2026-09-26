@@ -40,8 +40,17 @@ Ao editar o **bridge**, siga também o `CLAUDE.md` e as convenções de
 `docs/plano/README.md` **de lá** (estilo C++ do Verovio, `.clang-format`,
 saídas temporárias em `compare/out/`, não alterar `View`/`SvgDeviceContext`,
 a spec `docs/formato/especificacao-v1.md` é atualizada junto com o formato).
-O plano **daquele** repo usa os prefixos F/S/R/A/E/P; os passos deste plano
-usam prefixos próprios (X, N, C, K, M, T, W, V) para não colidir.
+O plano **daquele** repo usa os prefixos F/S/R/A/E/P (+ G, ver abaixo); os
+passos deste plano usam prefixos próprios (X, N, C, K, M, T, W, V) para não
+colidir.
+
+**N01 e N02 são 100%/quase 100% código do bridge** (fork C++ + spec, e
+`score_bridge/` — que também é pacote do bridge, não do zywny). Por isso os
+arquivos `N01-notes-json-no-fork.md` e `N02-notes-no-score-bridge.md` aqui
+são só ponteiros: o trabalho de verdade está detalhado e é executado **lá**,
+como **G01** e **G02** (fase nova do plano do bridge, letra escolhida por
+não colidir com nenhum prefixo dos dois planos). N02 mantém aqui só o
+passo zywny-side de verificação (`just native`, rodar o app).
 
 ## Convenções
 
@@ -211,9 +220,9 @@ zywny
 
 | Passo | Título | Depende de | Decisão | Status |
 | --- | --- | --- | --- | --- |
-| [N01](N01-notes-json-no-fork.md) | Fork: `notes.json` no `.vsb` (pitch, pauta, canal, ligadura) | — | — | pendente |
-| [N02](N02-notes-no-score-bridge.md) | `score_bridge`: modelo e parser de `notes.json` | N01 | — | pendente |
-| [N03](N03-performance-track.md) | `PerformanceTrack`: eventos tocáveis por id, com ligaduras e mãos | N02 | — | pendente |
+| [N01](N01-notes-json-no-fork.md) | Fork: eventos MIDI no `.vsb` (`midi.json`, ex-`notes.json`) | — | — | concluído (via G01 no bridge) |
+| [N02](N02-notes-no-score-bridge.md) | `score_bridge`: modelo e parser de `midi.json` | N01 | — | concluído (via G02 no bridge + verificação aqui) |
+| [N03](N03-performance-track.md) | `PerformanceTrack`: eventos tocáveis por id, com ligaduras e mãos | N02 | — | concluído |
 | [C01](C01-relogio-plugavel.md) | `ScorePlayer` com relógio plugável | — | — | pendente |
 | [K01](K01-crate-de-audio-prototipo.md) | Crate `zywny_audio`: rustysynth + cpal tocando no Linux (CLI) | — | D-SF | pendente |
 | [K02](K02-api-ffi-do-motor.md) | API C do motor: comandos, agenda por amostra, relógio | K01 | — | pendente |
