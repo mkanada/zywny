@@ -94,6 +94,15 @@ VsbDocument _fromZipBytes(Uint8List bytes) {
     }
   }
 
+  VsbMidi? midi;
+  if (manifest.files.midi != null) {
+    final midiEntry = archive.findFile(manifest.files.midi!);
+    if (midiEntry != null) {
+      final midiDecoded = json.decode(utf8.decode(midiEntry.readBytes()!));
+      midi = parseMidiDocument(midiDecoded, path: 'midi');
+    }
+  }
+
   // Parse preguiçoso (VsbDocument.alternates): o zip já trouxe todos os bytes
   // para a memória (ZipDecoder.decodeBytes), então só adiamos o json.decode e
   // a montagem da árvore de página em si — o que mediu 4,6x mais lento na
@@ -118,6 +127,7 @@ VsbDocument _fromZipBytes(Uint8List bytes) {
     pages: pages,
     timemap: timemap,
     meta: meta,
+    midi: midi,
     alternatesLoader: loadAlternates,
   );
 }
@@ -143,6 +153,11 @@ VsbDocument _fromDocumentJson(Map<String, dynamic> root) {
     meta = parseMetaDocument(root['meta'], path: 'meta');
   }
 
+  VsbMidi? midi;
+  if (root.containsKey('midi') && root['midi'] != null) {
+    midi = parseMidiDocument(root['midi'], path: 'midi');
+  }
+
   // Parse preguiçoso (VsbDocument.alternates): o JSON já está todo decodificado
   // em memória aqui (era um `Map` só); o que adiamos é a montagem da árvore de
   // página (ver a mesma nota em _fromZipBytes).
@@ -161,6 +176,7 @@ VsbDocument _fromDocumentJson(Map<String, dynamic> root) {
     pages: pages,
     timemap: timemap,
     meta: meta,
+    midi: midi,
     alternatesLoader: loadAlternates,
   );
 }
@@ -208,6 +224,9 @@ VsbManifest parseManifestDocument(
     alternates: filesJson['alternates'] == null
         ? null
         : _asString(filesJson['alternates'], '$path.files.alternates'),
+    midi: filesJson['midi'] == null
+        ? null
+        : _asString(filesJson['midi'], '$path.files.midi'),
   );
   return VsbManifest(
     format: format,
@@ -326,6 +345,74 @@ VsbCreator _parseCreator(Map<String, dynamic> json, String path) {
     name: _asString(_requireField(json, 'name', path), '$path.name'),
     role: json['role'] == null ? null : _asString(json['role'], '$path.role'),
   );
+}
+
+// ---------------------------------------------------------------------------
+// midi.json (§2.7)
+// ---------------------------------------------------------------------------
+
+VsbMidi parseMidiDocument(dynamic json, {required String path}) {
+  final map = _asMap(json, path);
+  final notesJson = _requireList(map, 'notes', path, fieldPath: '$path.notes');
+  final pedalJson = _requireList(map, 'pedal', path, fieldPath: '$path.pedal');
+  return VsbMidi(
+    notes: [
+      for (var k = 0; k < notesJson.length; k++)
+        _parseMidiNote(
+          _asMap(notesJson[k], '$path.notes[$k]'),
+          '$path.notes[$k]',
+        ),
+    ],
+    pedal: [
+      for (var k = 0; k < pedalJson.length; k++)
+        _parseMidiPedal(
+          _asMap(pedalJson[k], '$path.pedal[$k]'),
+          '$path.pedal[$k]',
+        ),
+    ],
+  );
+}
+
+MidiNote _parseMidiNote(Map<String, dynamic> json, String path) {
+  final tiedJson = json['tied'];
+  if (tiedJson != null && tiedJson is! List) {
+    throw VsbFormatException('$path.tied', 'esperado array de ids');
+  }
+  return MidiNote(
+    id: _asString(_requireField(json, 'id', path), '$path.id'),
+    onMs: _asDouble(_requireField(json, 'on', path), '$path.on'),
+    offMs: _asDouble(_requireField(json, 'off', path), '$path.off'),
+    pitch: _asInt(_requireField(json, 'p', path), '$path.p'),
+    staff: _asInt(_requireField(json, 's', path), '$path.s'),
+    layer: _asInt(_requireField(json, 'l', path), '$path.l'),
+    channel: json['c'] == null ? 0 : _asInt(json['c'], '$path.c'),
+    program: json['pg'] == null ? 0 : _asInt(json['pg'], '$path.pg'),
+    velocity: _asInt(_requireField(json, 'v', path), '$path.v'),
+    tied: tiedJson == null ? const [] : _asStringList(tiedJson, '$path.tied'),
+    ornament: json['orn'] == null ? false : _asBool(json['orn'], '$path.orn'),
+  );
+}
+
+MidiPedal _parseMidiPedal(Map<String, dynamic> json, String path) {
+  return MidiPedal(
+    id: _asString(_requireField(json, 'id', path), '$path.id'),
+    timeMs: _asDouble(_requireField(json, 't', path), '$path.t'),
+    dir: _asPedalDir(_requireField(json, 'dir', path), '$path.dir'),
+    staff: _asInt(_requireField(json, 's', path), '$path.s'),
+    channel: json['c'] == null ? 0 : _asInt(json['c'], '$path.c'),
+  );
+}
+
+PedalDir _asPedalDir(dynamic value, String path) {
+  final s = _asString(value, path);
+  switch (s) {
+    case 'down':
+      return PedalDir.down;
+    case 'up':
+      return PedalDir.up;
+    default:
+      throw VsbFormatException(path, 'dir de pedal desconhecido: "$s"');
+  }
 }
 
 // ---------------------------------------------------------------------------

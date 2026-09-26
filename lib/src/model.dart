@@ -67,6 +67,7 @@ class VsbManifestFiles {
   final String? timemap;
   final String? meta;
   final String? alternates;
+  final String? midi;
 
   const VsbManifestFiles({
     required this.scene,
@@ -74,6 +75,7 @@ class VsbManifestFiles {
     this.timemap,
     this.meta,
     this.alternates,
+    this.midi,
   });
 }
 
@@ -105,6 +107,122 @@ class VsbMeta {
     }
     return null;
   }
+}
+
+/// Uma nota de `midi.json` (§2.7): um evento que o exportador MIDI do
+/// Verovio emitiria para um `.mid` — pitch, canal, programa e velocity já
+/// resolvidos (transposição/8va aplicadas, ligadura unida) — com o `xml:id`
+/// de origem e o tempo já em milissegundos, no mesmo relógio de
+/// [TimemapEntry.tstamp].
+///
+/// Numa ligadura, [id] é o id da **primeira** nota da cadeia e [offMs] já é
+/// o fim da cadeia inteira; [tied] lista os ids das notas de continuação,
+/// que o leitor considera cobertas por este evento (não precisam de toque
+/// nem de destaque próprios). Num ornamento (trinado/tremolo) expandido pelo
+/// exportador MIDI em várias notas curtas, [id] se repete numa entrada por
+/// sub-nota, cada uma com [ornament] `true`.
+class MidiNote {
+  final String id;
+  final double onMs;
+  final double offMs;
+
+  /// Altura MIDI 0-127, já com transposição de instrumento e 8va/8vb.
+  final int pitch;
+
+  /// Número (`@n`) da pauta de origem (piano: 1 = mão direita, 2 = mão
+  /// esquerda, por convenção do corpus).
+  final int staff;
+  final int layer;
+
+  /// Canal MIDI 0-15.
+  final int channel;
+
+  /// Programa MIDI (General MIDI) do instrumento.
+  final int program;
+
+  /// Velocity 1-127.
+  final int velocity;
+
+  /// Ids das notas de continuação da ligadura, na ordem em que aparecem;
+  /// vazia quando esta nota não é cabeça de nenhuma ligadura.
+  final List<String> tied;
+
+  /// `true` quando esta entrada é uma das notas curtas em que o exportador
+  /// MIDI expande um trinado/tremolo/mordente.
+  final bool ornament;
+
+  const MidiNote({
+    required this.id,
+    required this.onMs,
+    required this.offMs,
+    required this.pitch,
+    required this.staff,
+    required this.layer,
+    this.channel = 0,
+    this.program = 0,
+    required this.velocity,
+    this.tied = const [],
+    this.ornament = false,
+  });
+}
+
+/// Direção de um evento de pedal de sustain (§2.7). `@dir="half"` e um
+/// `<pedal>` sem `@dir` não geram evento — o exportador MIDI também não os
+/// trata, então não há valor correspondente aqui.
+enum PedalDir { down, up }
+
+/// Um evento de pedal de `midi.json` (§2.7). [id] é o `xml:id` do elemento
+/// `<pedal>` de origem — **não** aparece no timemap.
+class MidiPedal {
+  final String id;
+  final double timeMs;
+  final PedalDir dir;
+  final int staff;
+  final int channel;
+
+  const MidiPedal({
+    required this.id,
+    required this.timeMs,
+    required this.dir,
+    required this.staff,
+    this.channel = 0,
+  });
+}
+
+/// `midi.json` (§2.7): os eventos que o exportador MIDI do Verovio emitiria
+/// para a peça, com o `xml:id` de origem.
+class VsbMidi {
+  /// Ordenado por [MidiNote.onMs] (critério de desempate: pauta, camada,
+  /// pitch — mesma ordem que `BridgeWriter::WriteMidi` grava).
+  final List<MidiNote> notes;
+
+  /// Ordenado por [MidiPedal.timeMs].
+  final List<MidiPedal> pedal;
+
+  VsbMidi({required this.notes, required this.pedal});
+
+  /// Índice `xml:id → notas`, construído uma vez, na primeira consulta a
+  /// [notesOf]: cada nota indexa o próprio [MidiNote.id] e cada id em
+  /// [MidiNote.tied] (múltiplas notas podem compartilhar um id — ornamento).
+  late final Map<String, List<MidiNote>> _byId = _buildIndex();
+
+  Map<String, List<MidiNote>> _buildIndex() {
+    final index = <String, List<MidiNote>>{};
+    for (final note in notes) {
+      (index[note.id] ??= <MidiNote>[]).add(note);
+      for (final tiedId in note.tied) {
+        (index[tiedId] ??= <MidiNote>[]).add(note);
+      }
+    }
+    return index;
+  }
+
+  /// As notas correspondentes a [id]: a própria nota (cabeça, se ligada),
+  /// as notas cuja cadeia de ligadura o cobre, ou as sub-notas de um
+  /// ornamento que compartilham este id. Vazia se [id] não tem nota
+  /// correspondente (silenciosa, `@vel="0"`, `sameas`, cue com
+  /// `--midi-no-cue` — mesma regra de exceções de G01).
+  List<MidiNote> notesOf(String id) => _byId[id] ?? const [];
 }
 
 /// Referência a **qualquer** página do documento (§2.5, P03a/P00): uma
@@ -174,6 +292,10 @@ class VsbDocument {
   /// tinha nenhum dos dois.
   final VsbMeta? meta;
 
+  /// Eventos do exportador MIDI (§2.7); `null` quando o pacote não traz
+  /// `midi.json` (peça sem nenhuma nota tocável, ou leitor de antes de G01).
+  final VsbMidi? midi;
+
   /// Sequências alternativas de `alternates.json` (§2.5); vazia quando o
   /// pacote não tem o arquivo (peça sem repetição, ou leitor de antes de
   /// P03a). Parse **preguiçoso**: o parser só monta a árvore de página na
@@ -192,6 +314,7 @@ class VsbDocument {
     required this.pages,
     this.timemap,
     this.meta,
+    this.midi,
     List<AlternateSequence>? alternates,
     List<AlternateSequence> Function()? alternatesLoader,
   }) : assert(
