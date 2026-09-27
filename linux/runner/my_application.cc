@@ -1,6 +1,7 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+#include <locale.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
@@ -106,6 +107,15 @@ static void my_application_startup(GApplication* application) {
   // Perform any actions required at application startup.
 
   G_APPLICATION_CLASS(my_application_parent_class)->startup(application);
+
+  // O startup do GtkApplication (gtk_init) aplica o locale do sistema, e com
+  // LANG=pt_BR o LC_NUMERIC passa a usar vírgula decimal. O Verovio lê as
+  // âncoras SMuFL das fontes (Leipzig.xml etc.) com strtod, que depende
+  // desse locale: "1.26" vira 1 e "0.16" vira 0, e as hastes das notas saem
+  // na posição errada. Fixar LC_NUMERIC em "C" aqui, na thread principal e
+  // antes de o Dart subir, vale para o processo todo sem mexer em mais nada
+  // (texto, mensagens e entrada continuam no locale do usuário).
+  setlocale(LC_NUMERIC, "C");
 }
 
 // Implements GApplication::shutdown.
