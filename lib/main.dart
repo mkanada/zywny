@@ -278,6 +278,18 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         ),
       );
 
+      // `--debug` (widget.debugMode): o .vsb some com o tmpDir no `finally`
+      // abaixo, então guardamos uma cópia no diretório corrente antes disso,
+      // com data/hora no nome para achar depois.
+      String? debugCopyPath;
+      if (widget.debugMode) {
+        final timestamp = DateTime.now()
+            .toIso8601String()
+            .replaceAll(RegExp(r'[:.]'), '-');
+        debugCopyPath = '${Directory.current.path}/score_$timestamp.vsb';
+        await File(outPath).copy(debugCopyPath);
+      }
+
       if (!mounted) return;
       // A new engraving has new ids (and possibly new pages): drop the
       // playback that belonged to the old one.
@@ -313,6 +325,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         _status = document.pages.length > 1
             ? 'página ${_pageIndex + 1} de ${document.pages.length}'
             : 'carregada ✓';
+        if (debugCopyPath != null) {
+          _status = '$_status — .vsb salvo em $debugCopyPath';
+        }
         _busy = false;
       });
     } catch (e) {

@@ -25,6 +25,14 @@ run *ARGS:
 run-impeller *ARGS:
     flutter run -d linux {{ARGS}}
 
+# Roda no Linux com o modo de debug do app (ScoreHomePage.debugMode: guarda
+# o .vsb renderizado no diretório corrente, com data/hora no nome).
+# `flutter run --debug` NÃO repassa isso para `main(args)` — é um flag do
+# próprio `flutter run` (build mode, já é o padrão). Por isso precisa do
+# --dart-entrypoint-args para chegar no Dart.
+run-debug *ARGS:
+    flutter run -d linux --no-enable-impeller --dart-entrypoint-args=--debug {{ARGS}}
+
 # Build de release do bundle Linux.
 build-release:
     flutter build linux --release
