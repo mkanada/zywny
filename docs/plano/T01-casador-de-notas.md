@@ -85,4 +85,42 @@ modos: **espera** (o tempo não anda até o acorde certo) e **tempo real**.
 
 ## Notas de execução
 
-(preencher)
+- `lib/practice/practice_session.dart`: `NoteVerdict`/`PracticeVerdictKind`
+  (tipos comuns), `PracticeStep` (passo do modo espera, com `remaining`
+  republicado a cada nota certa — a UI destaca só o que falta sem trocar de
+  passo), `WaitModeSession` e `RealtimeSession`.
+- **`WaitModeSession`**: `forStaves(track, staves:)` funde os `Chord` de N03
+  (`PerformanceTrack.chords`) por pauta, agrupando os que caem no mesmo
+  `onMs` num só passo, e descarta notas de ornamento (`SoundEvent.ornament`)
+  — não entram nos passos, o aluno não precisa tocá-las (D-TREINO). Nota
+  repetida entre passos consecutivos: `_blocked` é `held ∩ remaining`
+  calculado ao entrar no passo novo; enquanto a tecla não passar por
+  `noteOff`, um novo `noteOn` do mesmo pitch é ignorado (nem conta, nem gera
+  veredito) — é o "soltar e apertar de novo" do enunciado.
+- **Janela de 300 ms do modo espera não é prazo**: modo espera não tem
+  `missed` (o enunciado só define isso para tempo real) — a janela só
+  aparece no `deltaMs` do veredito (tempo desde a primeira nota certa do
+  acorde). Documentando aqui porque diverge de uma leitura possível do
+  enunciado como "acorde expira depois de 300 ms".
+- **`RealtimeSession`**: candidato = evento pendente de mesmo pitch com
+  `|delta| ≤ janelaMax` (musical, `janela de parede × speed`) mais próximo;
+  `≤ janelaOk` → `correct`, senão `early`/`late`. Ornamento: **entra como
+  candidato** (para uma nota tocada perto dele não virar `wrong`), mas se
+  casar é consumido **sem emitir veredito** (nem `correct` nem `wrong`); e
+  em `tick`, ornamento cuja janela expirou é descartado **sem** `missed`.
+  Regra exata, por não haver ambiguidade depois: ornamento nunca aparece
+  numa `NoteVerdict`, nem como `eventId` nem implicitamente.
+- Ambos os streams de veredito são `broadcast(sync: true)` — a emissão é
+  uma decisão pura e imediata de `noteOn`/`tick`/`noteOff`, sem I/O; síncrono
+  evita que todo teste precise de `pumpEventQueue`/`await` só para ler o
+  veredito que acabou de ser gerado.
+- Testes: `test/practice_session_wait_test.dart` (passos sintéticos para os
+  critérios 1-2, mais `forStaves` sobre `maple-leaf-rag.vsb` real) e
+  `test/practice_session_realtime_test.dart` (critérios 3-5 sobre
+  `erik-satie.vsb`/pauta 1 real — ruído gaussiano Box-Muller σ=20 ms para o
+  critério 3, um miolo de eventos nunca tocado para o 4, deltas exatos na
+  fronteira das janelas a `speed` 0.5 para o 5 — mais casos sintéticos de
+  wrong/missed/ornamento/`resetTo`).
+- Critérios 1-5 são todos automatizados (T01 é Dart puro, sem hardware) —
+  `just analyze`/`just test` limpos (58 testes) fecha o critério 6 e, com
+  eles, o passo inteiro. Nenhum critério manual pendente aqui.
