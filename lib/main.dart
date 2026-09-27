@@ -211,7 +211,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (_busy) return;
     const typeGroup = XTypeGroup(
       label: 'partituras',
-      extensions: ['mei', 'musicxml', 'mxml', 'xml'],
+      extensions: ['mei', 'musicxml', 'mxml', 'mxl', 'xml'],
     );
     final file = await openFile(acceptedTypeGroups: [typeGroup]);
     if (file == null) return;

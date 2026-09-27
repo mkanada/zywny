@@ -142,3 +142,12 @@ virada de página **dirigidos pelo relógio do áudio**. Pause, Stop, seek
   (manual: ouvir a Gymnopédie/Maple Leaf Rag no Linux e medir a deriva) não
   foram executados nesta sessão — pendente de verificação manual com um
   dispositivo de áudio e um `.sf2` à mão.
+- **2026-09-26, verificação parcial do critério 4**: Gymnopédie testada no
+  Linux (`just run`) com som e `.sf2` carregado pelo usuário — tocou e o
+  destaque ficou sincronizado com o som, a olho e ouvido. Faltam ainda:
+  Maple Leaf Rag (mesma checagem + é a peça usada para medir a deriva do
+  critério 5), pause/play repetidos rapidamente sem nota presa. Achado à
+  parte, não relacionado ao K04: o seletor de arquivo de partitura
+  (`_abrirPartitura`, `lib/main.dart`) não listava `.mxl` (MusicXML
+  comprimido, extensão real dos arquivos do corpus) — faltava na lista de
+  extensões aceitas; corrigido.
