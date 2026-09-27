@@ -107,6 +107,15 @@ void _renderInIsolate(Map<String, Object?> json) {
         'Verovio rejected the layout options\n${toolkit.getLog()}',
       );
     }
+    // Must come before loadFile: the bridge's own layout defaults (no
+    // header, no footer, no instrument labels — Toolkit::ApplyBridgeDefaults,
+    // score_bridge P01b) only kick in while the output format is already
+    // vsb/vsb-json, and all three affect cast-off, not just drawing.
+    if (!toolkit.setOutputTo('vsb')) {
+      throw StateError(
+        'Verovio rejected output format vsb\n${toolkit.getLog()}',
+      );
+    }
     if (!toolkit.loadFile(inputPath)) {
       throw StateError(
         'Verovio could not load $inputPath\n${toolkit.getLog()}',
