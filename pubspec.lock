@@ -427,8 +427,8 @@ packages:
   score_bridge:
     dependency: "direct main"
     description:
-      path: "/home/mauricio/rust_projects/verovio_flutter_bridge/score_bridge"
-      relative: false
+      path: score_bridge
+      relative: true
     source: path
     version: "0.0.1"
   sky_engine:
