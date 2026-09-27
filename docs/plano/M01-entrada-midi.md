@@ -39,10 +39,19 @@ junto se X02 estiver pronto; Web é W03.
   `SoundEngine.nowSeconds` de K03 se já existir, senão um `Stopwatch`
   global do app) — é esse que o treino usa. Registre o jitter entre
   timestamp do plugin e carimbo de chegada.
-- Linux: ALSA sequencer. **Sem teclado físico**, teste com teclado virtual:
-  `sudo apt install vmpk` (Virtual MIDI Piano Keyboard) ou
-  `sudo modprobe snd-virmidi` + `aconnect`/`amidi`. `aconnect -l` lista as
-  portas (hoje só `System`).
+- Linux: ALSA sequencer. O `flutter_midi_command_linux`
+  (`alsa_seq_linux_device.dart`, master do GitHub) **só lista portas com
+  `SND_SEQ_PORT_TYPE_HARDWARE`** e pula os clientes 0 (System) e 14 (Midi
+  Through). Por isso VMPK (porta APPLICATION) e `snd-virmidi` (SOFTWARE)
+  **não aparecem** — confira se a 1.3.0 tem o mesmo filtro. O timestamp do
+  evento é `DateTime.now().millisecondsSinceEpoch`, gerado no plugin.
+  **Sem teclado físico**, use `just fake-midi` (`tool/fake_midi_keyboard.py`):
+  um cliente seq que se declara HARDWARE e toca notas. Para tocar ao vivo,
+  use `just fake-midi --relay` + `aconnect <VMPK> <porta falsa>`: a porta
+  falsa repassa o que o VMPK mandar. `just fake-midi --list` mostra quais
+  portas o plugin enxergaria. Para monitorar, use
+  `aseqdump -p <cliente>:0`, `aconnect -l` e `cat /proc/asound/seq/clients`
+  (mostra se o app assinou a porta).
 - Android: USB MIDI class-compliant via OTG funciona sem permissão especial;
   adicionar ao manifest `<uses-feature android:name="android.software.midi"
   android:required="false"/>`. `minSdk` ≥ 23 para `android.media.midi` (o
@@ -83,7 +92,8 @@ junto se X02 estiver pronto; Web é W03.
 
 ## Critérios de aceite
 
-1. **(manual, Linux)** Com VMPK (ou teclado real), notas aparecem no monitor
+1. **(manual, Linux)** Com `just fake-midi` (ou VMPK via
+   `--relay`, ou teclado real), notas aparecem no monitor
    e as teclas acendem; desplugar/replugar reconecta sozinho.
 2. **(manual, Android)** Com teclado USB via OTG (se houver) idem; sem
    teclado, registre o que foi possível testar.

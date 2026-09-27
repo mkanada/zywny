@@ -89,6 +89,13 @@ native-audio:
 # Refaz .so e assets depois que o verovio_flutter_bridge mudar.
 rebuild-deps: native assets
 
+# Teclado MIDI falso no ALSA sequencer (sem hardware; M01). Sem argumentos
+# toca uma escala em laço; `just fake-midi 60 64 67 --once`, `just fake-midi
+# --list`; `just fake-midi --relay` repassa um VMPK ligado por aconnect.
+# Monitorar: `aseqdump -p <cliente>:0` (o script imprime a porta).
+fake-midi *ARGS:
+    tool/fake_midi_keyboard.py {{ARGS}}
+
 # Testes Dart (headless — não passam pelo Impeller).
 test:
     flutter test

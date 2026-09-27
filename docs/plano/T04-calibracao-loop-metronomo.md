@@ -65,8 +65,8 @@ entrada+saída por dispositivo; (2) repetir um trecho (compasso A até B);
    `startMs` a cada volta.
 2. Teste: batidas do metrônomo coincidem com `qstamp` inteiros (±1 ms) na
    Gymnopédie (3/4).
-3. **(manual)** Calibração no Linux com VMPK/teclado dá número estável
-   (3 execuções com diferença < 15 ms); registrar.
+3. **(manual)** Calibração no Linux com VMPK (via `just fake-midi
+   --relay`) ou teclado dá número estável (3 execuções com diferença < 15 ms); registrar.
 4. **(manual)** Treino em loop nos piores compassos a partir do resumo.
 5. `just analyze` e `just test` limpos.
 

@@ -58,8 +58,8 @@ da mão do aluno até ele acertar, e as notas mudam de cor (certa/errada).
 ## Critérios de aceite
 
 1. Teste de widget do item 2 verde.
-2. **(manual, Linux, VMPK ou teclado)** Gymnopédie mão direita: o app toca a
-   esquerda, espera cada nota da direita, cores corretas; nota errada
+2. **(manual, Linux, VMPK via `just fake-midi --relay` ou teclado)**
+   Gymnopédie mão direita: o app toca a esquerda, espera cada nota da direita, cores corretas; nota errada
    aparece em vermelho e não avança.
 3. **(manual)** Virada de página acontece normalmente no modo espera
    (inclusive nas repetições).

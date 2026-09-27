@@ -46,8 +46,8 @@ sustain. Opção desligável (piano digital já tem som).
 
 ## Critérios de aceite
 
-1. **(manual, Linux)** Com VMPK: tocar e segurar o pedal (VMPK tem sustain)
-   soa como esperado; desligar a opção silencia.
+1. **(manual, Linux)** Com VMPK (via `just fake-midi --relay`, ver M01):
+   tocar e segurar o pedal (VMPK tem sustain) soa como esperado; desligar a opção silencia.
 2. Latência medida registrada (Linux; Android se possível).
 3. Desconectar o teclado com notas presas não deixa som preso (manual).
 4. `just analyze` e `just test` limpos.
