@@ -7,10 +7,37 @@
 // que o exercitam abrem o painel primeiro.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:zywny/main.dart';
+
+/// `MidiDeviceManager`/`FlutterMidiInputService` (M01) falam com canais de
+/// plataforma reais assim que a tela abre (para listar dispositivos e
+/// reconectar ao último escolhido) — inexistentes em `flutter test`. Sem
+/// isto, o primeiro `pumpWidget(MyApp())` already lançaria antes de
+/// qualquer expectativa.
+class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
+    with MockPlatformInterfaceMixin {
+  @override
+  Future<List<MidiDevice>?> get devices async => const <MidiDevice>[];
+
+  @override
+  Stream<MidiPacket>? get onMidiDataReceived => null;
+
+  @override
+  Stream<MidiSetupChange>? get onMidiSetupChanged => null;
+}
+
+void _installFakeMidiAndPreferencesPlatforms() {
+  MidiCommandPlatform.instance = _NoDevicesMidiCommandPlatform();
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
+}
 
 /// The score box: the [InteractiveViewer] fills it and nothing else does.
 Size _scoreBox(WidgetTester tester) =>
@@ -27,6 +54,8 @@ Future<void> _openPanel(WidgetTester tester) async {
 }
 
 void main() {
+  setUp(_installFakeMidiAndPreferencesPlatforms);
+
   testWidgets('tela inicial pede uma partitura', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
 

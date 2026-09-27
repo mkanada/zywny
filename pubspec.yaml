@@ -53,6 +53,11 @@ dependencies:
   score_bridge:
     path: score_bridge
   google_fonts: ^8.2.1
+  # Entrada MIDI (M01, D-MIDI): lista/conecta dispositivos e entrega
+  # mensagens já tipadas (lib/midi/).
+  flutter_midi_command: ^1.3.0
+  # Guarda o último dispositivo MIDI escolhido (M01) para reconectar sozinho.
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +69,12 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  # Fakes de plataforma para test/widget_test.dart: sem eles, MidiCommand()
+  # e SharedPreferencesAsync() abrem canais de plataforma inexistentes em
+  # `flutter test` assim que ScoreHomePage constrói (M01).
+  shared_preferences_platform_interface: ^2.4.2
+  flutter_midi_command_platform_interface: ^1.3.0
+  plugin_platform_interface: ^2.1.8
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

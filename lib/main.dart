@@ -15,6 +15,10 @@ import 'audio/sound_engine_debug_panel.dart';
 import 'audio/sound_engine_factory.dart';
 import 'layout_options.dart';
 import 'layout_panel.dart';
+import 'midi/midi_device_manager.dart';
+import 'midi/midi_device_picker.dart';
+import 'midi/midi_input_service.dart';
+import 'midi/midi_monitor_panel.dart';
 import 'music/performance_track.dart';
 import 'native_paths.dart';
 import 'verovio_render.dart';
@@ -128,6 +132,19 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   bool _soundOn = false;
   bool _loadingSoundFont = false;
 
+  /// Entrada MIDI (M01): lista/conecta dispositivos e reconecta sozinho ao
+  /// último escolhido; converte mensagens em [PlayedNote] para o monitor.
+  /// Relógio de carimbo: o motor de áudio se já estiver ligado (mesmo
+  /// instante que o áudio usa), senão este `Stopwatch`, que roda desde a
+  /// abertura do app.
+  final Stopwatch _appClock = Stopwatch()..start();
+  final MidiDeviceManager _midiDeviceManager = MidiDeviceManager();
+  late final MidiInputService _midiInput = FlutterMidiInputService(
+    nowSeconds: () =>
+        _engine?.nowSeconds ?? _appClock.elapsedMicroseconds / 1e6,
+  );
+  bool _midiPanelOpen = false;
+
   /// 0,5×–1,5×; alimenta [_scheduler] com som ligado, ou `ScorePlayer.speed`
   /// mudo (C01: o relógio externo ignora `speed`).
   double _speed = 1.0;
@@ -169,6 +186,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   @override
   void dispose() {
     _resizeDebounce?.cancel();
+    _midiInput.dispose();
+    _midiDeviceManager.dispose();
     _scheduler?.dispose();
     unawaited(_engine?.dispose());
     _player?.dispose();
@@ -649,6 +668,28 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 right: 0,
                 child: LinearProgressIndicator(),
               ),
+            if (_midiPanelOpen)
+              Positioned(
+                top: 8,
+                left: 8,
+                bottom: 8,
+                width: math.min(360, constraints.maxWidth - 16),
+                child: MidiMonitorPanel(
+                  deviceManager: _midiDeviceManager,
+                  input: _midiInput,
+                  onClose: () => setState(() => _midiPanelOpen = false),
+                ),
+              )
+            else
+              Positioned(
+                top: 8,
+                left: 8,
+                child: IconButton.filledTonal(
+                  tooltip: 'Monitor MIDI',
+                  onPressed: () => setState(() => _midiPanelOpen = true),
+                  icon: const Icon(Icons.piano),
+                ),
+              ),
             if (_panelOpen)
               Positioned(
                 top: 8,
@@ -699,6 +740,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('zywny • partitura → .vsb'),
+        actions: [MidiDevicePickerButton(deviceManager: _midiDeviceManager)],
       ),
       body: Padding(
         padding: const EdgeInsets.all(12),

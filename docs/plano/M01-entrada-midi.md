@@ -103,4 +103,62 @@ junto se X02 estiver pronto; Web é W03.
 
 ## Notas de execução
 
-(preencher)
+- **Dependência**: `flutter_midi_command: ^1.3.0` (D-MIDI resolvida como
+  recomendado) + `shared_preferences: ^2.5.5` (último dispositivo). A API
+  real da 1.3.0 já resolve sozinha os dois problemas que o passo pedia para
+  "normalizar no serviço": `onMidiDataReceived` entrega `MidiPacket`s com
+  running status **já expandido** (um `NoteOnMessage`/`CCMessage`/... por
+  mensagem completa, nunca bytes crus a montar) e o
+  `MidiMessageParser` interno já troca note-on com velocity 0 por
+  `NoteOffMessage` antes de chegar no app
+  (`flutter_midi_command-1.3.0/lib/src/midi_message_parser.dart:223`).
+  Mesmo assim, `FlutterMidiInputService.handleMessage` (abaixo) refaz essa
+  troca por conta própria — defesa própria, não uma aposta num detalhe de
+  implementação de terceiros.
+- **Arquivos** (`lib/midi/`):
+  - `midi_input_service.dart` — `PlayedNote`, a interface
+    `MidiInputService` e `FlutterMidiInputService` (implementação real,
+    com o stream de eventos injetável para teste sem canal de
+    plataforma nenhum).
+  - `midi_device_manager.dart` — `MidiDeviceManager`: lista, conecta,
+    guarda o último dispositivo (`shared_preferences`) e reconecta sozinho
+    na abertura e a cada `onMidiSetupChanged` (hot-plug).
+  - `piano_keyboard.dart` — `PianoKeyboardPainter`, teclado de 88 teclas
+    (A0–C8) em `CustomPaint`, acendendo `held`.
+  - `midi_device_picker.dart` — ícone da AppBar + diálogo de escolha de
+    dispositivo (`showMidiDevicePicker`).
+  - `midi_monitor_panel.dart` — painel "Monitor MIDI" (mesmo padrão visual
+    do `LayoutPanel`, ancorado à esquerda em vez da direita): últimas 20
+    mensagens e o teclado desenhado.
+- **Relógio de carimbo**: `_ScoreHomePageState` mantém um `Stopwatch`
+  próprio (`_appClock`, roda desde a abertura do app) e passa para o
+  serviço `nowSeconds: () => _engine?.nowSeconds ?? _appClock...`. Como
+  `_engine` (K03) só existe depois que o som é ligado, o carimbo migra
+  sozinho para o relógio de áudio a partir daí — antes disso usa o
+  `Stopwatch`, como o passo pedia.
+- **Limitação conhecida, não resolvida nesta sessão**: `held`
+  (`FlutterMidiInputService`) é global a todos os dispositivos conectados,
+  não por dispositivo — se um teclado desconectar com uma tecla presa, o
+  desenho fica com a tecla acesa (sem note-off correspondente). Não é
+  coberto pelos critérios de aceite deste passo; anotar se virar
+  problema em T02/T03.
+- `just analyze` e `just test` limpos (critério 4), incluindo
+  `test/midi_input_service_test.dart` (running status e velocity 0 via
+  `MidiMessage.parse` de verdade, CC64, held). `test/widget_test.dart`
+  precisou de fakes de `MidiCommandPlatform`/`SharedPreferencesAsyncPlatform`
+  (`MockPlatformInterfaceMixin`) porque `ScoreHomePage` agora abre os dois
+  canais de plataforma assim que a tela existe — sem eles o primeiro
+  `pumpWidget(MyApp())` já lançava.
+- **2026-09-27, verificação parcial do critério 1**: `just run` no Linux
+  sem hardware — o app registrou um cliente ALSA `flutter_midi_command`
+  (`aconnect -l`), confirmando que M01 abre e escuta a porta certa. Liguei
+  `tool/fake_midi_keyboard.py 60 64 67 --once` nela via `aconnect` e o
+  `flutter run` não lançou nenhuma exceção ao receber as notas nem quando o
+  cliente falso desapareceu depois (hot-plug de saída). **Não verificado**
+  nesta sessão, por falta de captura de tela no ambiente: as notas
+  aparecendo no painel "Monitor MIDI" e as teclas acendendo a olho — falta
+  um `just run` interativo (clicar no ícone de piano, tocar o teclado
+  falso ou um de verdade, olhar o painel) para fechar o critério 1 de
+  verdade. Critério 2 (Android/OTG) e a medição de unidade/jitter do
+  timestamp (critério 3) também não foram feitos — pedem hardware/aparelho
+  à mão.
