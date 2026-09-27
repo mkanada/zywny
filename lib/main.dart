@@ -24,6 +24,8 @@ import 'midi/midi_monitor_panel.dart';
 import 'midi/midi_out_sound_engine.dart';
 import 'music/performance_track.dart';
 import 'native_paths.dart';
+import 'practice/hand.dart';
+import 'practice/practice_controller.dart';
 import 'verovio_render.dart';
 import 'verovio_resources.dart';
 
@@ -140,6 +142,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   ScoreAudioScheduler? _scheduler;
   AudioPlaybackClock? _audioClock;
 
+  /// Modo treino (T02): armado pelo usuário, só passa a valer no Play
+  /// ("Praticar") quando também há um teclado MIDI conectado — ver
+  /// [_canTrain]. [_practice] existe só enquanto a sessão de modo espera
+  /// está de fato tocando.
+  bool _trainingMode = false;
+  Hand _hand = Hand.direita;
+  PracticeController? _practice;
+
   /// Saída escolhida (M03) e preferência de Program Change, persistidas em
   /// [SharedPreferencesAsync] — carregadas em [initState].
   final SharedPreferencesAsync _outputPrefs = SharedPreferencesAsync();
@@ -192,6 +202,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   bool get _canPlay => (_document?.timemap?.isNotEmpty ?? false) && !_busy;
 
+  /// O Play vira "Praticar" (T02) só com modo treino armado **e** teclado
+  /// MIDI conectado — sem dispositivo não há como o aluno tocar.
+  bool get _canTrain =>
+      _canPlay && _trainingMode && _midiDeviceManager.connected.value != null;
+
   /// Paper size, in tenths of a millimetre, that makes one device pixel one
   /// unit — i.e. the page is engraved at 254 dpi and drawn 1:1, which is the
   /// configuration `compare` measured against the reference SVG. Anything
@@ -243,6 +258,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   @override
   void dispose() {
     _resizeDebounce?.cancel();
+    _practice?.dispose();
     _midiDeviceManager.connected.removeListener(_onMidiDeviceChanged);
     _midiMonitor?.dispose();
     _midiInput.dispose();
@@ -372,6 +388,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       if (!mounted) return;
       // A new engraving has new ids (and possibly new pages): drop the
       // playback that belonged to the old one.
+      _practice?.dispose();
+      _practice = null;
       _player?.dispose();
       _player = null;
       _playing = false;
@@ -446,6 +464,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void _stop() {
     final player = _player;
     if (player == null) return;
+    // `ScoreAudioScheduler.stop` reancora em 0 mas não solta o freio nem o
+    // filtro de pauta do modo treino (T02) — sem isto, o próximo Play
+    // ficaria preso no freio antigo.
+    final practice = _practice;
+    if (practice != null) {
+      practice.stop();
+      practice.dispose();
+      _practice = null;
+    }
     player.pause();
     player.seek(Duration.zero);
     _scheduler?.stop();
@@ -453,11 +480,80 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (_playing && mounted) setState(() => _playing = false);
   }
 
+  /// Arma/desarma o modo treino (T02) — só decide se o Play vira
+  /// "Praticar" ([_canTrain] também exige um teclado MIDI conectado).
+  /// Desarmar com uma sessão em andamento também a para.
+  void _toggleTrainingMode() {
+    if (_trainingMode && _practice != null) _stopPractice();
+    setState(() => _trainingMode = !_trainingMode);
+  }
+
+  /// Troca a mão do aluno (T02) — o seletor só aparece armado e sem sessão
+  /// em andamento ([_practice] existindo esconde o seletor).
+  void _setHand(Hand hand) => setState(() => _hand = hand);
+
+  /// "Praticar" (T02): modo espera com o app tocando a outra mão. Precisa
+  /// de som ligado — o agendador que toca a mão do app é o mesmo do
+  /// interruptor "som" — e abre o motor/pede um `.sf2` na primeira vez,
+  /// como [_toggleSound]/[_toggleMidiMonitor] já fazem.
+  Future<void> _togglePractice() async {
+    if (_practice != null) {
+      _stopPractice();
+      return;
+    }
+    final track = _track;
+    final player = _player;
+    if (track == null || player == null) return;
+    final engine = await _ensureEngine();
+    if (engine == null || !mounted) return;
+    if (_scheduler == null || !_soundOn) {
+      _attachAudio(engine, track);
+    }
+    final scheduler = _scheduler;
+    if (scheduler == null) return;
+
+    _controller.clearAll();
+    player.seek(Duration.zero);
+    final practice = PracticeController(
+      midiInput: _midiInput,
+      track: track,
+      scheduler: scheduler,
+      controller: _controller,
+      hand: _hand,
+    );
+    practice.start();
+    player.play();
+    setState(() {
+      _practice = practice;
+      _soundOn = true;
+      _playing = true;
+    });
+  }
+
+  /// Para a sessão de treino em curso e volta ao estado pausado normal —
+  /// [PracticeController.stop] já solta o freio/filtro do agendador e os
+  /// destaques.
+  void _stopPractice() {
+    final practice = _practice;
+    if (practice == null) return;
+    practice.stop();
+    practice.dispose();
+    _practice = null;
+    _player?.pause();
+    if (mounted) setState(() => _playing = false);
+  }
+
   /// The player pauses itself at the end of the piece; follow that here.
   void _onEntry(TimemapEntry entry) {
     final player = _player;
     if (player == null || !_playing) return;
     if (player.position >= player.duration) {
+      final practice = _practice;
+      if (practice != null) {
+        practice.stop();
+        practice.dispose();
+        _practice = null;
+      }
       _scheduler?.pause();
       _controller.releaseAll();
       if (mounted) setState(() => _playing = false);
@@ -509,6 +605,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// primeira vez, D-SF ainda em aberto — pede um `.sf2` ao usuário.
   Future<void> _toggleSound() async {
     if (_soundOn) {
+      // Modo treino (T02) depende do agendador de som para o freio e a mão
+      // do app — sem som, não há como continuar.
+      final practice = _practice;
+      if (practice != null) {
+        practice.stop();
+        practice.dispose();
+        _practice = null;
+      }
       _scheduler?.pause();
       _engine?.allNotesOff();
       _player?.clock = null;
@@ -919,6 +1023,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   deviceManager: _midiDeviceManager,
                   input: _midiInput,
                   onClose: () => setState(() => _midiPanelOpen = false),
+                  wrong: _practice?.wrongPitches,
                 ),
               )
             else
@@ -1026,9 +1131,19 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 IconButton.filled(
-                  tooltip: _playing ? 'Pausar' : 'Tocar (destacar notas)',
-                  onPressed: _canPlay ? _togglePlay : null,
-                  icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
+                  tooltip: _canTrain
+                      ? (_practice != null
+                            ? 'Parar prática'
+                            : 'Praticar (modo espera)')
+                      : (_playing ? 'Pausar' : 'Tocar (destacar notas)'),
+                  onPressed: _canTrain
+                      ? () => unawaited(_togglePractice())
+                      : (_canPlay ? _togglePlay : null),
+                  icon: Icon(
+                    _canTrain
+                        ? (_practice != null ? Icons.pause : Icons.school)
+                        : (_playing ? Icons.pause : Icons.play_arrow),
+                  ),
                 ),
                 IconButton.filledTonal(
                   tooltip: 'Parar',
@@ -1041,6 +1156,27 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                       : null,
                   icon: const Icon(Icons.stop),
                 ),
+                IconButton.filledTonal(
+                  tooltip: _trainingMode
+                      ? 'Desarmar modo treino (T02)'
+                      : 'Armar modo treino (T02): Play vira Praticar com '
+                            'teclado MIDI conectado',
+                  onPressed: _toggleTrainingMode,
+                  icon: Icon(
+                    _trainingMode ? Icons.school : Icons.school_outlined,
+                  ),
+                ),
+                if (_trainingMode && _practice == null)
+                  PopupMenuButton<Hand>(
+                    tooltip: 'Mão do aluno',
+                    initialValue: _hand,
+                    onSelected: _setHand,
+                    icon: const Icon(Icons.back_hand),
+                    itemBuilder: (context) => [
+                      for (final h in Hand.values)
+                        PopupMenuItem(value: h, child: Text(h.label)),
+                    ],
+                  ),
                 IconButton.filledTonal(
                   tooltip: _soundOn
                       ? 'Desligar som'

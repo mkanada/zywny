@@ -67,4 +67,61 @@ da mão do aluno até ele acertar, e as notas mudam de cor (certa/errada).
 
 ## Notas de execução
 
-(preencher)
+- `lib/practice/hand.dart`: enum `Hand` (extraído de `lib/mockup/
+  practice_state.dart`, que agora só reexporta — `lib/main.dart`, app real,
+  não deve depender do diretório de mockup) com `studentStaves`/`appStaves`
+  (convenção N03: pauta 1 = direita, pauta 2 = esquerda; "ambas" tem
+  `appStaves` vazio, o app não toca nada).
+- **Freio em `ScoreAudioScheduler`** (`setBrake`/`setStaves`), não no
+  `AudioPlaybackClock` (que continua um passthrough puro): `positionMs` e o
+  horizonte de `pump()` capam em `_brakeMs` quando armado, e `pump()` só
+  agenda as pautas em `_staves`. `setBrake` reancora a posição atual, mas
+  **nunca deixa `_scheduledUpToMs` regredir** — descobri isso com um teste
+  que dava 2 note-on a mais do que devia: o aluno pode completar um passo
+  antes do próximo tick do `pump()` (que agenda com até 250 ms de
+  antecedência), e um reancoragem ingênua reagendava em duplicata o que já
+  tinha ido para o motor.
+- Cor de "esperado agora": **não é uma cor nova**. O doc original citava
+  "amarelo do player", mas o destaque padrão do `ScorePlayer` é
+  `kDefaultHighlightColor` (vermelho escuro, configurável em Opções) — a
+  nota pendente do aluno já acende nessa cor sozinha, assim que o freio
+  estaciona a posição no `onMs` dela (`ScorePlayer._advanceToMs`/timemap não
+  distingue mãos). Só `kPracticeCorrectColor` (verde) e
+  `kPracticeWrongColor` (vermelho, um pulso só) são cores novas —
+  `lib/practice/practice_colors.dart`.
+- `lib/practice/practice_controller.dart`: `PracticeController` (Flutter-
+  aware, ao contrário do T01 Dart-puro) liga `MidiInputService.notes` →
+  `WaitModeSession` → freio (via `session.current`) → cores (via
+  `session.verdicts`). Nota errada: acha a nota esperada mais próxima em
+  pitch (`step.notes` filtrado por `step.remaining`) e pisca nela; o pitch
+  errado em si vai para um `ValueNotifier<Set<int>>` exposto (`wrongPitches`)
+  para o teclado desenhado.
+- `PianoKeyboardPainter` ganhou `wrong`/`wrongColor` (tecla errada em
+  vermelho, por cima de `held`) e `MidiMonitorPanel` um `wrong:` opcional —
+  `lib/main.dart` passa `_practice?.wrongPitches` só quando uma sessão está
+  ativa.
+- UI em `lib/main.dart`: `_trainingMode` (armado por um botão dedicado,
+  independente do Play) + seletor de mão (`PopupMenuButton<Hand>`, some
+  durante a sessão) + `_canTrain` (`_canPlay && _trainingMode && `
+  dispositivo MIDI conectado`) decide se o Play vira "Praticar"
+  (`_togglePractice`/`_stopPractice`). `_practice` é desmontado em todo
+  lugar que já derrubava `_scheduler`/`_player` (`_stop`, `_toggleSound`
+  desligando, `_onEntry` no fim da peça, `_renderAndShow` numa gravura
+  nova) — sem isso o freio/filtro de pauta ficaria armado por engano na
+  próxima reprodução normal.
+- Testes: `test/score_audio_scheduler_test.dart` ganhou o grupo "freio do
+  modo espera (T02)" (posição estaciona; freio + filtro de pauta juntos;
+  avançar o freio não perde nem duplica evento — via `maple-leaf-rag.vsb`
+  real, mesmo `FakeSoundEngine`/`_advanceUntil` de K04).
+  `test/practice_controller_test.dart` (novo): `FakeMidiInput` (não existia
+  dublê, só a interface — escrito no estilo do `FakeMidiSender` de M03) +
+  `FakeSoundEngine` + `ScoreController` real sobre o corpus, cobrindo nota
+  certa (avança passo, pinta verde), nota errada (não avança, pisca a mais
+  próxima, marca a tecla) e `stop()`. `test()` puro, não `testWidgets`: sem
+  árvore de widget para montar, só `TestWidgetsFlutterBinding.
+  ensureInitialized()` (o `Ticker` do `ScoreController` precisa) +
+  `pumpEventQueue()` para o stream de notas (broadcast comum, entrega por
+  microtask, igual ao `FlutterMidiInputService` de verdade).
+- Critério 1 (teste automatizado) fechado; 2 e 3 são manuais (precisam de
+  teclado MIDI/VMPK de verdade) e ficam para o usuário verificar. `just
+  analyze`/`just test` limpos (64 testes) fecha o 4.

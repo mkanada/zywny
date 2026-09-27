@@ -232,7 +232,7 @@ zywny
 | [M02](M02-monitor-pelo-sintetizador.md) | Tocar a entrada pelo sintetizador do app (monitor) | M01, K03 | — | pendente |
 | [M03](M03-saida-midi.md) | Tocar a partitura no teclado externo (MIDI out) | M01, K04 | — | pendente |
 | [T01](T01-casador-de-notas.md) | `PracticeSession`: acordes esperados e casador (Dart puro) | N03 | — | concluído |
-| [T02](T02-modo-espera.md) | Modo espera + escolha de mão + app toca a outra | T01, K04, M01 | — | pendente |
+| [T02](T02-modo-espera.md) | Modo espera + escolha de mão + app toca a outra | T01, K04, M01 | — | concluído (critérios 2-3 manuais, aguardando verificação) |
 | [T03](T03-modo-tempo-real-e-nota.md) | Modo tempo real com avaliação e resumo | T02 | D-TREINO | pendente |
 | [T04](T04-calibracao-loop-metronomo.md) | Calibração de latência, loop A-B, metrônomo | T03 | — | pendente |
 | [X01](X01-android-render.md) | Android: `.vsb` e partitura rodando (sem som) | — | — | pendente |

@@ -1,3 +1,7 @@
+import '../practice/hand.dart';
+
+export '../practice/hand.dart' show Hand, HandLabel, HandStaves;
+
 /// Modo de estudo — mesmo vocabulário do painel de opções do artboard
 /// (`Ouvir` / `Espera` / `Tempo real`) e do plano (`docs/plano/README.md`).
 enum PracticeMode { ouvir, espera, tempoReal }
@@ -14,23 +18,6 @@ extension PracticeModeLabel on PracticeMode {
     PracticeMode.ouvir => 'Ouvindo',
     PracticeMode.espera => 'Esperando',
     PracticeMode.tempoReal => 'Tempo real',
-  };
-}
-
-enum Hand { esquerda, direita, ambas }
-
-extension HandLabel on Hand {
-  String get label => switch (this) {
-    Hand.esquerda => 'Esquerda',
-    Hand.direita => 'Direita',
-    Hand.ambas => 'Ambas',
-  };
-
-  /// Abreviação usada no botão da barra lateral (`Dir.` / `Esq.` / `Ambas`).
-  String get shortLabel => switch (this) {
-    Hand.esquerda => 'Esq.',
-    Hand.direita => 'Dir.',
-    Hand.ambas => 'Ambas',
   };
 }
 
