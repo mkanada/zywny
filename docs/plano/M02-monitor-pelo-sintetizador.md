@@ -54,4 +54,28 @@ sustain. Opção desligável (piano digital já tem som).
 
 ## Notas de execução
 
-(preencher)
+- `MidiMonitor` (`lib/midi/midi_monitor.dart`): liga `MidiInputService` a um
+  `SoundEngine` já aberto, no canal 15 (`kMidiMonitorChannel`, programa 0 —
+  piano), com `send` direto (note-on/off e CC64); `allNotesOff()` zera o que
+  `held` ainda listar retido.
+- O motor (`SoundEngine`+`.sf2`) é compartilhado com o som da partitura
+  (K04): extraí `_ensureEngine()` de `_toggleSound` para os dois passarem
+  pelo mesmo caminho — pede o `.sf2` só na primeira vez, de qualquer um dos
+  dois botões.
+- Botão "monitor MIDI" ao lado do de som, mesmo padrão visual. Preferência
+  por dispositivo em `MidiDeviceManager.monitorEnabled/setMonitorEnabled`
+  (`SharedPreferencesAsync`, chave `midi_monitor_<id>`).
+- Troca/desconexão de dispositivo (`_onMidiDeviceChanged`, ouvindo
+  `MidiDeviceManager.connected`): manda note-off do canal de monitor para o
+  que ainda estiver retido e aplica a preferência do novo dispositivo — mas
+  **nunca** abre o diálogo de `.sf2` sozinho; só liga de volta se `_engine`
+  já existir (por exemplo, o som da partitura já tinha sido ligado antes).
+  Se ainda não houver motor, o botão fica desligado até o usuário tocar
+  nele — evita um diálogo de arquivo surpresa num hot-plug automático.
+- **Latência não medida nesta sessão** (exigiria gravar com microfone o
+  "toc" físico vs. o som do alto-falante e comparar no Audacity — trabalho
+  manual, não reproduzível por mim). Falta o critério de aceite 2; os
+  demais (1, 3, 4) foram cobertos por `just analyze`/`just test` limpos e
+  pela leitura do código (note-off garantido no `dispose`/troca de
+  dispositivo). Teste manual com VMPK (critério 1) também não foi
+  executado nesta sessão.

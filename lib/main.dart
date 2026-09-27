@@ -7,6 +7,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'audio/audio_playback_clock.dart';
 import 'audio/score_audio_scheduler.dart';
@@ -18,11 +19,17 @@ import 'layout_panel.dart';
 import 'midi/midi_device_manager.dart';
 import 'midi/midi_device_picker.dart';
 import 'midi/midi_input_service.dart';
+import 'midi/midi_monitor.dart';
 import 'midi/midi_monitor_panel.dart';
+import 'midi/midi_out_sound_engine.dart';
 import 'music/performance_track.dart';
 import 'native_paths.dart';
 import 'verovio_render.dart';
 import 'verovio_resources.dart';
+
+/// Saída de som (K03/M03): o sintetizador do app (`.sf2`) ou o teclado MIDI
+/// conectado, tocando no som próprio do piano digital do usuário.
+enum SoundOutput { appSynth, midiKeyboard }
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -122,9 +129,28 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Motor de áudio (K03): criado sob demanda no primeiro "ligar som", não
   /// no início do app — mudo por padrão, como antes de K04. Sobrevive a
   /// novas gravuras (só [_scheduler] é recriado, um por `.vsb`).
-  SoundEngine? _engine;
+  ///
+  /// Um motor por [SoundOutput] (M03): trocar de saída não descarta o
+  /// sintetizador do app (com `.sf2` já carregado) nem o motor MIDI (que é
+  /// recriado se o dispositivo conectado mudar — ver [_onMidiDeviceChanged]).
+  SoundEngine? _appEngine;
+  MidiOutSoundEngine? _midiOutEngine;
+  SoundEngine? get _engine =>
+      _output == SoundOutput.midiKeyboard ? _midiOutEngine : _appEngine;
   ScoreAudioScheduler? _scheduler;
   AudioPlaybackClock? _audioClock;
+
+  /// Saída escolhida (M03) e preferência de Program Change, persistidas em
+  /// [SharedPreferencesAsync] — carregadas em [initState].
+  final SharedPreferencesAsync _outputPrefs = SharedPreferencesAsync();
+  static const _kOutputPrefKey = 'sound_output';
+  static const _kUseScoreInstrumentsPrefKey = 'sound_use_score_instruments';
+  SoundOutput _output = SoundOutput.appSynth;
+
+  /// Program Change (M03): manda o instrumento da partitura ao teclado MIDI
+  /// só se ligado — desligado por padrão, o usuário quer o som do próprio
+  /// piano.
+  bool _useScoreInstruments = false;
 
   /// Interruptor "som" (K04): liga o agendador de áudio sobre [_player];
   /// desligado, o player volta ao próprio relógio interno (`speed`), o
@@ -144,6 +170,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         _engine?.nowSeconds ?? _appClock.elapsedMicroseconds / 1e6,
   );
   bool _midiPanelOpen = false;
+
+  /// Monitor MIDI pelo sintetizador do app (M02): o que chega em
+  /// [_midiInput] sai por [_engine] num canal reservado, para teclados
+  /// controladores sem som próprio. Mesmo motor de [_toggleSound] (K04) —
+  /// [_ensureEngine] pede um `.sf2` só na primeira vez, para qualquer um
+  /// dos dois. Preferência guardada por dispositivo em
+  /// [MidiDeviceManager].
+  MidiMonitor? _midiMonitor;
+  bool _midiMonitorOn = false;
 
   /// 0,5×–1,5×; alimenta [_scheduler] com som ligado, ou `ScorePlayer.speed`
   /// mudo (C01: o relógio externo ignora `speed`).
@@ -184,12 +219,37 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _pageFitsBox ? _fittedPage!.height.round() : _layout['pageHeight'] as int;
 
   @override
+  void initState() {
+    super.initState();
+    _midiDeviceManager.connected.addListener(_onMidiDeviceChanged);
+    unawaited(_loadOutputPrefs());
+  }
+
+  Future<void> _loadOutputPrefs() async {
+    final outputName = await _outputPrefs.getString(_kOutputPrefKey);
+    final useScoreInstruments = await _outputPrefs.getBool(
+      _kUseScoreInstrumentsPrefKey,
+    );
+    if (!mounted) return;
+    setState(() {
+      _output = SoundOutput.values.firstWhere(
+        (v) => v.name == outputName,
+        orElse: () => SoundOutput.appSynth,
+      );
+      _useScoreInstruments = useScoreInstruments ?? false;
+    });
+  }
+
+  @override
   void dispose() {
     _resizeDebounce?.cancel();
+    _midiDeviceManager.connected.removeListener(_onMidiDeviceChanged);
+    _midiMonitor?.dispose();
     _midiInput.dispose();
     _midiDeviceManager.dispose();
     _scheduler?.dispose();
-    unawaited(_engine?.dispose());
+    unawaited(_appEngine?.dispose());
+    unawaited(_midiOutEngine?.dispose());
     _player?.dispose();
     _viewController.dispose();
     _controller.dispose();
@@ -424,6 +484,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
   }
 
+  /// Ícone dos botões "som" e "monitor MIDI": giro de carregamento enquanto
+  /// [_ensureEngine] pede o `.sf2` (motor compartilhado pelos dois).
+  Widget _engineButtonIcon(IconData icon) => _loadingSoundFont
+      ? const SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        )
+      : Icon(icon);
+
   /// Liga [_scheduler] sobre [engine]/[track] e passa o relógio de áudio ao
   /// player — chamado ao ligar o som e de novo a cada nova gravura enquanto
   /// ele já estiver ligado.
@@ -447,26 +517,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       return;
     }
     final track = _track;
-    if (track == null || _loadingSoundFont) return;
-
-    var engine = _engine;
-    if (engine == null) {
-      setState(() => _loadingSoundFont = true);
-      try {
-        engine = await _pickEngineWithSoundFont();
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('som: erro ao iniciar ($e)')));
-        }
-        engine = null;
-      } finally {
-        if (mounted) setState(() => _loadingSoundFont = false);
-      }
-      if (engine == null || !mounted) return;
-      _engine = engine;
-    }
+    if (track == null) return;
+    final engine = await _ensureEngine();
+    if (engine == null) return;
     _attachAudio(engine, track);
     // Já estava tocando (mudo) quando o som foi ligado: sem isto o
     // agendador ficaria parado na âncora 0 e o próximo tick do player veria
@@ -476,6 +529,194 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _scheduler!.play(player.position.inMicroseconds / 1000, speed: _speed);
     }
     setState(() => _soundOn = true);
+  }
+
+  /// Abre [_engine] se ainda não existir — pedindo um `.sf2` ao usuário só
+  /// na primeira vez (D-SF) — e o devolve; `null` se o motor não abriu ou o
+  /// usuário cancelou o `.sf2`. Compartilhado por [_toggleSound] e
+  /// [_toggleMidiMonitor] (M02): é o mesmo motor que toca a partitura e o
+  /// monitor.
+  Future<SoundEngine?> _ensureEngine() async {
+    final existing = _engine;
+    if (existing != null) return existing;
+    if (_output == SoundOutput.midiKeyboard) return _ensureMidiOutEngine();
+    if (_loadingSoundFont) return null;
+    setState(() => _loadingSoundFont = true);
+    SoundEngine? engine;
+    try {
+      engine = await _pickEngineWithSoundFont();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('som: erro ao iniciar ($e)')));
+      }
+      engine = null;
+    } finally {
+      if (mounted) setState(() => _loadingSoundFont = false);
+    }
+    if (engine == null || !mounted) return null;
+    _appEngine = engine;
+    return engine;
+  }
+
+  /// Abre (ou devolve) o motor de saída MIDI (M03) sobre o dispositivo
+  /// conectado em [_midiDeviceManager]; `null` sem dispositivo conectado.
+  SoundEngine? _ensureMidiOutEngine() {
+    final existing = _midiOutEngine;
+    if (existing != null) return existing;
+    final device = _midiDeviceManager.connected.value;
+    if (device == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('conecte um teclado MIDI primeiro')),
+      );
+      return null;
+    }
+    final engine = MidiOutSoundEngine(
+      sender: FlutterMidiSender(),
+      deviceId: device.id,
+      useScoreInstruments: _useScoreInstruments,
+    );
+    _midiOutEngine = engine;
+    return engine;
+  }
+
+  /// Troca a saída de som (M03), persistindo a escolha. Se o som ou o
+  /// monitor MIDI estiverem ligados, silencia a saída antiga (`allNotesOff`)
+  /// e reancora o agendador/monitor na nova — se a nova saída não abrir
+  /// (ex.: MIDI sem dispositivo conectado), desliga os dois.
+  Future<void> _setOutput(SoundOutput next) async {
+    if (next == _output) return;
+    unawaited(_outputPrefs.setString(_kOutputPrefKey, next.name));
+    final wasSoundOn = _soundOn;
+    final wasMonitorOn = _midiMonitorOn;
+    if (!wasSoundOn && !wasMonitorOn) {
+      setState(() => _output = next);
+      return;
+    }
+    _engine?.allNotesOff();
+    setState(() => _output = next);
+    final engine = await _ensureEngine();
+    if (!mounted) return;
+    if (engine == null) {
+      _scheduler?.pause();
+      _player?.clock = null;
+      _player?.speed = _speed;
+      _midiMonitor?.dispose();
+      setState(() {
+        _soundOn = false;
+        _midiMonitor = null;
+        _midiMonitorOn = false;
+      });
+      return;
+    }
+    if (wasMonitorOn) _midiMonitor?.dispose();
+    final track = _track;
+    final player = _player;
+    setState(() {
+      if (wasMonitorOn) {
+        _midiMonitor = MidiMonitor(input: _midiInput, engine: engine);
+      }
+      if (wasSoundOn && track != null) {
+        _attachAudio(engine, track);
+        if (player != null) {
+          _scheduler!.play(
+            player.position.inMicroseconds / 1000,
+            speed: _speed,
+          );
+        }
+      }
+    });
+  }
+
+  /// Interruptor "usar instrumentos da partitura" (M03): Program Change ao
+  /// teclado MIDI — desligado por padrão.
+  void _setUseScoreInstruments(bool value) {
+    setState(() => _useScoreInstruments = value);
+    _midiOutEngine?.useScoreInstruments = value;
+    unawaited(_outputPrefs.setBool(_kUseScoreInstrumentsPrefKey, value));
+  }
+
+  /// Interruptor "monitor MIDI" (M02): liga [_midiInput] a [_engine] num
+  /// canal reservado, para teclados controladores sem som próprio. Guarda a
+  /// escolha por dispositivo em [MidiDeviceManager].
+  Future<void> _toggleMidiMonitor() async {
+    if (_midiMonitorOn) {
+      _disableMidiMonitor();
+      return;
+    }
+    final engine = await _ensureEngine();
+    if (engine == null) return;
+    setState(() {
+      _midiMonitor?.dispose();
+      _midiMonitor = MidiMonitor(input: _midiInput, engine: engine);
+      _midiMonitorOn = true;
+    });
+    final device = _midiDeviceManager.connected.value;
+    if (device != null) {
+      unawaited(_midiDeviceManager.setMonitorEnabled(device.id, true));
+    }
+  }
+
+  void _disableMidiMonitor() {
+    _midiMonitor?.dispose();
+    setState(() {
+      _midiMonitor = null;
+      _midiMonitorOn = false;
+    });
+    final device = _midiDeviceManager.connected.value;
+    if (device != null) {
+      unawaited(_midiDeviceManager.setMonitorEnabled(device.id, false));
+    }
+  }
+
+  /// Chamado a cada troca de dispositivo MIDI conectado (M01/M02): manda
+  /// note-off para o que o monitor ainda considerar retido do dispositivo
+  /// anterior (evita nota presa) e aplica a preferência do novo — só liga de
+  /// volta sozinho se [_engine] já existir, para nunca abrir o diálogo de
+  /// `.sf2` sem o usuário ter pedido.
+  void _onMidiDeviceChanged() {
+    _midiMonitor?.allNotesOff();
+    _tearDownMidiOutEngine();
+    unawaited(_syncMidiMonitorToDevice());
+  }
+
+  /// Descarta o motor de saída MIDI (M03): seu `deviceId` só vale para o
+  /// dispositivo que estava conectado quando foi criado — hot-plug ou troca
+  /// de dispositivo sempre pede um novo, nunca reaproveita (`allNotesOff` no
+  /// `dispose`, o critério "perder a conexão" do M03). Se ele for a saída
+  /// ativa, desliga o som também.
+  void _tearDownMidiOutEngine() {
+    final engine = _midiOutEngine;
+    if (engine == null) return;
+    _midiOutEngine = null;
+    unawaited(engine.dispose());
+    if (_output != SoundOutput.midiKeyboard || !_soundOn) return;
+    _scheduler?.pause();
+    _player?.clock = null;
+    _player?.speed = _speed;
+    if (mounted) setState(() => _soundOn = false);
+  }
+
+  Future<void> _syncMidiMonitorToDevice() async {
+    final device = _midiDeviceManager.connected.value;
+    final wanted = device == null
+        ? false
+        : await _midiDeviceManager.monitorEnabled(device.id);
+    if (!mounted || _midiDeviceManager.connected.value?.id != device?.id) {
+      return;
+    }
+    final engine = _engine;
+    setState(() {
+      _midiMonitor?.dispose();
+      if (wanted && engine != null) {
+        _midiMonitor = MidiMonitor(input: _midiInput, engine: engine);
+        _midiMonitorOn = true;
+      } else {
+        _midiMonitor = null;
+        _midiMonitorOn = false;
+      }
+    });
   }
 
   /// Abre o motor e pede um soundfont ao usuário; `null` se o motor não
@@ -803,15 +1044,56 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 IconButton.filledTonal(
                   tooltip: _soundOn
                       ? 'Desligar som'
+                      : _output == SoundOutput.midiKeyboard
+                      ? 'Ligar som (teclado MIDI conectado)'
                       : 'Ligar som (escolhe um .sf2)',
                   onPressed: _loadingSoundFont ? null : _toggleSound,
-                  icon: _loadingSoundFont
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(_soundOn ? Icons.volume_up : Icons.volume_off),
+                  icon: _engineButtonIcon(
+                    _soundOn ? Icons.volume_up : Icons.volume_off,
+                  ),
+                ),
+                PopupMenuButton<SoundOutput>(
+                  tooltip: 'Saída de som',
+                  initialValue: _output,
+                  onSelected: (value) => unawaited(_setOutput(value)),
+                  icon: Icon(
+                    _output == SoundOutput.midiKeyboard
+                        ? Icons.piano
+                        : Icons.graphic_eq,
+                  ),
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: SoundOutput.appSynth,
+                      child: Text('Sintetizador do app'),
+                    ),
+                    PopupMenuItem(
+                      value: SoundOutput.midiKeyboard,
+                      child: Text('Teclado MIDI'),
+                    ),
+                  ],
+                ),
+                if (_output == SoundOutput.midiKeyboard)
+                  IconButton.filledTonal(
+                    tooltip: _useScoreInstruments
+                        ? 'Desligar instrumentos da partitura (usar o som '
+                              'do teclado)'
+                        : 'Usar instrumentos da partitura (Program Change)',
+                    onPressed: () =>
+                        _setUseScoreInstruments(!_useScoreInstruments),
+                    icon: Icon(
+                      _useScoreInstruments
+                          ? Icons.music_note
+                          : Icons.music_off,
+                    ),
+                  ),
+                IconButton.filledTonal(
+                  tooltip: _midiMonitorOn
+                      ? 'Desligar monitor MIDI'
+                      : 'Ligar monitor MIDI (teclado sem som próprio)',
+                  onPressed: _loadingSoundFont ? null : _toggleMidiMonitor,
+                  icon: _engineButtonIcon(
+                    _midiMonitorOn ? Icons.piano : Icons.piano_outlined,
+                  ),
                 ),
                 SizedBox(
                   width: 160,

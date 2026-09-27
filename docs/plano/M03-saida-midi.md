@@ -67,4 +67,26 @@ sincronizado.
 
 ## Notas de execução
 
-(preencher)
+- `MidiOutSoundEngine` (`lib/midi/midi_out_sound_engine.dart`) implementa
+  `SoundEngine` sobre um `MidiSender` injetável (`FlutterMidiSender` de
+  verdade, `FakeMidiSender` nos testes). Fila interna ordenada + `Timer`
+  periódico de 5 ms (`autoTick: false` nos testes, mesmo estilo do `pump()`
+  de `ScoreAudioScheduler`), lead de 2 ms antes do `at` agendado.
+  `allNotesOff` limpa a fila, manda note-off explícito para toda tecla ainda
+  ligada (rastreada num `Set`) e depois CC123/120/64 nos 16 canais.
+  `useScoreInstruments` (padrão `false`) filtra Program Change de
+  `schedule`/`send`; `forceChannel1` remapeia o canal de saída.
+  Testes: `test/midi_out_sound_engine_test.dart`.
+- `lib/main.dart`: `SoundOutput` (`appSynth`/`midiKeyboard`), seletor na
+  barra de ferramentas (`PopupMenuButton` ao lado do botão de som) e botão
+  "usar instrumentos da partitura" (só visível com saída MIDI). Preferências
+  persistidas via `SharedPreferencesAsync`. Dois motores guardados à parte
+  (`_appEngine`, `_midiOutEngine`) — trocar de saída no meio da reprodução
+  silencia a antiga (`allNotesOff`) e reancora o agendador/monitor na nova
+  (`_setOutput`); hot-plug/desconexão descarta o motor MIDI e desliga o som
+  se ele era a saída ativa (`_tearDownMidiOutEngine`, ligado ao mesmo
+  listener do M01/M02).
+- Pendente (manual): critério de aceite 2 (tocar a Gymnopédie num
+  sintetizador ALSA/teclado real e conferir o destaque sincronizado) e 3
+  (medir e registrar jitter médio/p95 de envio) — não automatizáveis sem
+  hardware/dispositivo MIDI real.
