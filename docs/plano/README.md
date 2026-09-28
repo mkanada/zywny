@@ -237,7 +237,7 @@ zywny
 | [T04](T04-calibracao-loop-metronomo.md) | Calibração de latência, loop A-B, metrônomo | T03 | — | pendente |
 | [X01](X01-android-render.md) | Android: `.vsb` e partitura rodando (sem som) | — | — | pendente |
 | [K05](K05-motor-no-android.md) | Motor de áudio no Android (cargo-ndk, AAudio) e latência | K04, X01 | — | pendente |
-| [W01](W01-verovio-wasm.md) | Protótipo: fork do Verovio em wasm gerando `.vsb` no navegador | — | D-WEB | pendente |
+| [W01](W01-verovio-wasm.md) | Protótipo: fork do Verovio em wasm gerando `.vsb` no navegador | — | D-WEB | pendente (protótipo funciona; achado bloqueador — paginação difere do nativo, ver notas do passo) |
 | [W02](W02-app-na-web.md) | zywny compilando e desenhando a partitura na Web | W01 | — | pendente |
 | [W03](W03-web-midi.md) | Web MIDI (entrada e saída) | W02, M03 | — | pendente |
 | [W04](W04-som-na-web.md) | Som na Web: `WebSoundEngine` (SpessaSynth) | W02, K04 | D-WEB-SYNTH | pendente |

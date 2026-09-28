@@ -72,4 +72,73 @@ uma MusicXML e produz os bytes de um `.vsb` idêntico ao do CLI nativo.
 
 ## Notas de execução
 
-(preencher)
+**Ambiente**: `emsdk` instalado em `~/emsdk` (Emscripten 6.0.10), ativado via
+`~/.bashrc` (fora dos repos). Não havia `bindings/js/` no bridge; criado.
+
+**O que foi feito**:
+- `verovio/emscripten/exports.txt`: adicionados `_vrvToolkit_renderToBridgeFile`
+  e `_vrvToolkit_renderToBridgeJson` (não precisam de `EMSCRIPTEN_KEEPALIVE`
+  em `c_wrapper.cpp` — exportar pelo `exports.txt` basta, como todo o resto
+  do arquivo).
+- `verovio/bindings/js/build_wasm.sh`: roda `emscripten/buildToolkit -w -c`
+  (flags padrão do upstream — humdrum embutido, sem modularize). CMake usa o
+  mesmo `../cmake` do build nativo (`file(GLOB verovio_SRC "../src/*.cpp")`),
+  então os `.cpp` do bridge (`bridgewriter`, `bridgedevicecontext`,
+  `filereader`/miniz, `svgpathparser`, …) entram automaticamente — nenhuma
+  mudança de CMake foi necessária. Build completo: **9m51s** nesta máquina
+  (compila o Verovio inteiro + Humdrum do zero).
+- Saída: `verovio/emscripten/build/verovio-toolkit-hum.js` — **14.710.672
+  bytes** (~14 MB) com o `.wasm` embutido em base64 (`SINGLE_FILE=1`, flag
+  padrão do upstream); gzip (`build/verovio-toolkit-hum.js.gz`) =
+  **4.784.370 bytes** (~4,7 MB), estimativa mais realista de transferência.
+- `compare/out/w01/`: `index.html` + `worker.js` (Web Worker, evita travar a
+  UI). Usa `Module.cwrap` diretamente (não o `VerovioToolkit`/proxy do npm,
+  que não expõe `renderToBridgeJson`) — ok para protótipo descartável, W02
+  decide a integração de verdade. Usei `renderToBridgeJson` (JSON único, não
+  `renderToBridgeFile` + MEMFS): `Module.FS` **não fica exposto** com
+  `-s STRICT=1` (só `cwrap`/`HEAPU8` estão em `EXPORTED_RUNTIME_METHODS`), e
+  `renderToBridgeJson` é a alternativa mais simples que o passo já previa.
+  Entrada: `--xml-id-seed 42` via `setOptions({outputTo:'vsb-json',
+  xmlIdSeed:42})` **antes** de carregar os dados — sem isso
+  `ApplyBridgeDefaults()` não roda (ela checa `GetOutputTo()==VSB_JSON`) e o
+  render sai com cabeçalho/rodapé/labels que o nativo não tem.
+- Referências nativas: `compare/out/w01/native/*.vsb.json`, geradas com
+  `verovio -t vsb-json --xml-id-seed 42 --resource-path verovio/data`
+  (mesmas opções que o worker usa).
+
+**Critério 1 (byte-idêntico) — NÃO bate, achado real**: `midi.notes` e
+`glyphs` batem exatamente (455/2568 notas, 16 glifos, mesmo `meta.title`) —
+o parsing do MusicXML é idêntico. Mas a **paginação difere**: Gymnopédie
+sai em 1 página no nativo e **2** no wasm; Maple Leaf Rag em 1 no nativo e
+**3** no wasm. Tamanho da página é idêntico nos dois (2100×2970, mesma
+`fit.scale`) — é o algoritmo de quebra de sistema/página decidindo
+diferente para a mesma entrada+opções, não um erro de carregamento de
+recursos (`emscripten/data/` tem os mesmos arquivos que `verovio/data/`,
+mesmo tamanho; sem FreeType/HarfBuzz no CMake — as métricas de texto já são
+só JSON embutido, iguais nos dois builds). Os `xml:id` de elementos gerados
+por contagem (ex.: `alternates.sequences[0].pages[0].root.children[0].id`)
+também divergem — consequência em cascata da paginação diferente (mais
+sistemas/páginas = contador de id chega em valores diferentes), não um bug
+de RNG à parte. **Não root-causei** (teria que instrumentar o cálculo de
+largura/quebra de sistema no `view`/layout do Verovio upstream — escopo
+maior que este protótipo). Mesmo padrão nas duas peças (não é 1 caso
+isolado de arredondamento).
+
+**Critério 2 (tamanho/tempo no Chrome) — medido no Chrome de verdade** (não
+Node): Gymnopédie 467.265 bytes / **382,0 ms**; Maple Leaf Rag 7.325.037
+bytes / **2653,6 ms** (só a chamada `renderToBridgeJson`, sem contar
+carregar/instanciar o módulo wasm).
+
+**Critério 3 (script reproduzível)** — `verovio/bindings/js/build_wasm.sh`,
+rodou do zero com sucesso.
+
+**Parecer (critério 4): não, ainda não** — tecnicamente o caminho funciona
+(carrega, interpreta a partitura corretamente, roda em tempo aceitável num
+Chrome real), mas o `.vsb` gerado no navegador **não bate** com o nativo por
+um motivo ainda não identificado no próprio layout do Verovio (não é bug do
+bridge nem de carregamento de recursos). Como a paridade >99,99% de pixels
+é requisito inegociável do projeto (`CLAUDE.md` do bridge), esse é um
+bloqueador real antes de investir em W02+: precisa isolar a causa da
+paginação diferente (ex.: instrumentar `System::GetHeight`/cálculo de
+largura de sistema com logs nos dois builds e comparar nó a nó) antes de
+confiar no caminho Web.
