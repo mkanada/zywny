@@ -227,10 +227,10 @@ zywny
 | [K01](K01-crate-de-audio-prototipo.md) | Crate `zywny_audio`: rustysynth + cpal tocando no Linux (CLI) | — | D-SF | concluído |
 | [K02](K02-api-ffi-do-motor.md) | API C do motor: comandos, agenda por amostra, relógio | K01 | — | concluído |
 | [K03](K03-sound-engine-dart.md) | `SoundEngine` (Dart) + `NativeSoundEngine` via FFI no Linux | K02 | — | concluído |
-| [K04](K04-agendador-e-play-com-som.md) | Agendador da partitura + botão Play com som, relógio do áudio | K03, N03, C01 | — | pendente |
-| [M01](M01-entrada-midi.md) | Dispositivos MIDI e entrada (monitor de notas) | — | D-MIDI | pendente |
-| [M02](M02-monitor-pelo-sintetizador.md) | Tocar a entrada pelo sintetizador do app (monitor) | M01, K03 | — | pendente |
-| [M03](M03-saida-midi.md) | Tocar a partitura no teclado externo (MIDI out) | M01, K04 | — | pendente |
+| [K04](K04-agendador-e-play-com-som.md) | Agendador da partitura + botão Play com som, relógio do áudio | K03, N03, C01 | — | concluído (critérios manuais 4/5 — deriva com Maple Leaf Rag — pendentes) |
+| [M01](M01-entrada-midi.md) | Dispositivos MIDI e entrada (monitor de notas) | — | D-MIDI | concluído (critério manual 2 — Android/OTG — e medição de jitter pendentes) |
+| [M02](M02-monitor-pelo-sintetizador.md) | Tocar a entrada pelo sintetizador do app (monitor) | M01, K03 | — | concluído (medição de latência pendente) |
+| [M03](M03-saida-midi.md) | Tocar a partitura no teclado externo (MIDI out) | M01, K04 | — | concluído (critérios manuais 2/3 — teclado real, jitter — pendentes) |
 | [T01](T01-casador-de-notas.md) | `PracticeSession`: acordes esperados e casador (Dart puro) | N03 | — | concluído |
 | [T02](T02-modo-espera.md) | Modo espera + escolha de mão + app toca a outra | T01, K04, M01 | — | concluído (critérios 2-3 manuais, aguardando verificação) |
 | [T03](T03-modo-tempo-real-e-nota.md) | Modo tempo real com avaliação e resumo | T02 | D-TREINO | pendente |
