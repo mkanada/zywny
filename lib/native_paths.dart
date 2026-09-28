@@ -2,14 +2,28 @@ import 'dart:io';
 
 /// Locates the native `libverovio.so`.
 ///
-/// Search order: explicit env override (CI / custom installs), then the
-/// installed Linux bundle layout, then the project source tree (covers
-/// `flutter run` from the project root). The engraving resources
+/// On Android (X01) the lib ships inside the APK's `jniLibs/<abi>/` (staged
+/// there by `tool/build_verovio_android.sh`), which `DynamicLibrary.open`
+/// finds by bare name alone — no filesystem search needed or possible (the
+/// APK isn't a regular directory tree).
+///
+/// Elsewhere, search order: explicit env override (CI / custom installs),
+/// then the installed Linux bundle layout, then the project source tree
+/// (covers `flutter run` from the project root). The engraving resources
 /// (`resourcePath`) come from [verovioResourcePath] in
 /// `lib/verovio_resources.dart` instead.
 String findVerovioLibrary() {
+  if (Platform.isAndroid) return 'libverovio.so';
+
   final env = Platform.environment['VEROVIO_LIBRARY_PATH'];
   if (env != null && env.isNotEmpty && File(env).existsSync()) return env;
+
+  if (!Platform.isLinux) {
+    throw StateError(
+      'libverovio.so not available on ${Platform.operatingSystem} yet '
+      '(only Linux and Android are supported so far).',
+    );
+  }
 
   final candidates = <String>[
     // Installed bundle: <bundle>/zywny -> <bundle>/lib/libverovio.so

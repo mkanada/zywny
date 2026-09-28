@@ -304,21 +304,42 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   Future<void> _abrirPartitura() async {
     if (_busy) return;
-    const typeGroup = XTypeGroup(
-      label: 'partituras',
-      extensions: ['mei', 'musicxml', 'mxml', 'mxl', 'xml'],
-    );
+    // Extension filtering can come back empty on Android (SAF matches by
+    // MIME type, which these extensions don't map to) — skip the filter
+    // there rather than have the picker appear to show nothing (X01).
+    final typeGroup = Platform.isAndroid
+        ? const XTypeGroup(label: 'partituras')
+        : const XTypeGroup(
+            label: 'partituras',
+            extensions: ['mei', 'musicxml', 'mxml', 'mxl', 'xml'],
+          );
     final file = await openFile(acceptedTypeGroups: [typeGroup]);
     if (file == null) return;
     if (!mounted) return;
 
+    final inputPath = await _readablePath(file);
+    if (!mounted) return;
+
     _view.value = Matrix4.identity();
     setState(() {
-      _inputPath = file.path;
+      _inputPath = inputPath;
       _scoreName = file.name;
       _pageIndex = 0;
     });
     await _renderAndShow();
+  }
+
+  /// The FFI render call needs a real path on disk. On Android, `file_selector`
+  /// goes through the Storage Access Framework and `file.path` can be a
+  /// content:// URI or an unreadable cache path (X01) — copy the bytes to a
+  /// temp file when that happens. Elsewhere `file.path` is already a normal
+  /// path.
+  Future<String> _readablePath(XFile file) async {
+    if (!Platform.isAndroid || await File(file.path).exists()) return file.path;
+    final tmpDir = await Directory.systemTemp.createTemp('zywny_open');
+    final tmpFile = File('${tmpDir.path}/${file.name}');
+    await tmpFile.writeAsBytes(await file.readAsBytes());
+    return tmpFile.path;
   }
 
   /// Every option that reaches Verovio for the current state: the page size

@@ -86,6 +86,16 @@ assets:
 native-audio:
     tool/build_audio_linux.sh
 
+# Compila a libverovio.so para Android (arm64-v8a + x86_64, X01) e instala
+# em android/app/src/main/jniLibs/<abi>/ (não versionado).
+native-android:
+    tool/build_verovio_android.sh
+
+# Roda o app de verdade (não o mockup) no Android — emulador ou aparelho
+# conectado. Rode `just native-android` antes, ao menos uma vez.
+run-android *ARGS:
+    flutter run -d android {{ARGS}}
+
 # Refaz .so e assets depois que o verovio_flutter_bridge mudar.
 rebuild-deps: native assets
 

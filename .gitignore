@@ -51,5 +51,9 @@ app.*.map.json
 # (run tool/build_verovio_assets.sh).
 /assets/verovio_data.zip
 
+# libverovio.so for Android (X01) — generated from verovio_flutter_bridge,
+# regenerable (run tool/build_verovio_android.sh / `just native-android`).
+/android/app/src/main/jniLibs/
+
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
