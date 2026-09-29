@@ -11,10 +11,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'audio/audio_playback_clock.dart';
+import 'audio/metronome.dart';
 import 'audio/score_audio_scheduler.dart';
 import 'audio/sound_engine.dart';
 import 'audio/sound_engine_debug_panel.dart';
 import 'audio/sound_engine_factory.dart';
+import 'audio/soundfont_store.dart';
 import 'layout_options.dart';
 import 'layout_panel.dart';
 import 'midi/midi_device_manager.dart';
@@ -27,6 +29,11 @@ import 'music/performance_track.dart';
 import 'native_paths.dart';
 import 'practice/hand.dart';
 import 'practice/practice_controller.dart';
+import 'practice/practice_report.dart';
+import 'practice/practice_tools.dart';
+import 'splash_screen.dart';
+import 'ui/phone_chrome.dart';
+import 'ui/theme.dart';
 import 'diag_log.dart';
 import 'verovio_render.dart';
 import 'verovio_resources.dart';
@@ -42,20 +49,26 @@ Future<void> main(List<String> args) async {
   // score_bridge and has to be registered before the first paint —
   // otherwise the engine falls back to a system serif without warning.
   await loadScoreFonts();
-  runApp(MyApp(debugMode: args.contains('--debug')));
+  runApp(MyApp(debugMode: args.contains('--debug'), splash: true));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key, this.debugMode = false});
+  const MyApp({super.key, this.debugMode = false, this.splash = false});
 
   final bool debugMode;
+
+  /// Splash de abertura (`lib/splash_screen.dart`); os testes ficam sem ela.
+  final bool splash;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'zywny • partitura → .vsb',
-      theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
-      home: ScoreHomePage(debugMode: debugMode),
+      theme: buildAppTheme(),
+      home: SplashOverlay(
+        enabled: splash,
+        child: ScoreHomePage(debugMode: debugMode),
+      ),
     );
   }
 }
@@ -97,12 +110,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Timer? _resizeDebounce;
 
   /// Verovio options being tried, by name (see `layout_options.dart`).
-  Map<String, Object> _layout = initialLayoutValues();
+  Map<String, Object> _layout = initialLayoutValues(phone: _isPhone);
 
   /// Whether the page is sized from the score box ([_pageWidth] /
   /// [_pageHeight]) or from the `pageWidth`/`pageHeight` options.
   bool _pageFitsBox = true;
   bool _panelOpen = false;
+
+  /// Layout de celular (`kPhoneLayoutMaxWidth`): gaveta "Opções de estudo"
+  /// aberta (botão ⋯ da barra lateral).
+  bool _optionsOpen = false;
 
   /// On-screen zoom and pan of the drawn page.
   ///
@@ -118,6 +135,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Note highlights. Repaints the page through its own listenable, so
   /// playback never rebuilds this widget.
   final ScoreController _controller = ScoreController();
+  final GhostController _ghosts = GhostController();
 
   /// Page navigation and page-turn animation (sweep bar) of the [ScoreView].
   final ScoreViewController _viewController = ScoreViewController();
@@ -151,7 +169,20 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// está de fato tocando.
   bool _trainingMode = false;
   Hand _hand = Hand.direita;
+
+  /// Espera (o tempo para até o aluno tocar) ou tempo real (T03).
+  PracticeMode _practiceMode = PracticeMode.wait;
   PracticeController? _practice;
+
+  /// Acessórios de treino (T04). O loop guarda **ocorrências** de compasso
+  /// (índices em `ScorePlayer.measures`, ordem de execução); metrônomo e
+  /// contagem só soam com o som do app ligado (o agendador é quem clica).
+  bool _metronomeOn = false;
+  bool _countInOn = false;
+  ({int a, int b})? _loop;
+
+  /// Latência de entrada+saída calibrada para o teclado/saída correntes.
+  double _inputLatencyMs = 0;
 
   /// Saída escolhida (M03) e preferência de Program Change, persistidas em
   /// [SharedPreferencesAsync] — carregadas em [initState].
@@ -170,6 +201,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// modo mudo de sempre.
   bool _soundOn = false;
   bool _loadingSoundFont = false;
+  final SoundFontStore _soundFonts = const SoundFontStore();
+
+  /// O usuário escolheu um `.sf2` próprio (senão vale o TimGM6mb embutido).
+  bool _customSoundFont = false;
 
   /// Entrada MIDI (M01): lista/conecta dispositivos e reconecta sozinho ao
   /// último escolhido; converte mensagens em [PlayedNote] para o monitor.
@@ -241,6 +276,21 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     super.initState();
     _midiDeviceManager.connected.addListener(_onMidiDeviceChanged);
     unawaited(_loadOutputPrefs());
+    unawaited(
+      _soundFonts.hasCustom().then((v) {
+        if (mounted) setState(() => _customSoundFont = v);
+      }),
+    );
+    // A partitura é para ler em paisagem no celular (a biblioteca, em
+    // retrato, ainda não existe no app real); no desktop isto não vale nada.
+    if (_isPhone) {
+      unawaited(
+        SystemChrome.setPreferredOrientations(const [
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]),
+      );
+    }
   }
 
   Future<void> _loadOutputPrefs() async {
@@ -273,6 +323,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _player?.dispose();
     _viewController.dispose();
     _controller.dispose();
+    _ghosts.dispose();
     _view.dispose();
     super.dispose();
   }
@@ -494,8 +545,20 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       setState(() => _setPlaying(false));
       return;
     }
+    // Posição fora do loop (ou depois do fim): começa pelo trecho.
+    final range = _loopRangeMs;
+    if (range != null) {
+      final ms = player.position.inMicroseconds / 1000;
+      if (ms < range.startMs || ms >= range.endMs) {
+        player.seek(Duration(microseconds: (range.startMs * 1000).round()));
+      }
+    }
     player.play();
-    _scheduler?.play(player.position.inMicroseconds / 1000, speed: _speed);
+    _scheduler?.play(
+      player.position.inMicroseconds / 1000,
+      speed: _speed,
+      countIn: _countInOn,
+    );
     setState(() => _setPlaying(true));
   }
 
@@ -506,12 +569,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // `ScoreAudioScheduler.stop` reancora em 0 mas não solta o freio nem o
     // filtro de pauta do modo treino (T02) — sem isto, o próximo Play
     // ficaria preso no freio antigo.
-    final practice = _practice;
-    if (practice != null) {
-      practice.stop();
-      practice.dispose();
-      _practice = null;
-    }
+    _endPractice();
     player.pause();
     player.seek(Duration.zero);
     _scheduler?.stop();
@@ -552,15 +610,29 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (scheduler == null) return;
 
     _controller.clearAll();
-    player.seek(Duration.zero);
+    final range = _loopRangeMs;
+    final fromMs = range?.startMs ?? 0;
+    player.seek(Duration(microseconds: (fromMs * 1000).round()));
+    await _loadInputLatency();
+    if (!mounted) return;
     final practice = PracticeController(
       midiInput: _midiInput,
       track: track,
       scheduler: scheduler,
       controller: _controller,
       hand: _hand,
+      ghosts: _ghosts,
+      inputLatencyMs: _inputLatencyMs,
+      mode: _practiceMode,
+      magicEngine: _practiceMode == PracticeMode.rhythm ? engine : null,
+      measureIndexAt: player.timeline.measureIndexAt,
+      passOf: (i) => player.measures[i].pass,
+      onLoopRestart: (ms) =>
+          player.seek(Duration(microseconds: (ms * 1000).round())),
     );
-    practice.start();
+    _midiMonitor?.muted = _practiceMode == PracticeMode.rhythm;
+    practice.start(fromMs: fromMs, countIn: _countInOn);
+    if (range != null) practice.setLoop(range.startMs, range.endMs);
     player.play();
     setState(() {
       _practice = practice;
@@ -569,15 +641,50 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     });
   }
 
+  /// Encerra a sessão de treino: solta freio/filtro/destaques, descarta o
+  /// controlador e — no tempo real, se algo foi avaliado — abre o resumo (T03).
+  void _endPractice() {
+    final practice = _practice;
+    if (practice == null) return;
+    PracticeReport? report;
+    _midiMonitor?.muted = false;
+    if (practice.mode != PracticeMode.wait && practice.hasVerdicts) {
+      practice.finish();
+      report = practice.report;
+    }
+    practice.stop();
+    practice.dispose();
+    _practice = null;
+    if (report != null) {
+      final r = report;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_showSummary(r));
+      });
+    }
+  }
+
+  Future<void> _showSummary(PracticeReport report) =>
+      showPracticeSummary(context, report, onRepeatWorst: _repeatWorst);
+
+  /// "Repetir os compassos com mais erros" (T03 + loop do T04): o intervalo
+  /// que cobre os piores compassos se forem próximos (até 4 compassos);
+  /// senão, só o pior.
+  void _repeatWorst(List<MeasureStats> worst) {
+    if (worst.isEmpty) return;
+    var a = worst.map((m) => m.index).reduce(math.min);
+    var b = worst.map((m) => m.index).reduce(math.max);
+    if (b - a > 3) {
+      a = b = worst.first.index;
+    }
+    _setLoop(a, b);
+  }
+
   /// Para a sessão de treino em curso e volta ao estado pausado normal —
   /// [PracticeController.stop] já solta o freio/filtro do agendador e os
   /// destaques.
   void _stopPractice() {
-    final practice = _practice;
-    if (practice == null) return;
-    practice.stop();
-    practice.dispose();
-    _practice = null;
+    if (_practice == null) return;
+    _endPractice();
     _player?.pause();
     if (mounted) setState(() => _setPlaying(false));
   }
@@ -587,12 +694,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final player = _player;
     if (player == null || !_playing) return;
     if (player.position >= player.duration) {
-      final practice = _practice;
-      if (practice != null) {
-        practice.stop();
-        practice.dispose();
-        _practice = null;
-      }
+      _endPractice();
       _scheduler?.pause();
       _controller.releaseAll();
       if (mounted) setState(() => _setPlaying(false));
@@ -637,6 +739,102 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _scheduler = scheduler;
     _audioClock = AudioPlaybackClock(scheduler);
     _player?.clock = _audioClock;
+    final player = _player;
+    if (player != null) scheduler.beats = metronomeBeats(player.timeline);
+    scheduler.metronomeOn = _metronomeOn;
+    _applyLoop();
+  }
+
+  // -------------------------------------------------------------------------
+  // T04: metrônomo, contagem, loop A-B, calibração
+  // -------------------------------------------------------------------------
+
+  void _toggleMetronome() {
+    setState(() => _metronomeOn = !_metronomeOn);
+    _scheduler?.metronomeOn = _metronomeOn;
+  }
+
+  void _toggleCountIn() => setState(() => _countInOn = !_countInOn);
+
+  /// `[startMs, endMs)` do loop atual, ou `null`.
+  ({double startMs, double endMs})? get _loopRangeMs {
+    final loop = _loop;
+    final player = _player;
+    if (loop == null || player == null) return null;
+    final m = player.measures;
+    if (loop.b >= m.length) return null;
+    return (
+      startMs: m[loop.a].startMs.toDouble(),
+      endMs: m[loop.b].endMs.toDouble(),
+    );
+  }
+
+  /// Empurra o loop para o agendador e a sessão de treino (se existirem).
+  void _applyLoop() {
+    final range = _loopRangeMs;
+    if (range == null) {
+      _scheduler?.clearLoop();
+      _practice?.clearLoop();
+      return;
+    }
+    _scheduler?.setLoop(range.startMs, range.endMs);
+    _practice?.setLoop(range.startMs, range.endMs);
+  }
+
+  Future<void> _openLoopSheet() async {
+    final player = _player;
+    if (player == null || player.measures.isEmpty) return;
+    final chosen = await showLoopSheet(
+      context,
+      total: player.measures.length,
+      current: player.currentMeasureIndex.value,
+      initial: _loop,
+      onClear: () {
+        setState(() => _loop = null);
+        _applyLoop();
+      },
+    );
+    if (chosen == null || !mounted || !identical(player, _player)) return;
+    _setLoop(chosen.a, chosen.b);
+  }
+
+  /// Liga o loop nos compassos `a..b` (ocorrências, 0-based) e vai ao início
+  /// do trecho. Também é o que o "repetir os piores compassos" do resumo do
+  /// treino (T03) chama.
+  void _setLoop(int a, int b) {
+    final player = _player;
+    if (player == null) return;
+    setState(() => _loop = (a: a, b: b));
+    _applyLoop();
+    final start = _loopRangeMs?.startMs ?? 0;
+    player.seek(Duration(microseconds: (start * 1000).round()));
+    _scheduler?.seek(start);
+  }
+
+  String get _outputKey => _output == SoundOutput.midiKeyboard ? 'midi' : 'app';
+
+  Future<void> _loadInputLatency() async {
+    final device = _midiDeviceManager.connected.value;
+    final ms = device == null
+        ? null
+        : await _midiDeviceManager.inputLatencyMs(device.id, _outputKey);
+    if (mounted) setState(() => _inputLatencyMs = ms ?? 0);
+  }
+
+  Future<void> _openCalibration() async {
+    final device = _midiDeviceManager.connected.value;
+    if (device == null) return;
+    final engine = await _ensureEngine();
+    if (engine == null || !mounted) return;
+    final ms = await showCalibrationDialog(
+      context,
+      engine: engine,
+      input: _midiInput,
+      deviceName: device.name,
+    );
+    if (ms == null) return;
+    await _midiDeviceManager.setInputLatencyMs(device.id, _outputKey, ms);
+    if (mounted) setState(() => _inputLatencyMs = ms);
   }
 
   /// Interruptor "som" (K04). Desligar volta ao modo mudo de sempre
@@ -646,12 +844,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (_soundOn) {
       // Modo treino (T02) depende do agendador de som para o freio e a mão
       // do app — sem som, não há como continuar.
-      final practice = _practice;
-      if (practice != null) {
-        practice.stop();
-        practice.dispose();
-        _practice = null;
-      }
+      _endPractice();
       _scheduler?.pause();
       _engine?.allNotesOff();
       _player?.clock = null;
@@ -873,14 +1066,47 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Future<SoundEngine?> _pickEngineWithSoundFont() async {
     final engine = createSoundEngine();
     await engine.start();
-    const typeGroup = XTypeGroup(label: 'soundfont', extensions: ['sf2']);
-    final file = await openFile(acceptedTypeGroups: [typeGroup]);
-    if (file == null) {
-      await engine.dispose();
-      return null;
-    }
-    await engine.loadSoundFont(await file.readAsBytes());
+    await engine.loadSoundFont(await _soundFonts.load());
     return engine;
+  }
+
+  /// Troca o `.sf2` (o TimGM6mb embutido é o padrão): guarda o escolhido e,
+  /// se o motor do app já está aberto, recarrega nele na hora.
+  Future<void> _chooseSoundFont() async {
+    const typeGroup = XTypeGroup(label: 'soundfont', extensions: ['sf2']);
+    final file = await openFile(
+      acceptedTypeGroups: [
+        if (!Platform.isAndroid)
+          typeGroup
+        else
+          const XTypeGroup(label: 'soundfont'),
+      ],
+    );
+    if (file == null || !mounted) return;
+    try {
+      final bytes = await file.readAsBytes();
+      await _appEngine?.loadSoundFont(bytes);
+      await _soundFonts.saveCustom(bytes);
+      if (mounted) setState(() => _customSoundFont = true);
+    } catch (e) {
+      DiagLog.log('erro', 'soundfont: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('não consegui usar esse soundfont ($e)')),
+        );
+      }
+    }
+  }
+
+  /// Volta ao TimGM6mb embutido.
+  Future<void> _resetSoundFont() async {
+    try {
+      await _soundFonts.clearCustom();
+      await _appEngine?.loadSoundFont(await _soundFonts.load());
+      if (mounted) setState(() => _customSoundFont = false);
+    } catch (e) {
+      DiagLog.log('erro', 'soundfont: $e');
+    }
   }
 
   void _onPageChanged(int target) {
@@ -905,7 +1131,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   void _resetLayout() {
     setState(() {
-      _layout = initialLayoutValues();
+      _layout = initialLayoutValues(phone: _isPhone);
       _pageFitsBox = true;
     });
     _renderAndShow();
@@ -997,7 +1223,301 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
-  Widget _buildScoreArea() {
+  /// Modo da gaveta: `false` = Ouvir, `true` = Espera (modo treino, T02).
+  /// Como no artefato, entrar em Espera pede uma mão só (Direita) e
+  /// andamento 80%; voltar a Ouvir devolve Ambas e 100%.
+  void _setTrainingFromDrawer(bool training) {
+    if (training == _trainingMode) return;
+    if (!training && _practice != null) _stopPractice();
+    setState(() {
+      _trainingMode = training;
+      _hand = training
+          ? (_hand == Hand.ambas ? Hand.direita : _hand)
+          : Hand.ambas;
+    });
+    _setSpeed(training ? 0.8 : 1.0);
+  }
+
+  /// Compasso (base 1) e total para a barra lateral; `null` sem partitura.
+  int? get _measureCount {
+    final n = _player?.timeline.measureCount ?? 0;
+    return n == 0 ? null : n;
+  }
+
+  Future<void> _openMeasureJump() async {
+    final player = _player;
+    final total = _measureCount;
+    if (player == null || total == null) return;
+    var target = player.currentMeasureIndex.value + 1;
+    final result = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: kSurface,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Ir para o compasso $target de $total',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Slider(
+                  value: target.toDouble(),
+                  min: 1,
+                  max: total.toDouble(),
+                  divisions: total > 1 ? total - 1 : null,
+                  activeColor: kAccent,
+                  onChanged: (v) => setSheetState(() => target = v.round()),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, target),
+                  child: const Text('Ir'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted || !identical(player, _player)) return;
+    final ms = player.timeline.measures[result - 1].startMs;
+    player.seek(Duration(milliseconds: ms.round()));
+    _scheduler?.seek(ms.toDouble());
+  }
+
+  /// Selo do canto superior: modo (espera ou tempo real) e mão.
+  String get _trainingPillText {
+    final hand = _hand.shortLabel.toLowerCase();
+    final realtime = _practiceMode == PracticeMode.realtime;
+    if (_practiceMode == PracticeMode.rhythm) {
+      if (_practice == null && _midiDeviceManager.connected.value == null) {
+        return 'Conecte o teclado MIDI';
+      }
+      return 'Ritmo · mão $hand';
+    }
+    if (_practice != null) {
+      return realtime ? 'Tempo real · mão $hand' : 'Esperando · mão $hand';
+    }
+    if (_midiDeviceManager.connected.value == null) {
+      return 'Conecte o teclado MIDI';
+    }
+    return realtime ? 'Tempo real · mão $hand' : 'Espera · mão $hand';
+  }
+
+  /// Corpo no celular — `CelularEstudo` / `CelularTreino` / `CelularPainel` /
+  /// `CelularGrande`: a partitura ocupa tudo, com a barra lateral de 84 px à
+  /// direita; o resto (andamento, mão, modo, tamanho, som…) fica na gaveta ⋯.
+  Widget _buildPhoneBody() {
+    final player = _player;
+    return Stack(
+      children: [
+        SafeArea(
+          child: Row(
+            children: [
+              Expanded(
+                child: ColoredBox(
+                  color: kSurface,
+                  child: _buildScoreArea(phone: true),
+                ),
+              ),
+              ValueListenableBuilder<int>(
+                valueListenable: player?.currentMeasureIndex ?? _noMeasure,
+                builder: (context, index, _) => PhoneRail(
+                  playing: _playing,
+                  onPlayPause: _canTrain
+                      ? () => unawaited(_togglePractice())
+                      : (_canPlay ? _togglePlay : null),
+                  playTooltip: _canTrain
+                      ? (_practice != null ? 'Pausar' : 'Praticar')
+                      : null,
+                  playIcon: _canTrain && _practice == null
+                      ? const Icon(Icons.play_arrow, size: 24)
+                      : null,
+                  measure: _measureCount == null ? null : index + 1,
+                  totalMeasures: _measureCount,
+                  onMeasureTap: _measureCount == null ? null : _openMeasureJump,
+                  tempoPercent: (_speed * 100).round(),
+                  handLabel: _hand.shortLabel,
+                  onOptions: () => setState(() => _optionsOpen = true),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_optionsOpen) _buildOptionsDrawer(),
+      ],
+    );
+  }
+
+  final ValueNotifier<int> _noMeasure = ValueNotifier(0);
+
+  /// Celular de verdade (não só janela estreita): começa com [kPhoneUnit].
+  static final bool _isPhone = Platform.isAndroid || Platform.isIOS;
+
+  Widget _buildOptionsDrawer() {
+    return PhoneOptionsDrawer(
+      training: _trainingMode,
+      onTrainingChanged: _setTrainingFromDrawer,
+      hand: _hand,
+      onHandChanged: _setHand,
+      tempoPercent: (_speed * 100).round(),
+      onTempoChanged: (v) => _setSpeed(v / 100),
+      onClose: () => setState(() => _optionsOpen = false),
+      children: [
+        const PhoneSectionLabel('TREINO'),
+        PhoneToggleRow(
+          label: 'Tempo real (a música não espera)',
+          value: _practiceMode == PracticeMode.realtime,
+          onChanged: _practice != null
+              ? null
+              : (v) => setState(
+                  () => _practiceMode = v
+                      ? PracticeMode.realtime
+                      : PracticeMode.wait,
+                ),
+        ),
+        PhoneToggleRow(
+          label: 'Ritmo (qualquer tecla, no tempo da partitura)',
+          value: _practiceMode == PracticeMode.rhythm,
+          onChanged: _practice != null
+              ? null
+              : (v) => setState(
+                  () => _practiceMode = v
+                      ? PracticeMode.rhythm
+                      : PracticeMode.wait,
+                ),
+        ),
+        PhoneToggleRow(
+          label: 'Metrônomo (com som do app)',
+          value: _metronomeOn,
+          onChanged: (_) => _toggleMetronome(),
+        ),
+        PhoneToggleRow(
+          label: 'Contagem antes de começar',
+          value: _countInOn,
+          onChanged: (_) => _toggleCountIn(),
+        ),
+        PhoneActionRow(
+          icon: Icons.repeat,
+          label: _loop == null
+              ? 'Repetir um trecho'
+              : 'Trecho: compassos ${_loop!.a + 1}–${_loop!.b + 1} — mudar',
+          onTap: _player == null
+              ? null
+              : () {
+                  setState(() => _optionsOpen = false);
+                  unawaited(_openLoopSheet());
+                },
+        ),
+        PhoneActionRow(
+          icon: Icons.timer_outlined,
+          label: _inputLatencyMs == 0
+              ? 'Calibrar latência do teclado'
+              : 'Latência: ${_inputLatencyMs.round()} ms — recalibrar',
+          onTap: _midiDeviceManager.connected.value == null
+              ? null
+              : () {
+                  setState(() => _optionsOpen = false);
+                  unawaited(_openCalibration());
+                },
+        ),
+        const PhoneSectionLabel('SOM E TECLADO'),
+        PhoneToggleRow(
+          label: 'Som do app',
+          value: _soundOn,
+          onChanged: _loadingSoundFont
+              ? null
+              : (_) => unawaited(_toggleSound()),
+        ),
+        PhoneActionRow(
+          icon: _output == SoundOutput.midiKeyboard
+              ? Icons.piano
+              : Icons.graphic_eq,
+          label: _output == SoundOutput.midiKeyboard
+              ? 'Saída: teclado MIDI'
+              : 'Saída: sintetizador do app',
+          onTap: () => unawaited(
+            _setOutput(
+              _output == SoundOutput.midiKeyboard
+                  ? SoundOutput.appSynth
+                  : SoundOutput.midiKeyboard,
+            ),
+          ),
+        ),
+        PhoneActionRow(
+          icon: Icons.library_music,
+          label: _customSoundFont
+              ? 'Soundfont: personalizado — trocar'
+              : 'Soundfont: TimGM6mb (padrão) — trocar',
+          onTap: _loadingSoundFont ? null : () => unawaited(_chooseSoundFont()),
+        ),
+        if (_customSoundFont)
+          PhoneActionRow(
+            icon: Icons.restore,
+            label: 'Voltar ao soundfont padrão',
+            onTap: _loadingSoundFont
+                ? null
+                : () => unawaited(_resetSoundFont()),
+          ),
+        PhoneToggleRow(
+          label: 'Monitor MIDI (teclado sem som)',
+          value: _midiMonitorOn,
+          onChanged: _loadingSoundFont
+              ? null
+              : (_) => unawaited(_toggleMidiMonitor()),
+        ),
+        const PhoneSectionLabel('PARTITURA'),
+        PhoneActionRow(
+          icon: Icons.folder_open,
+          label: 'Abrir partitura',
+          onTap: () {
+            setState(() => _optionsOpen = false);
+            unawaited(_abrirPartitura());
+          },
+        ),
+        PhoneActionRow(
+          icon: Icons.chevron_left,
+          label: 'Página anterior',
+          onTap: _pageIndex > 0 && !_busy ? _viewController.previousPage : null,
+          trailing: Text(
+            _pageCount == 0 ? '—' : '${_pageIndex + 1} / $_pageCount',
+            style: const TextStyle(fontSize: 13, color: kInkCaption),
+          ),
+        ),
+        PhoneActionRow(
+          icon: Icons.chevron_right,
+          label: 'Próxima página',
+          onTap: _pageIndex < _pageCount - 1 && !_busy
+              ? _viewController.nextPage
+              : null,
+        ),
+        PhoneActionRow(
+          icon: Icons.tune,
+          label: 'Ajustes de layout (avançado)',
+          onTap: () => setState(() {
+            _optionsOpen = false;
+            _panelOpen = true;
+          }),
+        ),
+        PhoneActionRow(
+          icon: Icons.piano,
+          label: 'Painel do monitor MIDI',
+          onTap: () => setState(() {
+            _optionsOpen = false;
+            _midiPanelOpen = true;
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScoreArea({bool phone = false}) {
     // The page is engraved for this box, so its size has to be known before
     // the first render — hence measuring here rather than off the window.
     // Everything drawn over the score (zoom, panel) is a Stack child, so it
@@ -1010,46 +1530,54 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
         final document = _document;
         final hasPage = document != null && document.pages.isNotEmpty;
+        final Widget content = hasPage
+            // InteractiveViewer gives its child unbounded room, so the
+            // view is pinned to the score box.
+            ? SizedBox(
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
+                child: ScoreView(
+                  document: document,
+                  controller: _controller,
+                  viewController: _viewController,
+                  curtain: _player?.curtain,
+                  mode: ScorePageMode.pagedSweep,
+                  initialPage: _pageIndex.clamp(0, document.pages.length - 1),
+                  onPageChanged: _onPageChanged,
+                  onElementTap: _onScoreTap,
+                  ghosts: _ghosts,
+                  haloSigmaScale: _haloWidth,
+                  barColor: _barColor,
+                ),
+              )
+            : phone
+            ? Center(
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : _abrirPartitura,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Abrir partitura'),
+                ),
+              )
+            : const Center(
+                child: Icon(Icons.music_note, size: 64, color: Colors.grey),
+              );
         return Stack(
           children: [
             Positioned.fill(
-              child: InteractiveViewer(
-                transformationController: _view,
-                minScale: kZoomMin,
-                maxScale: kZoomMax,
-                boundaryMargin: EdgeInsets.all(
-                  math.min(constraints.maxWidth, constraints.maxHeight) / 2,
-                ),
-                child: hasPage
-                    // InteractiveViewer gives its child unbounded room, so the
-                    // view is pinned to the score box.
-                    ? SizedBox(
-                        width: constraints.maxWidth,
-                        height: constraints.maxHeight,
-                        child: ScoreView(
-                          document: document,
-                          controller: _controller,
-                          viewController: _viewController,
-                          curtain: _player?.curtain,
-                          mode: ScorePageMode.pagedSweep,
-                          initialPage: _pageIndex.clamp(
-                            0,
-                            document.pages.length - 1,
-                          ),
-                          onPageChanged: _onPageChanged,
-                          onElementTap: _onScoreTap,
-                          haloSigmaScale: _haloWidth,
-                          barColor: _barColor,
-                        ),
-                      )
-                    : const Center(
-                        child: Icon(
-                          Icons.music_note,
-                          size: 64,
-                          color: Colors.grey,
-                        ),
+              // No celular a partitura é fixa: sem arrastar nem ampliar (o
+              // tamanho vem do `unit`). O zoom só existe no banco de testes.
+              child: phone
+                  ? content
+                  : InteractiveViewer(
+                      transformationController: _view,
+                      minScale: kZoomMin,
+                      maxScale: kZoomMax,
+                      boundaryMargin: EdgeInsets.all(
+                        math.min(constraints.maxWidth, constraints.maxHeight) /
+                            2,
                       ),
-              ),
+                      child: content,
+                    ),
             ),
             if (_busy)
               const Positioned(
@@ -1057,6 +1585,43 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 left: 0,
                 right: 0,
                 child: LinearProgressIndicator(),
+              ),
+            if (phone && hasPage)
+              Positioned(
+                left: 10,
+                top: 4,
+                child: IconButton(
+                  tooltip: 'Abrir partitura',
+                  onPressed: _busy ? null : _abrirPartitura,
+                  icon: const Icon(
+                    Icons.folder_open,
+                    size: 24,
+                    color: kInkCaption,
+                  ),
+                ),
+              ),
+            if (phone && _trainingMode)
+              Positioned(
+                left: 54,
+                right: 12,
+                top: 8,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    PhoneStatusPill(text: _trainingPillText),
+                    if (_practice case final practice?)
+                      ListenableBuilder(
+                        listenable: Listenable.merge([
+                          practice.correctCount,
+                          practice.wrongCount,
+                        ]),
+                        builder: (context, _) => PhoneCountersPill(
+                          correct: practice.correctCount.value,
+                          mistakes: practice.wrongCount.value,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             if (_midiPanelOpen)
               Positioned(
@@ -1071,7 +1636,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   wrong: _practice?.wrongPitches,
                 ),
               )
-            else
+            else if (!phone)
               Positioned(
                 top: 8,
                 left: 8,
@@ -1109,7 +1674,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   onBarColorChanged: (c) => setState(() => _barColor = c),
                 ),
               )
-            else
+            else if (!phone)
               Positioned(
                 top: 8,
                 right: 8,
@@ -1127,11 +1692,19 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width < kPhoneLayoutMaxWidth) {
+      return Scaffold(backgroundColor: kSurface, body: _buildPhoneBody());
+    }
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('zywny • partitura → .vsb'),
-        actions: [MidiDevicePickerButton(deviceManager: _midiDeviceManager)],
+        actions: [
+          MidiDevicePickerButton(
+            deviceManager: _midiDeviceManager,
+            onCalibrate: () => unawaited(_openCalibration()),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(12),
@@ -1226,6 +1799,28 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   ),
                 ),
                 if (_trainingMode && _practice == null)
+                  IconButton.filledTonal(
+                    tooltip: switch (_practiceMode) {
+                      PracticeMode.wait =>
+                        'Modo espera — trocar para tempo real',
+                      PracticeMode.realtime =>
+                        'Tempo real — trocar para ritmo (qualquer tecla)',
+                      PracticeMode.rhythm => 'Ritmo — trocar para modo espera',
+                    },
+                    onPressed: () => setState(
+                      () => _practiceMode = switch (_practiceMode) {
+                        PracticeMode.wait => PracticeMode.realtime,
+                        PracticeMode.realtime => PracticeMode.rhythm,
+                        PracticeMode.rhythm => PracticeMode.wait,
+                      },
+                    ),
+                    icon: Icon(switch (_practiceMode) {
+                      PracticeMode.wait => Icons.hourglass_bottom,
+                      PracticeMode.realtime => Icons.speed,
+                      PracticeMode.rhythm => Icons.music_note,
+                    }),
+                  ),
+                if (_trainingMode && _practice == null)
                   PopupMenuButton<Hand>(
                     tooltip: 'Mão do aluno',
                     initialValue: _hand,
@@ -1236,6 +1831,33 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                         PopupMenuItem(value: h, child: Text(h.label)),
                     ],
                   ),
+                IconButton.filledTonal(
+                  tooltip: _metronomeOn
+                      ? 'Desligar metrônomo'
+                      : 'Ligar metrônomo (com som do app)',
+                  onPressed: _toggleMetronome,
+                  icon: Icon(
+                    _metronomeOn ? Icons.av_timer : Icons.timer_outlined,
+                  ),
+                ),
+                IconButton.filledTonal(
+                  tooltip: _countInOn
+                      ? 'Desligar contagem inicial'
+                      : 'Ligar contagem de 1 compasso antes de começar',
+                  onPressed: _toggleCountIn,
+                  icon: Icon(
+                    _countInOn ? Icons.filter_1 : Icons.filter_1_outlined,
+                  ),
+                ),
+                IconButton.filledTonal(
+                  tooltip: _loop == null
+                      ? 'Repetir um trecho (loop A-B)'
+                      : 'Loop: compassos ${_loop!.a + 1}–${_loop!.b + 1}',
+                  onPressed: _player == null
+                      ? null
+                      : () => unawaited(_openLoopSheet()),
+                  icon: Icon(_loop == null ? Icons.repeat : Icons.repeat_on),
+                ),
                 IconButton.filledTonal(
                   tooltip: _soundOn
                       ? 'Desligar som'

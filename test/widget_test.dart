@@ -44,19 +44,32 @@ Size _scoreBox(WidgetTester tester) =>
     tester.getSize(find.byType(InteractiveViewer));
 
 /// Page size the panel says the score box asks for ("1250×456 (125×46 mm)").
-String _fittedPage(WidgetTester tester) => tester
-    .widget<Text>(find.textContaining(' mm)'))
-    .data!;
+String _fittedPage(WidgetTester tester) =>
+    tester.widget<Text>(find.textContaining(' mm)')).data!;
 
 Future<void> _openPanel(WidgetTester tester) async {
   await tester.tap(find.byTooltip('Opções'));
   await tester.pump();
 }
 
+/// O app tem dois layouts conforme a largura (`kPhoneLayoutMaxWidth`): o
+/// banco de testes largo (desktop) e o de celular em paisagem. O tamanho
+/// padrão de `flutter test` (800×600) cairia no de celular.
+void _useSize(WidgetTester tester, Size logical) {
+  tester.view.physicalSize = logical;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+}
+
+void _desktop(WidgetTester tester) => _useSize(tester, const Size(1280, 800));
+
+void _phone(WidgetTester tester) => _useSize(tester, const Size(844, 390));
+
 void main() {
   setUp(_installFakeMidiAndPreferencesPlatforms);
 
   testWidgets('tela inicial pede uma partitura', (WidgetTester tester) async {
+    _desktop(tester);
     await tester.pumpWidget(const MyApp());
 
     expect(find.text('Abrir partitura'), findsOneWidget);
@@ -74,8 +87,10 @@ void main() {
     expect(find.text('Opções'), findsNothing);
   });
 
-  testWidgets('o painel mostra a página derivada da caixa da partitura',
-      (tester) async {
+  testWidgets('o painel mostra a página derivada da caixa da partitura', (
+    tester,
+  ) async {
+    _desktop(tester);
     await tester.pumpWidget(const MyApp());
     await tester.pump(); // primeiro layout: a caixa passa a ser conhecida
     await _openPanel(tester);
@@ -85,8 +100,10 @@ void main() {
     expect(_fittedPage(tester), matches(RegExp(r'^\d+×\d+ \(\d+×\d+ mm\)$')));
   });
 
-  testWidgets('zoom não altera a caixa nem a página pedida ao Verovio',
-      (tester) async {
+  testWidgets('zoom não altera a caixa nem a página pedida ao Verovio', (
+    tester,
+  ) async {
+    _desktop(tester);
     await tester.pumpWidget(const MyApp());
     await tester.pump();
     await _openPanel(tester);
@@ -112,8 +129,10 @@ void main() {
     expect(_fittedPage(tester), page);
   });
 
-  testWidgets('abrir e fechar o painel não altera a caixa da partitura',
-      (tester) async {
+  testWidgets('abrir e fechar o painel não altera a caixa da partitura', (
+    tester,
+  ) async {
+    _desktop(tester);
     await tester.pumpWidget(const MyApp());
     await tester.pump();
     final box = _scoreBox(tester);
@@ -128,6 +147,7 @@ void main() {
   });
 
   testWidgets('o zoom não passa dos limites', (tester) async {
+    _desktop(tester);
     await tester.pumpWidget(const MyApp());
     await tester.pump();
     await _openPanel(tester);
@@ -138,7 +158,8 @@ void main() {
     }
     expect(find.text('50%'), findsOneWidget);
     expect(
-      tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.remove))
+      tester
+          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.remove))
           .onPressed,
       isNull,
     );
@@ -150,5 +171,37 @@ void main() {
       await tester.pump();
     }
     expect(find.text('800%'), findsOneWidget);
+  });
+
+  testWidgets('celular: barra lateral e gaveta de opções do artefato', (
+    tester,
+  ) async {
+    _phone(tester);
+    await tester.pumpWidget(const MyApp());
+    await tester.pump();
+
+    // Sem partitura: convite para abrir uma, e a barra lateral já está lá.
+    expect(find.text('Abrir partitura'), findsOneWidget);
+    expect(find.text('andamento'), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
+    expect(find.byTooltip('Mais opções'), findsOneWidget);
+    expect(find.text('Opções de estudo'), findsNothing);
+
+    await tester.tap(find.byTooltip('Mais opções'));
+    await tester.pump();
+    expect(find.text('Opções de estudo'), findsOneWidget);
+    expect(find.text('MODO'), findsOneWidget);
+    expect(find.text('Ouvir'), findsOneWidget);
+    expect(find.text('Espera'), findsOneWidget);
+
+    // Espera: uma mão só e andamento 80%, como no artefato (CelularTreino).
+    await tester.tap(find.text('Espera'));
+    await tester.pump();
+    expect(find.text('Conecte o teclado MIDI'), findsOneWidget);
+    expect(find.text('80%'), findsWidgets);
+
+    await tester.tap(find.byTooltip('Fechar'));
+    await tester.pump();
+    expect(find.text('Opções de estudo'), findsNothing);
   });
 }

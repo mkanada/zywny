@@ -397,9 +397,16 @@ Map<String, Object> layoutOptionsToSend(Map<String, Object> values) {
   return out;
 }
 
-/// Verovio's defaults with [kAppDefaults] applied.
-Map<String, Object> initialLayoutValues() => {
+/// `unit` que o app usa por padrão no celular (Android/iOS): a tela é
+/// pequena e a partitura é lida de longe, então a notação começa grande. O
+/// painel de layout continua livre para mudar.
+const double kPhoneUnit = 12;
+
+/// Verovio's defaults with [kAppDefaults] applied — and, with [phone],
+/// [kPhoneUnit] as the notation size.
+Map<String, Object> initialLayoutValues({bool phone = false}) => {
   for (final group in kLayoutGroups)
     for (final option in group.options) option.key: option.defaultValue,
   ...kAppDefaults,
+  if (phone) 'unit': kPhoneUnit,
 };

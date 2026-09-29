@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'models.dart';
 import 'practice_state.dart';
 import 'practice_screen.dart';
-import 'theme.dart';
+import '../ui/theme.dart';
 
 /// Tela inicial, em retrato — `CelularBiblioteca.dc.html`.
 class LibraryScreen extends StatefulWidget {

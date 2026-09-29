@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'theme.dart';
+import '../ui/theme.dart';
 
 /// Uma partitura da biblioteca (mockup — sem leitura de arquivo real).
 class Piece {

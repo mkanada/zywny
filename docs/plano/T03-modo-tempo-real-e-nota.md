@@ -59,4 +59,32 @@ compassos com mais erros).
 
 ## Notas de execução
 
-(preencher)
+Feito (código + testes); critério 2 (manual, no aparelho) **pendente**.
+
+- `lib/practice/practice_report.dart`: `PracticeReport` (Dart puro) —
+  contagens, precisão (`correct / todos os vereditos`), média e desvio
+  absoluto de adiantado/atrasado **em ms de parede** (`deltaMs / speed`),
+  por compasso **ocorrência** (`MeasureStats`, com `pass`; número mostrado =
+  `index + 1`, como o "ir para o compasso") e `worstMeasures` (errada/perdida
+  primeiro, imprecisão desempata; adiantado/atrasado não conta como erro).
+- `PracticeController` ganhou `mode: PracticeMode.{wait,realtime}`. Tempo
+  real: sem freio; a tecla vira tempo musical por
+  `scheduler.musicalAtDevice(atSeconds - inputLatency)`; um `Timer` de 30 ms
+  chama `RealtimeSession.tick` (os `missed`) e detecta a volta do loop
+  (posição recuou → o que sobrou vira `missed` e a avaliação recomeça;
+  `RealtimeSession.resetTo(..., untilMs:)`). `finish()` fecha a avaliação
+  antes de ler `report`.
+- Cores (`practice_colors.dart`): certo verde; adiantado/atrasado laranja;
+  errada vermelho na nota mais próxima (em pitch, ±400 ms); perdida cinza.
+- UI: alternar espera/tempo real (botão na barra larga, linha na gaveta do
+  celular; o selo mostra o modo); folha de resumo
+  (`showPracticeSummary`) aberta ao fim da peça ou ao parar; botão
+  "Repetir os compassos com mais erros" liga o loop do T04 (intervalo que
+  cobre os piores se couberem em 4 compassos, senão só o pior).
+- Limitações: trocar o andamento com a sessão de tempo real em curso não
+  atualiza as janelas (fixas no `speed` do início) — reinicie a prática.
+  D-TREINO segue com os padrões (±75/±150 ms); a decisão continua **aberta**.
+  Histórico por música: fora (não é trivial).
+- Testes: `test/practice_report_test.dart` (contagens, médias, piores,
+  compasso repetido) e um de ponta a ponta do tempo real em
+  `practice_controller_test.dart`.

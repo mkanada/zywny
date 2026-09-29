@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'mockup/library_screen.dart';
 import 'mockup/practice_screen.dart';
 import 'mockup/practice_state.dart';
-import 'mockup/theme.dart';
+import 'ui/theme.dart';
 
 /// Ponto de entrada separado do mockup de interface (`lib/mockup/`) — as
 /// telas de celular do artefato "zywny — interface de estudo", sem o
@@ -24,7 +24,7 @@ class ZywnyMockupApp extends StatelessWidget {
     return MaterialApp(
       title: 'zywny — mockup',
       debugShowCheckedModeBanner: false,
-      theme: buildMockupTheme(),
+      theme: buildAppTheme(),
       onGenerateRoute: _onGenerateRoute,
     );
   }

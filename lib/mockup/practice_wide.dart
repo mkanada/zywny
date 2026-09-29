@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'practice_state.dart';
-import 'theme.dart';
-import 'widgets.dart';
+import '../ui/theme.dart';
+import '../ui/widgets.dart';
 
 /// Barra de topo do layout largo (tablet/desktop) — `Main.dc.html` /
 /// `TabletEstudo.dc.html`: "← Biblioteca" à esquerda, título da peça

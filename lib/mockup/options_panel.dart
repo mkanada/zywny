@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'practice_state.dart';
-import 'theme.dart';
-import 'widgets.dart';
+import '../ui/theme.dart';
+import '../ui/widgets.dart';
 
 /// Gaveta lateral de opções — `CelularPainel.dc.html`: modo, mão, tamanho da
 /// partitura, andamento e os dois interruptores (repetir A-B, metrônomo).

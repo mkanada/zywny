@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'options_panel.dart';
 import 'practice_state.dart';
 import 'practice_wide.dart';
-import 'theme.dart';
+import '../ui/theme.dart';
 
 /// Tela de estudo, em paisagem — cobre os quatro artboards `Celular*` que
 /// não são a biblioteca (`Estudo`, `Grande`, `Painel`, `Treino`): são o

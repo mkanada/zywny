@@ -72,4 +72,40 @@ entrada+saída por dispositivo; (2) repetir um trecho (compasso A até B);
 
 ## Notas de execução
 
-(preencher)
+Feito (código + testes); critérios 3 e 4 (manuais) **pendentes**.
+
+- **Loop A-B** — `ScoreAudioScheduler.setLoop/clearLoop`, `onLoop`. Ao
+  horizonte do `pump` alcançar `endMs`, fecha a volta (note-offs cortados em
+  `endMs`) e **reancora em `startMs` no instante de dispositivo em que
+  `endMs` soa**: sem lacuna entre voltas e sem `allNotesOff` no meio (nada
+  fica preso porque nenhum evento atravessa a fronteira). A âncora antiga
+  fica em `_segments` até esse instante, para `positionMs` só recuar quando o
+  som recua; o `ScorePlayer` percebe o recuo (>20 ms) e faz `seek` sozinho —
+  não precisou mexer no bridge. Contagem entre voltas: não feita (opcional).
+  Mudança de `speed` no loop vale **na hora** (reancora da posição atual).
+  No treino (`PracticeController.setLoop`), passar do último passo do trecho
+  repõe o agendador (`seek`) e a sessão (`resetTo`) e chama `onLoopRestart`
+  (o host leva o player). UI: folha com dois controles (início/fim, por
+  **ocorrência** em ordem de execução, igual ao "ir para o compasso") +
+  "Atual". Toque longo em nota para marcar A/B **não** foi feito (o
+  `ScoreView` não tem long-press; a alternativa dos campos numéricos vale).
+- **Metrônomo** — `lib/audio/metronome.dart`: `metronomeBeats(timeline)`
+  interpola o `qstamp` do timemap por compasso (uma batida por semínima, 1ª
+  = forte; em 6/8 são semínimas — aceito). Canal 9, notas 76/77. Com saída
+  MIDI para o piano, só soa se ele tiver percussão GM (senão mudo).
+- **Contagem** — `play(fromMs, countIn: true)`: âncora 1 compasso antes,
+  posição parada em `fromMs` (piso) e cliques nas batidas do compasso.
+  Metrônomo e contagem só soam com o **som do app ligado** (o agendador é
+  quem clica).
+- **Calibração** — `lib/audio/latency_calibration.dart` (8 cliques a 100
+  bpm, mediana sem os 2 primeiros, aviso >80 ms) + diálogo em
+  `practice_tools.dart`, aberto por "Calibrar latência" no seletor de
+  dispositivos (e na gaveta do celular). Guardada por (dispositivo de
+  entrada, saída `app`/`midi`) em `MidiDeviceManager` e descontada dos
+  carimbos no `PracticeController` (`inputLatencyMs`). O `RealtimeSession`
+  (T03) não tem UI ainda; quando tiver, deve receber o mesmo valor.
+- **"Repetir os piores compassos"** (item 4): habilitado no resumo do T03
+  (`_repeatWorst` → `_setLoop` em `main.dart`).
+- Testes: loop de 2 compassos × 3 voltas sem nota presa; batidas ±1 ms nos
+  qstamp da Gymnopédie; contagem; mediana da calibração; reinício do loop no
+  `PracticeController`.

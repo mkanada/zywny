@@ -48,7 +48,7 @@ TextStyle serifDisplay({
   color: color,
 );
 
-ThemeData buildMockupTheme() {
+ThemeData buildAppTheme() {
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(

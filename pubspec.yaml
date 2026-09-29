@@ -100,8 +100,28 @@ flutter:
     # tool/build_mockup_images.sh a partir do verovio_flutter_bridge, sem o
     # motor Verovio ligado no app. Versionadas (ao contrário do zip acima):
     # são poucos KB e o mockup precisa rodar sem recompilar nada nativo.
+    # Soundfont padrão (TimGM6mb, GPL-2 — ver TimGM6mb.copyright ao lado):
+    # o som do app funciona sem o usuário procurar um `.sf2`. Ele pode
+    # trocar por outro; ver lib/audio/soundfont_store.dart.
+    - assets/soundfonts/TimGM6mb.sf2
     - assets/mockup/partitura_padrao.png
     - assets/mockup/partitura_grande.png
+  fonts:
+    # Tipos da splash e do ícone (artefato "Zywny — Ícone e Splash"); OFL.
+    - family: Cormorant Garamond
+      fonts:
+        - asset: assets/fonts/CormorantGaramond-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/CormorantGaramond-MediumItalic.ttf
+          weight: 500
+          style: italic
+        - asset: assets/fonts/CormorantGaramond-SemiBoldItalic.ttf
+          weight: 600
+          style: italic
+    - family: Instrument Sans
+      fonts:
+        - asset: assets/fonts/InstrumentSans-Medium.ttf
+          weight: 500
   # A serifada do texto comum (Liberation Serif) vem do pacote
   # score_bridge, registrada por loadScoreFonts().
 

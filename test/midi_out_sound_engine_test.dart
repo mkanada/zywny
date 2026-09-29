@@ -29,8 +29,46 @@ class FakeMidiSender implements MidiSender {
 
 void main() {
   group('MidiOutSoundEngine', () {
+    test('despacha em ordem de "at", só quando now alcança at - lead', () {
+      final sender = FakeMidiSender();
+      final engine = MidiOutSoundEngine(
+        sender: sender,
+        deviceId: 'dev-1',
+        nowSeconds: () => sender.now,
+        autoTick: false,
+      );
+
+      // Fora de ordem de chamada, mas "at" crescente é o que importa.
+      engine.schedule([
+        const ScheduledMidi(0.100, 0x90, 60, 100),
+        const ScheduledMidi(0.050, 0x90, 64, 100),
+      ]);
+      engine.schedule([const ScheduledMidi(0.052, 0x80, 64, 0)]);
+
+      sender.now = 0.010;
+      engine.pump();
+      expect(sender.sent, isEmpty, reason: 'nada chegou ainda');
+
+      // 0.050 - lead (0.002) = 0.048.
+      sender.now = 0.048;
+      engine.pump();
+      expect(sender.sent, hasLength(1));
+      expect(sender.sent.single.bytes, [0x90, 64, 100]);
+      expect(sender.sent.single.deviceId, 'dev-1');
+
+      sender.now = 0.052;
+      engine.pump();
+      expect(sender.sent, hasLength(2));
+      expect(sender.sent[1].bytes, [0x80, 64, 0]);
+
+      sender.now = 0.200;
+      engine.pump();
+      expect(sender.sent, hasLength(3));
+      expect(sender.sent[2].bytes, [0x90, 60, 100]);
+    });
+
     test(
-      'despacha em ordem de "at", só quando now alcança at - lead',
+      'allNotesOff desliga exatamente as teclas ligadas e limpa a agenda',
       () {
         final sender = FakeMidiSender();
         final engine = MidiOutSoundEngine(
@@ -40,84 +78,46 @@ void main() {
           autoTick: false,
         );
 
-        // Fora de ordem de chamada, mas "at" crescente é o que importa.
         engine.schedule([
-          const ScheduledMidi(0.100, 0x90, 60, 100),
-          const ScheduledMidi(0.050, 0x90, 64, 100),
+          const ScheduledMidi(0, 0x90, 60, 100), // liga e nunca desliga
+          const ScheduledMidi(0, 0x91, 62, 100), // canal 1, liga e desliga
+          const ScheduledMidi(0, 0x81, 62, 0),
         ]);
-        engine.schedule([const ScheduledMidi(0.052, 0x80, 64, 0)]);
+        // Um evento que ainda nem chegou: allNotesOff deve descartá-lo.
+        engine.schedule([const ScheduledMidi(10, 0x90, 67, 100)]);
 
-        sender.now = 0.010;
-        engine.pump();
-        expect(sender.sent, isEmpty, reason: 'nada chegou ainda');
-
-        // 0.050 - lead (0.002) = 0.048.
-        sender.now = 0.048;
-        engine.pump();
-        expect(sender.sent, hasLength(1));
-        expect(sender.sent.single.bytes, [0x90, 64, 100]);
-        expect(sender.sent.single.deviceId, 'dev-1');
-
-        sender.now = 0.052;
-        engine.pump();
-        expect(sender.sent, hasLength(2));
-        expect(sender.sent[1].bytes, [0x80, 64, 0]);
-
-        sender.now = 0.200;
+        sender.now = 1;
         engine.pump();
         expect(sender.sent, hasLength(3));
-        expect(sender.sent[2].bytes, [0x90, 60, 100]);
+
+        engine.allNotesOff();
+
+        final noteOffs = sender.sent
+            .skip(3)
+            .where((m) => m.bytes[0] & 0xF0 == 0x80)
+            .toList();
+        // Só a tecla 60 (canal 0) ainda estava ligada — 62 já tinha recebido
+        // note-off antes do allNotesOff.
+        expect(noteOffs, hasLength(1));
+        expect(noteOffs.single.bytes, [0x80, 60, 0]);
+
+        final ccByController = <int, List<SentMidiMessage>>{};
+        for (final m in sender.sent.skip(4)) {
+          ccByController.putIfAbsent(m.bytes[1], () => []).add(m);
+        }
+        // CC123/120/64 em cada um dos 16 canais.
+        expect(ccByController[123], hasLength(16));
+        expect(ccByController[120], hasLength(16));
+        expect(ccByController[64], hasLength(16));
+
+        // A nota agendada para o futuro (10s) não deveria ter sido descartada
+        // silenciosamente sem nunca soar: ela nunca chegou a soar, então não
+        // deve gerar mensagem nenhuma quando o tempo avançar.
+        sender.now = 20;
+        engine.pump();
+        expect(sender.sent, hasLength(4 + 16 * 3));
       },
     );
-
-    test('allNotesOff desliga exatamente as teclas ligadas e limpa a agenda', () {
-      final sender = FakeMidiSender();
-      final engine = MidiOutSoundEngine(
-        sender: sender,
-        deviceId: 'dev-1',
-        nowSeconds: () => sender.now,
-        autoTick: false,
-      );
-
-      engine.schedule([
-        const ScheduledMidi(0, 0x90, 60, 100), // liga e nunca desliga
-        const ScheduledMidi(0, 0x91, 62, 100), // canal 1, liga e desliga
-        const ScheduledMidi(0, 0x81, 62, 0),
-      ]);
-      // Um evento que ainda nem chegou: allNotesOff deve descartá-lo.
-      engine.schedule([const ScheduledMidi(10, 0x90, 67, 100)]);
-
-      sender.now = 1;
-      engine.pump();
-      expect(sender.sent, hasLength(3));
-
-      engine.allNotesOff();
-
-      final noteOffs = sender.sent
-          .skip(3)
-          .where((m) => m.bytes[0] & 0xF0 == 0x80)
-          .toList();
-      // Só a tecla 60 (canal 0) ainda estava ligada — 62 já tinha recebido
-      // note-off antes do allNotesOff.
-      expect(noteOffs, hasLength(1));
-      expect(noteOffs.single.bytes, [0x80, 60, 0]);
-
-      final ccByController = <int, List<SentMidiMessage>>{};
-      for (final m in sender.sent.skip(4)) {
-        ccByController.putIfAbsent(m.bytes[1], () => []).add(m);
-      }
-      // CC123/120/64 em cada um dos 16 canais.
-      expect(ccByController[123], hasLength(16));
-      expect(ccByController[120], hasLength(16));
-      expect(ccByController[64], hasLength(16));
-
-      // A nota agendada para o futuro (10s) não deveria ter sido descartada
-      // silenciosamente sem nunca soar: ela nunca chegou a soar, então não
-      // deve gerar mensagem nenhuma quando o tempo avançar.
-      sender.now = 20;
-      engine.pump();
-      expect(sender.sent, hasLength(4 + 16 * 3));
-    });
 
     test('Program Change só sai com useScoreInstruments ligado', () {
       final sender = FakeMidiSender();

@@ -199,6 +199,7 @@ zywny
 | D-WEB | A Web entra na 1.0 com o mesmo peso? | ordem da fase W | Sim, mas depois do Android e antes do Windows (ordem do usuário: Linux → Android → Web → Windows); o custo é portar o render (Verovio→wasm), não o som | **aberta** |
 | D-WEB-SYNTH | Síntese na Web: SpessaSynth (JS) ou o crate Rust em wasm? | W04 | SpessaSynth (maduro, AudioWorklet pronto); mesmo `.sf2` nos dois lados | **aberta** |
 | D-TREINO | Tolerâncias e UX do treino (janela de acerto, o que conta como erro) | T03 | ±75 ms "certo", ±150 ms "quase", fora disso "errado/perdido"; ornamentos e apojaturas não cobrados na 1.0 | **aberta** |
+| D-RITMO | Treino de rítmica: janelas, cobrar duração, som do toque | T05 | ±60 ms "certo", ±130 ms "quase" (de parede); duração não cobrada; toque soa as notas esperadas do onset ("piano mágico") | **aberta** |
 
 ## Riscos conhecidos
 
@@ -233,14 +234,16 @@ zywny
 | [M03](M03-saida-midi.md) | Tocar a partitura no teclado externo (MIDI out) | M01, K04 | — | concluído (critérios manuais 2/3 — teclado real, jitter — pendentes) |
 | [T01](T01-casador-de-notas.md) | `PracticeSession`: acordes esperados e casador (Dart puro) | N03 | — | concluído |
 | [T02](T02-modo-espera.md) | Modo espera + escolha de mão + app toca a outra | T01, K04, M01 | — | concluído (critérios 2-3 manuais, aguardando verificação) |
-| [T03](T03-modo-tempo-real-e-nota.md) | Modo tempo real com avaliação e resumo | T02 | D-TREINO | pendente |
-| [T04](T04-calibracao-loop-metronomo.md) | Calibração de latência, loop A-B, metrônomo | T03 | — | pendente |
+| [T03](T03-modo-tempo-real-e-nota.md) | Modo tempo real com avaliação e resumo | T02 | D-TREINO | concluído (critério 2 manual, aguardando verificação) |
+| [T04](T04-calibracao-loop-metronomo.md) | Calibração de latência, loop A-B, metrônomo | T03 | — | concluído (critérios 3-4 manuais, aguardando verificação) |
+| [T05](T05-treino-de-ritmica.md) | Treino de rítmica: qualquer tecla, no ritmo da partitura | T01, T03, T04 | D-RITMO | concluído (critérios 1-6 e 8; critério 7 manual, aguardando verificação) |
 | [X01](X01-android-render.md) | Android: `.vsb` e partitura rodando (sem som) | — | — | concluído |
 | [K05](K05-motor-no-android.md) | Motor de áudio no Android (cargo-ndk, AAudio) e latência | K04, X01 | — | pendente |
 | [W01](W01-verovio-wasm.md) | Protótipo: fork do Verovio em wasm gerando `.vsb` no navegador | — | D-WEB | pendente (protótipo funciona; achado bloqueador — paginação difere do nativo, ver notas do passo) |
 | [W02](W02-app-na-web.md) | zywny compilando e desenhando a partitura na Web | W01 | — | pendente |
 | [W03](W03-web-midi.md) | Web MIDI (entrada e saída) | W02, M03 | — | pendente |
 | [W04](W04-som-na-web.md) | Som na Web: `WebSoundEngine` (SpessaSynth) | W02, K04 | D-WEB-SYNTH | pendente |
+| [Y01](Y01-nota-fantasma.md) | Nota fantasma: tecla errada desenhada na pauta (lado zywny de G03–G05) | N03, T02 | — | concluído (falta ver no app) |
 | [X02](X02-windows-render.md) | Windows: `verovio.dll` e partitura rodando (sem som) | — | D-WIN | pendente |
 | [K06](K06-motor-no-windows.md) | Motor de áudio no Windows (WASAPI) | K04, X02 | D-WIN | pendente |
 | [V01](V01-portao-da-1-0.md) | Portão da 1.0: matriz de plataformas | todos | — | pendente |

@@ -149,6 +149,22 @@ class PerformanceTrack {
     );
   }
 
+  /// Track a partir de eventos já prontos (testes com partitura sintética).
+  @visibleForTesting
+  factory PerformanceTrack.fromEvents(List<SoundEvent> events) {
+    final sorted = List<SoundEvent>.of(events)
+      ..sort((a, b) {
+        final byOnMs = a.onMs.compareTo(b.onMs);
+        return byOnMs != 0 ? byOnMs : a.pitch.compareTo(b.pitch);
+      });
+    return PerformanceTrack._(
+      events: sorted,
+      pedal: const [],
+      durationMs: sorted.fold(0.0, (m, e) => e.offMs > m ? e.offMs : m),
+      staves: sorted.map((e) => e.staff).toSet(),
+    );
+  }
+
   /// Eventos com `onMs` em `[fromMs, toMs)`. Busca binária em [events]
   /// (ordenado por `onMs`) — o agendador (K04) chama isto a cada ~25 ms.
   Iterable<SoundEvent> startingIn(
