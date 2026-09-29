@@ -49,6 +49,9 @@ String findVerovioLibrary() {
 /// root). Mirrors [findVerovioLibrary]; unlike Verovio, this crate lives
 /// inside this repo (`native/zywny_audio/`), not an external one.
 String findAudioLibrary() {
+  // Android: packaged from jniLibs/<abi>/, found by bare name (K05).
+  if (Platform.isAndroid) return 'libzywny_audio.so';
+
   final env = Platform.environment['ZYWNY_AUDIO_LIBRARY_PATH'];
   if (env != null && env.isNotEmpty && File(env).existsSync()) return env;
 

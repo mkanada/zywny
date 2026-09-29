@@ -63,4 +63,21 @@ partitura com a latência medida. Soundfont empacotado com tamanho aceitável.
 
 ## Notas de execução
 
-(preencher)
+(em andamento, 2026-09-28)
+
+- `tool/build_audio_android.sh` + `just native-audio-android`: `cargo ndk -P 26
+  -t arm64-v8a -t x86_64` (o `-P 26` é obrigatório: com o padrão 21 falta
+  `-laaudio`); página de 16 KB via `RUSTFLAGS`. `minSdk` do app subiu para 26.
+  `findAudioLibrary()` no Android devolve `libzywny_audio.so`.
+- **Achado:** `zy_engine_load_sf2` dava panic em `ndk-context-0.1.1/src/lib.rs:72`
+  (contexto Android não inicializado): o `cpal` precisa de `JavaVM` +
+  `Context`. Correção: `MainActivity.onCreate` faz `System.loadLibrary` e chama
+  `nativeInit(applicationContext)`, função JNI em `ffi.rs` que chama
+  `ndk_context::initialize_android_context` (tabela JNI usada à mão).
+- `ffi.rs` ganhou um panic hook que devolve mensagem + arquivo:linha em
+  `zy_last_error` (o payload do `catch_unwind` vinha como desconhecido e o
+  stderr do Rust não chega ao logcat).
+- Critério 2 (parcial): aparelho real Samsung SM-M146B, Gymnopédie toca com
+  destaque sincronizado; pause/play repetidos sem deriva. Faltam latência
+  reportada × percebida, fone plugar/desplugar, tamanho do APK.
+

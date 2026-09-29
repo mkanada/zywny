@@ -91,6 +91,11 @@ native-audio:
 native-android:
     tool/build_verovio_android.sh
 
+# Compila a libzywny_audio.so para Android (arm64-v8a + x86_64, K05) e
+# instala em android/app/src/main/jniLibs/<abi>/ (não versionado).
+native-audio-android:
+    tool/build_audio_android.sh
+
 # Roda o app de verdade (não o mockup) no Android — emulador ou aparelho
 # conectado. Rode `just native-android` antes, ao menos uma vez.
 run-android *ARGS:

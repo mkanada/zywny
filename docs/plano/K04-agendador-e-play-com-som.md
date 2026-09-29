@@ -151,3 +151,8 @@ virada de página **dirigidos pelo relógio do áudio**. Pause, Stop, seek
   (`_abrirPartitura`, `lib/main.dart`) não listava `.mxl` (MusicXML
   comprimido, extensão real dos arquivos do corpus) — faltava na lista de
   extensões aceitas; corrigido.
+- **2026-09-28, pause/play no Android (aparelho real, SM-M146B)**: vários
+  pause/play repetidos durante a Gymnopédie; ao retomar, som e destaque
+  continuaram sincronizados, sem deriva perceptível. Nenhuma nota presa
+  após o pause. Ainda pendente: a medição numérica de deriva do critério 5
+  (Maple Leaf Rag).

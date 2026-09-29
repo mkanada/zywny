@@ -685,7 +685,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     SoundEngine? engine;
     try {
       engine = await _pickEngineWithSoundFont();
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('som: erro ao iniciar: $e\n$st');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
