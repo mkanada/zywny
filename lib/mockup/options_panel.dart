@@ -121,10 +121,7 @@ class OptionsPanel extends StatelessWidget {
                           ),
                           Text(
                             '$tempoPercent%',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: kInk,
-                            ),
+                            style: const TextStyle(fontSize: 13, color: kInk),
                           ),
                         ],
                       ),
@@ -209,11 +206,7 @@ class _ToggleRow extends StatelessWidget {
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeTrackColor: kAccent,
-          ),
+          Switch(value: value, onChanged: onChanged, activeTrackColor: kAccent),
         ],
       ),
     );

@@ -44,10 +44,7 @@ class WideTopBar extends StatelessWidget {
                 onPressed: onBack,
                 style: TextButton.styleFrom(
                   foregroundColor: kInk,
-                  padding: const EdgeInsets.only(
-                    left: 6,
-                    right: 12,
-                  ),
+                  padding: const EdgeInsets.only(left: 6, right: 12),
                 ),
                 icon: const Icon(Icons.chevron_left, size: 20),
                 label: const Text(
@@ -501,7 +498,10 @@ class WideTransportBar extends StatelessWidget {
             children: [
               Text(
                 '$tempoPercent%',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const Text(
                 'andamento',

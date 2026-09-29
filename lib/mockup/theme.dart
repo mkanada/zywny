@@ -59,8 +59,7 @@ ThemeData buildMockupTheme() {
   );
   return base.copyWith(
     // IBM Plex Sans no corpo, como no artboard.
-    textTheme: GoogleFonts.ibmPlexSansTextTheme(
-      base.textTheme,
-    ).apply(bodyColor: kInk, displayColor: kInk),
+    textTheme: GoogleFonts.ibmPlexSansTextTheme(base.textTheme)
+        .apply(bodyColor: kInk, displayColor: kInk),
   );
 }

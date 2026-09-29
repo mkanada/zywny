@@ -50,9 +50,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   void _openPiece(PracticeArgs args) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => PracticeScreen(args: args)));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => PracticeScreen(args: args)));
   }
 
   @override
@@ -204,11 +203,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             background: kAccent,
             circle: true,
             size: 48,
-            child: const Icon(
-              Icons.play_arrow,
-              color: Colors.white,
-              size: 22,
-            ),
+            child: const Icon(Icons.play_arrow, color: Colors.white, size: 22),
           ),
         ],
       ),
@@ -257,7 +252,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
       itemBuilder: (context, i) {
         final p = pieces[i];
         return InkWell(
-          onTap: () => _openPiece(PracticeArgs(title: p.title, composer: p.composer)),
+          onTap: () =>
+              _openPiece(PracticeArgs(title: p.title, composer: p.composer)),
           child: SizedBox(
             height: 64,
             child: Row(
@@ -388,7 +384,11 @@ class _IconPillButton extends StatelessWidget {
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: onTap,
-            child: SizedBox(width: size, height: size, child: Center(child: child)),
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Center(child: child),
+            ),
           ),
         ),
       );

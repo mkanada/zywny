@@ -142,8 +142,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
                       max: _totalMeasures.toDouble(),
                       divisions: _totalMeasures - 1,
                       activeColor: kAccent,
-                      onChanged: (v) =>
-                          setSheetState(() => target = v.round()),
+                      onChanged: (v) => setSheetState(() => target = v.round()),
                     ),
                     FilledButton(
                       onPressed: () => Navigator.pop(context, target),
@@ -315,7 +314,10 @@ class _PracticeScreenState extends State<PracticeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _StatusPill(text: '${_mode.statusVerb} · mão ${_hand.shortLabel.toLowerCase()}'),
+                _StatusPill(
+                  text:
+                      '${_mode.statusVerb} · mão ${_hand.shortLabel.toLowerCase()}',
+                ),
                 _CountersPill(
                   correct: _correct,
                   reminders: _reminders,

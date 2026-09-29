@@ -27,6 +27,7 @@ import 'music/performance_track.dart';
 import 'native_paths.dart';
 import 'practice/hand.dart';
 import 'practice/practice_controller.dart';
+import 'diag_log.dart';
 import 'verovio_render.dart';
 import 'verovio_resources.dart';
 
@@ -36,6 +37,7 @@ enum SoundOutput { appSynth, midiKeyboard }
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  await DiagLog.init();
   // Liberation Serif (the `t` runs of the scene, §5.4) ships inside
   // score_bridge and has to be registered before the first paint —
   // otherwise the engine falls back to a system serif without warning.
@@ -406,9 +408,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       // com data/hora no nome para achar depois.
       String? debugCopyPath;
       if (widget.debugMode) {
-        final timestamp = DateTime.now()
-            .toIso8601String()
-            .replaceAll(RegExp(r'[:.]'), '-');
+        final timestamp = DateTime.now().toIso8601String().replaceAll(
+          RegExp(r'[:.]'),
+          '-',
+        );
         debugCopyPath = '${Directory.current.path}/score_$timestamp.vsb';
         await File(outPath).copy(debugCopyPath);
       }
@@ -687,16 +690,17 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       engine = await _pickEngineWithSoundFont();
     } catch (e, st) {
       debugPrint('som: erro ao iniciar: $e\n$st');
+      DiagLog.log('erro', 'som: erro ao iniciar: $e\n$st');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('som: erro ao iniciar ($e)')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('som: erro ao iniciar ($e)')));
       }
       engine = null;
     } finally {
       if (mounted) setState(() => _loadingSoundFont = false);
     }
     if (engine == null || !mounted) return null;
+    DiagLog.log('som', 'motor do app aberto');
     _appEngine = engine;
     return engine;
   }
@@ -817,6 +821,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// volta sozinho se [_engine] já existir, para nunca abrir o diálogo de
   /// `.sf2` sem o usuário ter pedido.
   void _onMidiDeviceChanged() {
+    DiagLog.log(
+      'midi-dev',
+      'conectado agora: ${_midiDeviceManager.connected.value?.name}',
+    );
     _midiMonitor?.allNotesOff();
     _tearDownMidiOutEngine();
     unawaited(_syncMidiMonitorToDevice());
@@ -1268,9 +1276,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     onPressed: () =>
                         _setUseScoreInstruments(!_useScoreInstruments),
                     icon: Icon(
-                      _useScoreInstruments
-                          ? Icons.music_note
-                          : Icons.music_off,
+                      _useScoreInstruments ? Icons.music_note : Icons.music_off,
                     ),
                   ),
                 IconButton.filledTonal(

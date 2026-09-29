@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- MIDI (M01): teclado USB class-compliant via OTG. Não obrigatórios:
+         o app abre e serve para leitura de partitura sem eles. -->
+    <uses-feature android:name="android.software.midi" android:required="false"/>
+    <uses-feature android:name="android.hardware.usb.host" android:required="false"/>
     <application
         android:label="zywny"
         android:name="${applicationName}"
