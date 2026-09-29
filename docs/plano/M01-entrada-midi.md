@@ -162,3 +162,7 @@ junto se X02 estiver pronto; Web é W03.
   verdade. Critério 2 (Android/OTG) e a medição de unidade/jitter do
   timestamp (critério 3) também não foram feitos — pedem hardware/aparelho
   à mão.
+- **2026-09-29, critério 2 (Android/OTG) concluído**: testado no celular
+  real, plugado ao teclado MIDI USB. Tudo funcionou perfeitamente
+  (relato do usuário). Segue pendente só a medição de unidade/jitter do
+  `event.timestamp` por plataforma (critério 3).

@@ -228,7 +228,7 @@ zywny
 | [K02](K02-api-ffi-do-motor.md) | API C do motor: comandos, agenda por amostra, relógio | K01 | — | concluído |
 | [K03](K03-sound-engine-dart.md) | `SoundEngine` (Dart) + `NativeSoundEngine` via FFI no Linux | K02 | — | concluído |
 | [K04](K04-agendador-e-play-com-som.md) | Agendador da partitura + botão Play com som, relógio do áudio | K03, N03, C01 | — | concluído (critérios manuais 4/5 — deriva com Maple Leaf Rag — pendentes) |
-| [M01](M01-entrada-midi.md) | Dispositivos MIDI e entrada (monitor de notas) | — | D-MIDI | concluído (critério manual 2 — Android/OTG — e medição de jitter pendentes) |
+| [M01](M01-entrada-midi.md) | Dispositivos MIDI e entrada (monitor de notas) | — | D-MIDI | concluído (critério manual 2 — Android/OTG — verificado em 2026-09-29; medição de jitter pendente) |
 | [M02](M02-monitor-pelo-sintetizador.md) | Tocar a entrada pelo sintetizador do app (monitor) | M01, K03 | — | concluído (medição de latência pendente) |
 | [M03](M03-saida-midi.md) | Tocar a partitura no teclado externo (MIDI out) | M01, K04 | — | concluído (critérios manuais 2/3 — teclado real, jitter — pendentes) |
 | [T01](T01-casador-de-notas.md) | `PracticeSession`: acordes esperados e casador (Dart puro) | N03 | — | concluído |
