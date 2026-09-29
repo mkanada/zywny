@@ -235,7 +235,7 @@ zywny
 | [T02](T02-modo-espera.md) | Modo espera + escolha de mão + app toca a outra | T01, K04, M01 | — | concluído (critérios 2-3 manuais, aguardando verificação) |
 | [T03](T03-modo-tempo-real-e-nota.md) | Modo tempo real com avaliação e resumo | T02 | D-TREINO | pendente |
 | [T04](T04-calibracao-loop-metronomo.md) | Calibração de latência, loop A-B, metrônomo | T03 | — | pendente |
-| [X01](X01-android-render.md) | Android: `.vsb` e partitura rodando (sem som) | — | — | pendente |
+| [X01](X01-android-render.md) | Android: `.vsb` e partitura rodando (sem som) | — | — | concluído |
 | [K05](K05-motor-no-android.md) | Motor de áudio no Android (cargo-ndk, AAudio) e latência | K04, X01 | — | pendente |
 | [W01](W01-verovio-wasm.md) | Protótipo: fork do Verovio em wasm gerando `.vsb` no navegador | — | D-WEB | pendente (protótipo funciona; achado bloqueador — paginação difere do nativo, ver notas do passo) |
 | [W02](W02-app-na-web.md) | zywny compilando e desenhando a partitura na Web | W01 | — | pendente |

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'audio/audio_playback_clock.dart';
 import 'audio/score_audio_scheduler.dart';
@@ -257,6 +258,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   @override
   void dispose() {
+    if (_playing) unawaited(WakelockPlus.disable());
     _resizeDebounce?.cancel();
     _practice?.dispose();
     _midiDeviceManager.connected.removeListener(_onMidiDeviceChanged);
@@ -382,6 +384,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
       setState(() => _status = 'renderizando $name ($pageWidth×$pageHeight)…');
 
+      final renderStopwatch = Stopwatch()..start();
       final document = await renderScoreToVsb(
         VsbRenderRequest(
           inputPath: inputPath,
@@ -392,6 +395,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           pageHeight: pageHeight,
           options: options,
         ),
+      );
+      debugPrint(
+        '_renderAndShow: renderScoreToVsb($name) levou '
+        '${renderStopwatch.elapsedMilliseconds}ms',
       );
 
       // `--debug` (widget.debugMode): o .vsb some com o tmpDir no `finally`
@@ -413,7 +420,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _practice = null;
       _player?.dispose();
       _player = null;
-      _playing = false;
+      _setPlaying(false);
       _scheduler?.dispose();
       _scheduler = null;
       _audioClock = null;
@@ -466,6 +473,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
   }
 
+  /// Every write to [_playing] goes through here so the screen wakelock
+  /// (X01: found the phone falling asleep mid-playback) never falls out of
+  /// sync with one of the several places that flip the flag.
+  void _setPlaying(bool value) {
+    _playing = value;
+    unawaited(value ? WakelockPlus.enable() : WakelockPlus.disable());
+  }
+
   void _togglePlay() {
     final player = _player;
     if (player == null) return;
@@ -473,12 +488,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       player.pause();
       _scheduler?.pause();
       _controller.releaseAll();
-      setState(() => _playing = false);
+      setState(() => _setPlaying(false));
       return;
     }
     player.play();
     _scheduler?.play(player.position.inMicroseconds / 1000, speed: _speed);
-    setState(() => _playing = true);
+    setState(() => _setPlaying(true));
   }
 
   /// Stops playback and rewinds to the start.
@@ -498,7 +513,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     player.seek(Duration.zero);
     _scheduler?.stop();
     _controller.clearAll();
-    if (_playing && mounted) setState(() => _playing = false);
+    if (_playing && mounted) setState(() => _setPlaying(false));
   }
 
   /// Arma/desarma o modo treino (T02) — só decide se o Play vira
@@ -547,7 +562,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     setState(() {
       _practice = practice;
       _soundOn = true;
-      _playing = true;
+      _setPlaying(true);
     });
   }
 
@@ -561,7 +576,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     practice.dispose();
     _practice = null;
     _player?.pause();
-    if (mounted) setState(() => _playing = false);
+    if (mounted) setState(() => _setPlaying(false));
   }
 
   /// The player pauses itself at the end of the piece; follow that here.
@@ -577,7 +592,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       }
       _scheduler?.pause();
       _controller.releaseAll();
-      if (mounted) setState(() => _playing = false);
+      if (mounted) setState(() => _setPlaying(false));
     }
   }
 
@@ -1144,7 +1159,21 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               ),
             ),
             const SizedBox(height: 8),
-            Text('status: $_status'),
+            // `maxLines: 1` matters beyond truncating long text: this Text is
+            // a Column sibling of the (Expanded) score area, not wrapped in
+            // one itself, so its height comes out of the score area's share
+            // of the fixed Column height. Left unbounded, a status message
+            // long enough to wrap on a narrow (phone) width shrinks the
+            // score box just past `_onBoxSize`'s 2% threshold, which
+            // schedules a re-render — whose *own* status text then differs
+            // in length from this one, flipping the wrap back and forth
+            // forever. Desktop windows are wide enough that no status
+            // string wraps, so this never showed up before a real phone.
+            Text(
+              'status: $_status',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 8),
             Wrap(
               alignment: WrapAlignment.center,
