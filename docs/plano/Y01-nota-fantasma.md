@@ -40,9 +40,17 @@ Contrato: `docs/nota-para-zywny-fantasma.md` e a §10 de
 
 ## Pendente / decisões abertas
 
-- **Ver no app** (`just run`, teclado MIDI): cor, fade e posição do marcador
-  de oitava são convenção visual.
+- **Visto no app** (verificação visual feita após rebuild do Android com
+  `pitchpos`): paleta fechada — pendente azul, certa verde, errada
+  vermelha + fantasma laranja, adiantado/atrasado âmbar escuro (ver T02).
+  Falha de cálculo agora gera `debugPrint` em `GhostController._recompute`
+  em vez de silêncio.
+- **Fantasma cross-staff** (nota grave da clave de sol cabe na de fá):
+  proposta de regra nova no irmão,
+  `docs/plano/G06-fantasma-cross-staff.md` — 8va/8vb só nas extremidades
+  do sistema ou com pauta única; porta para `score_bridge/lib/src/ghost.dart`
+  depois que a regra fechar.
 - Modo espera não tem pausa como passo; fantasma durante pausa (D-FANT-PAUSA,
   `restsOn`) entra com T03 (tempo real).
-- O destaque vermelho da nota esperada (T02) continua ligado junto com a
+- O destaque azul da nota esperada continua ligado junto com a
   fantasma; decidir se some.

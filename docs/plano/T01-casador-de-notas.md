@@ -27,9 +27,12 @@ modos: **espera** (o tempo não anda até o acorde certo) e **tempo real**.
   - Estado: índice do passo atual, conjunto de teclas do passo ainda não
     tocadas.
   - Nota tocada que pertence ao passo → marca certa. Nota fora → "errada"
-    (não avança). Quando todas foram tocadas (em qualquer ordem, dentro de
-    uma janela de 300 ms entre a primeira e a última — acordes não precisam
-    ser simultâneos perfeitos), o passo é concluído → avança.
+    (não avança). Quando todas foram tocadas **juntas** — da primeira à
+    última nota certa do acorde dentro da janela de 300 ms — o passo é
+    concluído → avança. Se a janela estourar, a tentativa recomeça: as
+    notas ainda seguradas continuam valendo (estão soando junto), o resto
+    volta a faltar. Qualquer ataque fora da janela dispara o recomeço;
+    nota errada só emite o veredito, sem abrir janela nova.
   - Tecla ainda segurada do passo anterior que também é do próximo (nota
     repetida): exige **soltar e apertar de novo** (note-off antes). Nota
     ligada (N01/N03) não aparece como passo novo — nada a fazer.
@@ -97,11 +100,16 @@ modos: **espera** (o tempo não anda até o acorde certo) e **tempo real**.
   calculado ao entrar no passo novo; enquanto a tecla não passar por
   `noteOff`, um novo `noteOn` do mesmo pitch é ignorado (nem conta, nem gera
   veredito) — é o "soltar e apertar de novo" do enunciado.
-- **Janela de 300 ms do modo espera não é prazo**: modo espera não tem
-  `missed` (o enunciado só define isso para tempo real) — a janela só
-  aparece no `deltaMs` do veredito (tempo desde a primeira nota certa do
-  acorde). Documentando aqui porque diverge de uma leitura possível do
-  enunciado como "acorde expira depois de 300 ms".
+- **Janela de 300 ms do modo espera é simultaneidade com recomeço** (antes:
+  só carimbo de `deltaMs`): `noteOn` certo com mais de `chordWindowMs`
+  (padrão `kWaitChordWindowMs`) desde a primeira nota certa da tentativa
+  recomeça o acorde — `_remaining` volta a tudo menos o segurado
+  (`_restartChord`), sem `missed` (modo espera continua sem falta). Nota
+  errada fora da janela também dispara o recomeço, mas não abre janela.
+  Critério 1 continua valendo (tudo dentro de 300 ms + errada no meio
+  avança); testes novos em `test/practice_session_wait_test.dart` (pingado
+  sem segurar não acumula, segurada através da janela vale, fronteira de
+  300 ms, errada fora da janela).
 - **`RealtimeSession`**: candidato = evento pendente de mesmo pitch com
   `|delta| ≤ janelaMax` (musical, `janela de parede × speed`) mais próximo;
   `≤ janelaOk` → `correct`, senão `early`/`late`. Ornamento: **entra como

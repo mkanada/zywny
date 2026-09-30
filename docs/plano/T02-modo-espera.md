@@ -81,14 +81,14 @@ da mão do aluno até ele acertar, e as notas mudam de cor (certa/errada).
   antes do próximo tick do `pump()` (que agenda com até 250 ms de
   antecedência), e um reancoragem ingênua reagendava em duplicata o que já
   tinha ido para o motor.
-- Cor de "esperado agora": **não é uma cor nova**. O doc original citava
-  "amarelo do player", mas o destaque padrão do `ScorePlayer` é
-  `kDefaultHighlightColor` (vermelho escuro, configurável em Opções) — a
-  nota pendente do aluno já acende nessa cor sozinha, assim que o freio
-  estaciona a posição no `onMs` dela (`ScorePlayer._advanceToMs`/timemap não
-  distingue mãos). Só `kPracticeCorrectColor` (verde) e
-  `kPracticeWrongColor` (vermelho, um pulso só) são cores novas —
-  `lib/practice/practice_colors.dart`.
+- Cor de "esperado agora" no treino: **azul** (`kPracticePendingColor`,
+  `lib/practice/practice_colors.dart`) — o vermelho padrão do `ScorePlayer`
+  (`kDefaultHighlightColor`, configurável em Opções) confundia pendente com
+  errada. `lib/main.dart` troca o `highlightColor` do player ao iniciar a
+  prática (`_togglePractice`) e devolve ao sair (`_endPractice`); fora do
+  treino continua o vermelho configurável. Paleta do treino: pendente azul,
+  certa verde, errada vermelha (+ fantasma laranja), adiantado/atrasado
+  âmbar escuro (tom do `kOkColor` do resumo).
 - `lib/practice/practice_controller.dart`: `PracticeController` (Flutter-
   aware, ao contrário do T01 Dart-puro) liga `MidiInputService.notes` →
   `WaitModeSession` → freio (via `session.current`) → cores (via

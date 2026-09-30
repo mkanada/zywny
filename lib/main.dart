@@ -28,6 +28,7 @@ import 'midi/midi_out_sound_engine.dart';
 import 'music/performance_track.dart';
 import 'native_paths.dart';
 import 'practice/hand.dart';
+import 'practice/practice_colors.dart';
 import 'practice/practice_controller.dart';
 import 'practice/practice_report.dart';
 import 'practice/practice_tools.dart';
@@ -634,6 +635,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     practice.start(fromMs: fromMs, countIn: _countInOn);
     if (range != null) practice.setLoop(range.startMs, range.endMs);
     player.play();
+    // No treino, o "esperado agora" acende em azul (kPracticePendingColor):
+    // o vermelho padrão do player confundia pendente com errada.
+    player.highlightColor = kPracticePendingColor;
     setState(() {
       _practice = practice;
       _soundOn = true;
@@ -648,6 +652,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (practice == null) return;
     PracticeReport? report;
     _midiMonitor?.muted = false;
+    // Devolve a cor de destaque configurada (o treino usa o azul de
+    // "esperado agora", ver _togglePractice).
+    _player?.highlightColor = _highlightColor;
     if (practice.mode != PracticeMode.wait && practice.hasVerdicts) {
       practice.finish();
       report = practice.report;
