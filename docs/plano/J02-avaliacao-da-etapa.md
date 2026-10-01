@@ -77,6 +77,20 @@ compassos com erro, montar os **blocos de reforço**. Dart puro.
    (fundidos); `{3,12}` → `[2-4]` e `[11-13]`; vazio → lista vazia.
 7. `just analyze` e `just test` limpos.
 
-## Notas de execução
+## Notas de execução (J02, 2026-10-01)
 
-_(preencher ao executar)_
+Implementado: `lib/trail/stage_result.dart` (`kTrailPassAccuracy`,
+`StageResult`, `StageResult.fromReport`, `WaitTally`) e
+`lib/trail/reinforcement.dart` (`reinforcementBlocks`).
+Testes: `test/stage_result_test.dart` (6 testes, todos os critérios 1–6).
+
+- `percent` usa conta inteira (`hits * 100 ~/ total`): 90% crava 90 sem
+  erro de binário; 899/1000 dá 89.
+- `WaitTally` ignora `wrong` sem passo pendente (antes do primeiro
+  `stepStarted`, depois do último `stepDone`); o recomeço de acorde por
+  falta de simultaneidade (`kWaitChordWindowMs`) não passa por aqui —
+  é `correct`/`_restartChord` na sessão, nunca `wrong` (J00).
+- `reinforcementBlocks` recebe lógicos (a conversão
+  ocorrência→lógico é `TrailPath.logicalOf`, do J01) e aplica as 4
+  regras; blocos que se tocam (`next.first <= cur.last + 1`) fundem.
+- `just analyze` e `just test` limpos.
