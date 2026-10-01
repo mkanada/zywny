@@ -41,8 +41,20 @@ Ao editar o **bridge**, siga também o `CLAUDE.md` e as convenções de
 saídas temporárias em `compare/out/`, não alterar `View`/`SvgDeviceContext`,
 a spec `docs/formato/especificacao-v1.md` é atualizada junto com o formato).
 O plano **daquele** repo usa os prefixos F/S/R/A/E/P (+ G, ver abaixo); os
-passos deste plano usam prefixos próprios (X, N, C, K, M, T, W, V) para não
-colidir.
+passos deste plano usam prefixos próprios (X, N, C, K, M, T, W, V, J, L)
+para não colidir.
+
+A fase **J** (trilha de estudo: a música em trechos, com etapas que se
+desbloqueiam como fases de um jogo) tem especificação própria em
+[J00-trilha-de-estudo.md](J00-trilha-de-estudo.md) — quem executa um passo
+J lê também esse arquivo.
+
+A fase **L** (trilha do decorar: opcional, as notas dão lugar a pausas
+coloridas até a prova com a partitura coberta) tem especificação em
+[L00-trilha-do-decorar.md](L00-trilha-do-decorar.md) e se apoia na fase J —
+quem executa um passo L lê o J00 e o L00. A parte que depende do fork e do
+formato `.vsb` (glifos de pausa, figura da nota, regra do que apagar) está
+no plano **do bridge**, como G07–G09; L02 e L03 são a porta Dart.
 
 **N01 e N02 são 100%/quase 100% código do bridge** (fork C++ + spec, e
 `score_bridge/` — que também é pacote do bridge, não do zywny). Por isso os
@@ -200,6 +212,7 @@ zywny
 | D-WEB-SYNTH | Síntese na Web: SpessaSynth (JS) ou o crate Rust em wasm? | W04 | SpessaSynth (maduro, AudioWorklet pronto); mesmo `.sf2` nos dois lados | **aberta** |
 | D-TREINO | Tolerâncias e UX do treino (janela de acerto, o que conta como erro) | T03 | ±75 ms "certo", ±150 ms "quase", fora disso "errado/perdido"; ornamentos e apojaturas não cobrados na 1.0 | **aberta** |
 | D-RITMO | Treino de rítmica: janelas, cobrar duração, som do toque | T05 | ±60 ms "certo", ±130 ms "quase" (de parede); duração não cobrada; toque soa as notas esperadas do onset ("piano mágico") | **aberta** |
+| D-SALTO | Trilha em músicas cujo caminho sem repetições tem salto (casas de 1ª/2ª vez, vários ritornelos): salto no agendador ou usar a última passagem? | J08 | Decidir pela medição dos 600 hinos feita no J01 — ver [J08](J08-saltos-no-caminho.md) | **aberta** |
 
 ## Riscos conhecidos
 
@@ -247,6 +260,23 @@ zywny
 | [X02](X02-windows-render.md) | Windows: `verovio.dll` e partitura rodando (sem som) | — | D-WIN | pendente |
 | [K06](K06-motor-no-windows.md) | Motor de áudio no Windows (WASAPI) | K04, X02 | D-WIN | pendente |
 | [V01](V01-portao-da-1-0.md) | Portão da 1.0: matriz de plataformas | todos | — | pendente |
+| [J01](J01-caminho-e-trechos.md) | Trilha: caminho sem repetições e corte em trechos (Dart puro) | — | — | pendente |
+| [J02](J02-avaliacao-da-etapa.md) | Trilha: avaliação da etapa e blocos de reforço (Dart puro) | — | — | pendente |
+| [J03](J03-modelo-e-progresso.md) | Trilha: modelo, desbloqueio e progresso persistente | J01 | — | pendente |
+| [J04](J04-passagem-unica.md) | Trilha: passagem única de um intervalo no `PracticeController` | J02 | — | pendente |
+| [J05](J05-tela-da-etapa.md) | Trilha: tela para executar uma etapa | J03, J04 | — | pendente |
+| [J06](J06-gaveta-e-configuracao.md) | Trilha: lista de etapas, pular, refazer, configuração de N | J05 | — | pendente |
+| [J07](J07-fase-final-e-reforco.md) | Trilha: fase final e reforço | J05 | — | pendente |
+| [J08](J08-saltos-no-caminho.md) | Trilha: saltos no caminho (casas, vários ritornelos) | J04, J07 | D-SALTO | pendente |
+| [J09](J09-progresso-na-biblioteca.md) | Trilha: progresso na biblioteca | J03 | — | pendente |
+| [L01](L01-sorteio-do-sumico.md) | Decorar: colunas e sorteio do sumiço (Dart puro) | J01 | — | pendente |
+| [L02](L02-esconder-notas.md) | Decorar: esconder colunas no `score_bridge` (nota, barra, linha suplementar) | G09 (bridge) | — | pendente |
+| [L03](L03-pausa-substituta.md) | Decorar: pausa substituta colorida (`score_bridge`) | L02, G09 (bridge) | — | pendente |
+| [L04](L04-plano-e-progresso-do-decorar.md) | Decorar: plano, desbloqueio e progresso | J03, L01 | — | pendente |
+| [L05](L05-passagem-com-sumico.md) | Decorar: passagem com sumiço e revelação no `PracticeController` | J04, L02, L03 | — | pendente |
+| [L06](L06-tela-do-decorar.md) | Decorar: tela para entrar na trilha e executar etapas | J05, J06, L04, L05 | — | pendente |
+| [L07](L07-prova-as-cegas.md) | Decorar: prova às cegas e marca "de cor" | L06 | — | pendente |
+| [L08](L08-decorar-na-biblioteca.md) | Decorar: na biblioteca | J09, L04 | — | pendente |
 
 Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
 Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em
