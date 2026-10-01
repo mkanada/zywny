@@ -3,11 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'audio/audio_playback_clock.dart';
@@ -19,6 +17,8 @@ import 'audio/sound_engine_factory.dart';
 import 'audio/soundfont_store.dart';
 import 'layout_options.dart';
 import 'layout_panel.dart';
+import 'library/hymn.dart';
+import 'library/library_screen.dart';
 import 'midi/midi_device_manager.dart';
 import 'midi/midi_device_picker.dart';
 import 'midi/midi_input_service.dart';
@@ -32,16 +32,15 @@ import 'practice/practice_colors.dart';
 import 'practice/practice_controller.dart';
 import 'practice/practice_report.dart';
 import 'practice/practice_tools.dart';
+import 'settings/app_settings.dart';
+import 'settings/general_settings_panel.dart';
+import 'settings/hymn_settings.dart';
 import 'splash_screen.dart';
 import 'ui/phone_chrome.dart';
 import 'ui/theme.dart';
 import 'diag_log.dart';
 import 'verovio_render.dart';
 import 'verovio_resources.dart';
-
-/// Saída de som (K03/M03): o sintetizador do app (`.sf2`) ou o teclado MIDI
-/// conectado, tocando no som próprio do piano digital do usuário.
-enum SoundOutput { appSynth, midiKeyboard }
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,28 +53,47 @@ Future<void> main(List<String> args) async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key, this.debugMode = false, this.splash = false});
+  const MyApp({
+    super.key,
+    this.debugMode = false,
+    this.splash = false,
+    this.loadCatalog = HymnCatalog.load,
+  });
 
   final bool debugMode;
 
   /// Splash de abertura (`lib/splash_screen.dart`); os testes ficam sem ela.
   final bool splash;
 
+  /// De onde vêm os hinos da biblioteca; os testes trocam por uma lista
+  /// própria (`assets/hinos/` não é versionado).
+  final Future<HymnCatalog> Function() loadCatalog;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'zywny • partitura → .vsb',
+      title: 'zywny',
       theme: buildAppTheme(),
+      // A tela inicial é a biblioteca de hinos embutidos; a partitura
+      // (ScoreHomePage) abre por cima dela, um hino por vez.
       home: SplashOverlay(
         enabled: splash,
-        child: ScoreHomePage(debugMode: debugMode),
+        child: LibraryScreen(
+          loadCatalog: loadCatalog,
+          scoreBuilder: (context, opened) =>
+              ScoreHomePage(debugMode: debugMode, opened: opened),
+        ),
       ),
     );
   }
 }
 
 class ScoreHomePage extends StatefulWidget {
-  const ScoreHomePage({super.key, this.debugMode = false});
+  const ScoreHomePage({super.key, this.debugMode = false, this.opened});
+
+  /// O hino que a biblioteca abriu. `null` só nos testes de widget, que
+  /// exercitam a tela sem partitura (nada nativo é tocado).
+  final OpenedHymn? opened;
 
   /// `--debug` on the command line: asks Verovio to also embed the
   /// effective options and source document inside the rendered `.vsb`
@@ -93,11 +111,18 @@ const double kZoomMin = 0.5;
 const double kZoomMax = 8.0;
 
 class _ScoreHomePageState extends State<ScoreHomePage> {
-  String? _scoreName;
-  String? _inputPath;
+  late final String? _scoreName = switch (widget.opened?.hymn) {
+    final hymn? => '${hymn.number} · ${hymn.title}',
+    null => null,
+  };
+  late final String? _inputPath = widget.opened?.scorePath;
   VsbDocument? _document;
   int _pageIndex = 0;
-  String _status = 'abra uma partitura (.mei, .musicxml, .mxml)';
+  String _status = 'nenhuma partitura';
+
+  /// A última gravação falhou — o celular não tem linha de status, então
+  /// o motivo aparece no lugar da partitura.
+  String? _renderError;
   bool _busy = false;
 
   /// A render was asked for while another was running; it starts as soon as
@@ -110,13 +135,32 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Size? _boxDevicePx;
   Timer? _resizeDebounce;
 
-  /// Verovio options being tried, by name (see `layout_options.dart`).
-  Map<String, Object> _layout = initialLayoutValues(phone: _isPhone);
+  /// Configurações gerais (som, MIDI, cores…): as da biblioteca quando ela
+  /// abriu o hino; só são desta tela — e lidas e descartadas por ela —
+  /// quando não vieram de fora. Ver [_onSettingsChanged].
+  late final AppSettings _settings =
+      widget.opened?.appSettings ?? AppSettings();
+
+  /// O que este hino tinha guardado ao abrir (layout, andamento, mão).
+  late final HymnSettings _stored =
+      widget.opened?.hymnSettings ?? const HymnSettings();
+
+  /// O layout de um hino em que nada foi mexido.
+  static Map<String, Object> get _layoutDefaults =>
+      initialLayoutValues(phone: _isPhone);
+
+  /// Verovio options of this hymn, by name (see `layout_options.dart`):
+  /// the app's defaults with whatever was changed for it.
+  late Map<String, Object> _layout = _stored.layoutOver(_layoutDefaults);
 
   /// Whether the page is sized from the score box ([_pageWidth] /
   /// [_pageHeight]) or from the `pageWidth`/`pageHeight` options.
-  bool _pageFitsBox = true;
+  late bool _pageFitsBox = _stored.pageFitsBox;
+
+  /// Painel "Layout deste hino" e painel "Configurações gerais" — um de
+  /// cada vez.
   bool _panelOpen = false;
+  bool _generalOpen = false;
 
   /// Layout de celular (`kPhoneLayoutMaxWidth`): gaveta "Opções de estudo"
   /// aberta (botão ⋯ da barra lateral).
@@ -169,38 +213,45 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// [_canTrain]. [_practice] existe só enquanto a sessão de modo espera
   /// está de fato tocando.
   bool _trainingMode = false;
-  Hand _hand = Hand.direita;
+  late Hand _hand = _stored.hand ?? _kDefaultHand;
+  static const _kDefaultHand = Hand.direita;
 
-  /// Espera (o tempo para até o aluno tocar) ou tempo real (T03).
-  PracticeMode _practiceMode = PracticeMode.wait;
+  /// Espera (o tempo para até o aluno tocar), tempo real (T03) ou ritmo —
+  /// configuração geral.
+  PracticeMode get _practiceMode => _settings.practiceMode;
+  set _practiceMode(PracticeMode value) => _settings.practiceMode = value;
   PracticeController? _practice;
 
   /// Acessórios de treino (T04). O loop guarda **ocorrências** de compasso
   /// (índices em `ScorePlayer.measures`, ordem de execução); metrônomo e
   /// contagem só soam com o som do app ligado (o agendador é quem clica).
-  bool _metronomeOn = false;
-  bool _countInOn = false;
+  /// Metrônomo e contagem são configurações gerais ([_settings]).
+  bool get _metronomeOn => _settings.metronomeOn;
+  set _metronomeOn(bool value) => _settings.metronomeOn = value;
+  bool get _countInOn => _settings.countInOn;
+  set _countInOn(bool value) => _settings.countInOn = value;
   ({int a, int b})? _loop;
 
   /// Latência de entrada+saída calibrada para o teclado/saída correntes.
   double _inputLatencyMs = 0;
 
-  /// Saída escolhida (M03) e preferência de Program Change, persistidas em
-  /// [SharedPreferencesAsync] — carregadas em [initState].
-  final SharedPreferencesAsync _outputPrefs = SharedPreferencesAsync();
-  static const _kOutputPrefKey = 'sound_output';
-  static const _kUseScoreInstrumentsPrefKey = 'sound_use_score_instruments';
+  /// Saída **em uso** (M03). A escolhida mora em [_settings]; quando ela
+  /// muda, [_onSettingsChanged] troca o motor e só então atualiza esta.
   SoundOutput _output = SoundOutput.appSynth;
 
-  /// Program Change (M03): manda o instrumento da partitura ao teclado MIDI
-  /// só se ligado — desligado por padrão, o usuário quer o som do próprio
-  /// piano.
-  bool _useScoreInstruments = false;
+  /// Program Change (M03) — configuração geral.
+  bool get _useScoreInstruments => _settings.useScoreInstruments;
 
   /// Interruptor "som" (K04): liga o agendador de áudio sobre [_player];
   /// desligado, o player volta ao próprio relógio interno (`speed`), o
   /// modo mudo de sempre.
+  ///
+  /// É o estado **de agora**; o que o usuário quer ao abrir um hino é
+  /// `_settings.soundOn` ([_soundSetting] guarda o último valor visto, para
+  /// distinguir "o usuário mexeu" de "o treino ligou o som por conta").
   bool _soundOn = false;
+  bool _soundSetting = false;
+  bool _autoSoundDone = false;
   bool _loadingSoundFont = false;
   final SoundFontStore _soundFonts = const SoundFontStore();
 
@@ -213,7 +264,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// instante que o áudio usa), senão este `Stopwatch`, que roda desde a
   /// abertura do app.
   final Stopwatch _appClock = Stopwatch()..start();
-  final MidiDeviceManager _midiDeviceManager = MidiDeviceManager();
+
+  ///
+  /// O gerenciador de dispositivos é o da biblioteca quando ela abriu o
+  /// hino (o teclado conectado lá continua conectado aqui); só é desta tela
+  /// — e descartado com ela — quando não veio de fora.
+  late final MidiDeviceManager _midiDeviceManager =
+      widget.opened?.midiDeviceManager ?? MidiDeviceManager();
   late final MidiInputService _midiInput = FlutterMidiInputService(
     nowSeconds: () =>
         _engine?.nowSeconds ?? _appClock.elapsedMicroseconds / 1e6,
@@ -231,13 +288,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// 0,5×–1,5×; alimenta [_scheduler] com som ligado, ou `ScorePlayer.speed`
   /// mudo (C01: o relógio externo ignora `speed`).
-  double _speed = 1.0;
+  late double _speed = _stored.speed ?? 1.0;
 
-  /// Appearance, set from the "Opções" panel — pure paint-time settings, none
-  /// of them reach Verovio or reflow the score.
-  Color _highlightColor = kDefaultHighlightColor;
-  double _haloWidth = 1.0;
-  Color _barColor = kDefaultBarColor;
+  /// Appearance, from the general settings — pure paint-time, none of them
+  /// reach Verovio or reflow the score.
+  Color get _highlightColor => _settings.highlightColor;
+  double get _haloWidth => _settings.haloWidth;
+  Color get _barColor => _settings.barColor;
 
   bool get _canPlay => (_document?.timemap?.isNotEmpty ?? false) && !_busy;
 
@@ -276,14 +333,20 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void initState() {
     super.initState();
     _midiDeviceManager.connected.addListener(_onMidiDeviceChanged);
-    unawaited(_loadOutputPrefs());
+    // Lidos já aqui (e não na primeira vez que forem usados): é contra
+    // eles que [_onSettingsChanged] compara para saber o que mudou.
+    _output = _settings.output;
+    _soundSetting = _settings.soundOn;
+    _settings.addListener(_onSettingsChanged);
+    if (widget.opened == null) unawaited(_settings.load());
     unawaited(
       _soundFonts.hasCustom().then((v) {
         if (mounted) setState(() => _customSoundFont = v);
       }),
     );
     // A partitura é para ler em paisagem no celular (a biblioteca, em
-    // retrato, ainda não existe no app real); no desktop isto não vale nada.
+    // retrato, volta a travar a orientação dela quando esta tela fecha); no
+    // desktop isto não vale nada.
     if (_isPhone) {
       unawaited(
         SystemChrome.setPreferredOrientations(const [
@@ -294,30 +357,64 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
   }
 
-  Future<void> _loadOutputPrefs() async {
-    final outputName = await _outputPrefs.getString(_kOutputPrefKey);
-    final useScoreInstruments = await _outputPrefs.getBool(
-      _kUseScoreInstrumentsPrefKey,
-    );
+  /// As configurações gerais mudaram — pelo painel desta tela ou por
+  /// qualquer outro caminho: aplica ao que está vivo aqui (motor de saída,
+  /// agendador, player) e redesenha.
+  void _onSettingsChanged() {
     if (!mounted) return;
-    setState(() {
-      _output = SoundOutput.values.firstWhere(
-        (v) => v.name == outputName,
-        orElse: () => SoundOutput.appSynth,
-      );
-      _useScoreInstruments = useScoreInstruments ?? false;
-    });
+    if (_settings.output != _output) unawaited(_applyOutput(_settings.output));
+    _midiOutEngine?.useScoreInstruments = _settings.useScoreInstruments;
+    _scheduler?.metronomeOn = _settings.metronomeOn;
+    // No treino o player destaca em azul ("esperado agora"); a cor
+    // configurada volta em [_endPractice].
+    if (_practice == null) _player?.highlightColor = _settings.highlightColor;
+    if (_settings.soundOn != _soundSetting) {
+      _soundSetting = _settings.soundOn;
+      if (_soundSetting != _soundOn && !_loadingSoundFont) {
+        unawaited(_toggleSound());
+      }
+    }
+    setState(() {});
+  }
+
+  /// Guarda o que é deste hino (layout, andamento, mão). Com um respiro: um
+  /// slider arrastado chama isto a cada passo.
+  void _saveHymnSettings() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(
+      const Duration(milliseconds: 400),
+      _flushHymnSettings,
+    );
+  }
+
+  Timer? _saveDebounce;
+
+  void _flushHymnSettings() {
+    if (_saveDebounce == null) return;
+    _saveDebounce?.cancel();
+    _saveDebounce = null;
+    widget.opened?.onHymnSettingsChanged(
+      HymnSettings(
+        layout: HymnSettings.layoutOverrides(_layout, _layoutDefaults),
+        pageFitsBox: _pageFitsBox,
+        speed: _speed == 1.0 ? null : _speed,
+        hand: _hand == _kDefaultHand ? null : _hand,
+      ),
+    );
   }
 
   @override
   void dispose() {
     if (_playing) unawaited(WakelockPlus.disable());
     _resizeDebounce?.cancel();
+    _flushHymnSettings();
+    _settings.removeListener(_onSettingsChanged);
+    if (widget.opened == null) _settings.dispose();
     _practice?.dispose();
     _midiDeviceManager.connected.removeListener(_onMidiDeviceChanged);
     _midiMonitor?.dispose();
     _midiInput.dispose();
-    _midiDeviceManager.dispose();
+    if (widget.opened == null) _midiDeviceManager.dispose();
     _scheduler?.dispose();
     unawaited(_appEngine?.dispose());
     unawaited(_midiOutEngine?.dispose());
@@ -340,15 +437,27 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _boxDevicePx = devicePx;
     if (previous == null) {
       // First layout: the panel was built before the box was known, so it
-      // is still showing no page size. Nothing to re-render yet.
+      // is still showing no page size.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() {});
       });
+    }
+    if (_inputPath == null) return;
+    // No celular esta tela é travada em paisagem, mas abre a partir da
+    // biblioteca em retrato: uma caixa mais alta que larga é só o aparelho
+    // ainda girando, e gravar a partitura para ela seria trabalho jogado
+    // fora (a caixa em paisagem chega logo depois).
+    if (_isPhone && devicePx.height > devicePx.width) return;
+    if (_document == null && !_busy) {
+      // Nothing engraved yet: the hymn the library opened gets its first
+      // render as soon as there is a box to engrave it for.
+      _resizeDebounce?.cancel();
+      _resizeDebounce = Timer(Duration.zero, _renderAndShow);
       return;
     }
     // A fixed page size does not depend on the box, so a resize has nothing
     // to re-engrave.
-    if (_inputPath == null || !_pageFitsBox) return;
+    if (previous == null || !_pageFitsBox) return;
     // 2% of slack: a one-pixel wobble is not worth re-engraving the piece.
     final changed =
         (previous.width - devicePx.width).abs() / previous.width > 0.02 ||
@@ -358,44 +467,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _resizeDebounce = Timer(const Duration(milliseconds: 400), _renderAndShow);
   }
 
-  Future<void> _abrirPartitura() async {
-    if (_busy) return;
-    // Extension filtering can come back empty on Android (SAF matches by
-    // MIME type, which these extensions don't map to) — skip the filter
-    // there rather than have the picker appear to show nothing (X01).
-    final typeGroup = Platform.isAndroid
-        ? const XTypeGroup(label: 'partituras')
-        : const XTypeGroup(
-            label: 'partituras',
-            extensions: ['mei', 'musicxml', 'mxml', 'mxl', 'xml'],
-          );
-    final file = await openFile(acceptedTypeGroups: [typeGroup]);
-    if (file == null) return;
-    if (!mounted) return;
-
-    final inputPath = await _readablePath(file);
-    if (!mounted) return;
-
-    _view.value = Matrix4.identity();
-    setState(() {
-      _inputPath = inputPath;
-      _scoreName = file.name;
-      _pageIndex = 0;
-    });
-    await _renderAndShow();
-  }
-
-  /// The FFI render call needs a real path on disk. On Android, `file_selector`
-  /// goes through the Storage Access Framework and `file.path` can be a
-  /// content:// URI or an unreadable cache path (X01) — copy the bytes to a
-  /// temp file when that happens. Elsewhere `file.path` is already a normal
-  /// path.
-  Future<String> _readablePath(XFile file) async {
-    if (!Platform.isAndroid || await File(file.path).exists()) return file.path;
-    final tmpDir = await Directory.systemTemp.createTemp('zywny_open');
-    final tmpFile = File('${tmpDir.path}/${file.name}');
-    await tmpFile.writeAsBytes(await file.readAsBytes());
-    return tmpFile.path;
+  /// Fecha a partitura e volta à biblioteca (o `dispose` para o que
+  /// estiver tocando).
+  void _backToLibrary() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) navigator.pop();
   }
 
   /// Every option that reaches Verovio for the current state: the page size
@@ -427,6 +503,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
     setState(() {
       _busy = true;
+      _renderError = null;
       _status = 'gerando .vsb…';
     });
 
@@ -510,10 +587,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         }
         _busy = false;
       });
+      _restoreSound();
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _status = 'erro: $e';
+        _renderError = '$e';
         _busy = false;
       });
     } finally {
@@ -588,7 +667,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Troca a mão do aluno (T02) — o seletor só aparece armado e sem sessão
   /// em andamento ([_practice] existindo esconde o seletor).
-  void _setHand(Hand hand) => setState(() => _hand = hand);
+  void _setHand(Hand hand) {
+    setState(() => _hand = hand);
+    _saveHymnSettings();
+  }
 
   /// "Praticar" (T02): modo espera com o app tocando a outra mão. Precisa
   /// de som ligado — o agendador que toca a mão do app é o mesmo do
@@ -664,6 +746,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _practice = null;
     if (report != null) {
       final r = report;
+      // A biblioteca guarda a melhor precisão do hino ("Pontuação").
+      widget.opened?.onPracticeScore((r.accuracy * 100).round());
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_showSummary(r));
       });
@@ -721,6 +805,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// agendador de áudio com som ligado, ou `ScorePlayer.speed` mudo.
   void _setSpeed(double value) {
     setState(() => _speed = value);
+    _saveHymnSettings();
     if (_soundOn) {
       _scheduler?.setSpeed(value);
     } else {
@@ -874,6 +959,28 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     setState(() => _soundOn = true);
   }
 
+  /// O usuário mexeu no interruptor de som desta tela: além de ligar ou
+  /// desligar agora, vira a preferência geral (o próximo hino abre igual).
+  Future<void> _userToggleSound() async {
+    await _toggleSound();
+    _soundSetting = _soundOn;
+    _settings.soundOn = _soundOn;
+  }
+
+  /// Uma vez por hino, depois da primeira gravura: religa o som se ele
+  /// estava ligado da última vez. Com saída no teclado MIDI e nenhum
+  /// conectado, deixa quieto em vez de reclamar a cada hino aberto.
+  void _restoreSound() {
+    if (_autoSoundDone) return;
+    _autoSoundDone = true;
+    if (!_settings.soundOn || _soundOn) return;
+    if (_output == SoundOutput.midiKeyboard &&
+        _midiDeviceManager.connected.value == null) {
+      return;
+    }
+    unawaited(_toggleSound());
+  }
+
   /// Abre [_engine] se ainda não existir — pedindo um `.sf2` ao usuário só
   /// na primeira vez (D-SF) — e o devolve; `null` se o motor não abriu ou o
   /// usuário cancelou o `.sf2`. Compartilhado por [_toggleSound] e
@@ -926,13 +1033,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     return engine;
   }
 
-  /// Troca a saída de som (M03), persistindo a escolha. Se o som ou o
+  /// Troca a saída de som em uso (M03) para a escolhida nas configurações
+  /// gerais (que já a guardaram) — ver [_onSettingsChanged]. Se o som ou o
   /// monitor MIDI estiverem ligados, silencia a saída antiga (`allNotesOff`)
   /// e reancora o agendador/monitor na nova — se a nova saída não abrir
   /// (ex.: MIDI sem dispositivo conectado), desliga os dois.
-  Future<void> _setOutput(SoundOutput next) async {
+  Future<void> _applyOutput(SoundOutput next) async {
     if (next == _output) return;
-    unawaited(_outputPrefs.setString(_kOutputPrefKey, next.name));
     final wasSoundOn = _soundOn;
     final wasMonitorOn = _midiMonitorOn;
     if (!wasSoundOn && !wasMonitorOn) {
@@ -976,11 +1083,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Interruptor "usar instrumentos da partitura" (M03): Program Change ao
   /// teclado MIDI — desligado por padrão.
-  void _setUseScoreInstruments(bool value) {
-    setState(() => _useScoreInstruments = value);
-    _midiOutEngine?.useScoreInstruments = value;
-    unawaited(_outputPrefs.setBool(_kUseScoreInstrumentsPrefKey, value));
-  }
+  void _setUseScoreInstruments(bool value) =>
+      _settings.useScoreInstruments = value;
 
   /// Interruptor "monitor MIDI" (M02): liga [_midiInput] a [_engine] num
   /// canal reservado, para teclados controladores sem som próprio. Guarda a
@@ -1080,18 +1184,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Troca o `.sf2` (o TimGM6mb embutido é o padrão): guarda o escolhido e,
   /// se o motor do app já está aberto, recarrega nele na hora.
   Future<void> _chooseSoundFont() async {
-    const typeGroup = XTypeGroup(label: 'soundfont', extensions: ['sf2']);
-    final file = await openFile(
-      acceptedTypeGroups: [
-        if (!Platform.isAndroid)
-          typeGroup
-        else
-          const XTypeGroup(label: 'soundfont'),
-      ],
-    );
-    if (file == null || !mounted) return;
+    final Uint8List? bytes;
     try {
-      final bytes = await file.readAsBytes();
+      bytes = await pickSoundFontBytes();
+    } catch (e) {
+      DiagLog.log('erro', 'soundfont: $e');
+      return;
+    }
+    if (bytes == null || !mounted) return;
+    try {
       await _appEngine?.loadSoundFont(bytes);
       await _soundFonts.saveCustom(bytes);
       if (mounted) setState(() => _customSoundFont = true);
@@ -1129,19 +1230,20 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void _setLayoutValue(String key, Object value) =>
       setState(() => _layout = {..._layout, key: value});
 
-  /// Only the **next** note to light up gets the new color — [ScorePlayer]
-  /// doesn't recolor one that's already animating.
-  void _setHighlightColor(Color color) {
-    setState(() => _highlightColor = color);
-    _player?.highlightColor = color;
+  /// A layout option of this hymn settled (slider released, toggle
+  /// flipped): keep it for the hymn and re-engrave.
+  void _commitLayout() {
+    _saveHymnSettings();
+    _renderAndShow();
   }
 
+  /// Back to the app's default layout — for this hymn only.
   void _resetLayout() {
     setState(() {
-      _layout = initialLayoutValues(phone: _isPhone);
+      _layout = _layoutDefaults;
       _pageFitsBox = true;
     });
-    _renderAndShow();
+    _commitLayout();
   }
 
   Future<void> _copyOptions() async {
@@ -1320,6 +1422,31 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Corpo no celular — `CelularEstudo` / `CelularTreino` / `CelularPainel` /
   /// `CelularGrande`: a partitura ocupa tudo, com a barra lateral de 84 px à
   /// direita; o resto (andamento, mão, modo, tamanho, som…) fica na gaveta ⋯.
+  /// Faixa do topo no celular: voltar, número e título do hino e, no
+  /// treino, os selos de modo/mão e de acertos e erros.
+  Widget _buildPhoneTitleBar() {
+    final hymn = widget.opened?.hymn;
+    return PhoneTitleBar(
+      number: hymn?.number,
+      title: hymn?.title ?? '',
+      onBack: _backToLibrary,
+      trailing: [
+        if (_trainingMode) PhoneStatusPill(text: _trainingPillText),
+        if (_practice case final practice?)
+          ListenableBuilder(
+            listenable: Listenable.merge([
+              practice.correctCount,
+              practice.wrongCount,
+            ]),
+            builder: (context, _) => PhoneCountersPill(
+              correct: practice.correctCount.value,
+              mistakes: practice.wrongCount.value,
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildPhoneBody() {
     final player = _player;
     return Stack(
@@ -1330,7 +1457,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               Expanded(
                 child: ColoredBox(
                   color: kSurface,
-                  child: _buildScoreArea(phone: true),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildPhoneTitleBar(),
+                      Expanded(child: _buildScoreArea(phone: true)),
+                    ],
+                  ),
                 ),
               ),
               ValueListenableBuilder<int>(
@@ -1422,71 +1555,26 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   unawaited(_openLoopSheet());
                 },
         ),
-        PhoneActionRow(
-          icon: Icons.timer_outlined,
-          label: _inputLatencyMs == 0
-              ? 'Calibrar latência do teclado'
-              : 'Latência: ${_inputLatencyMs.round()} ms — recalibrar',
-          onTap: _midiDeviceManager.connected.value == null
-              ? null
-              : () {
-                  setState(() => _optionsOpen = false);
-                  unawaited(_openCalibration());
-                },
-        ),
-        const PhoneSectionLabel('SOM E TECLADO'),
-        PhoneToggleRow(
-          label: 'Som do app',
-          value: _soundOn,
-          onChanged: _loadingSoundFont
-              ? null
-              : (_) => unawaited(_toggleSound()),
+        // O que é só deste hino: cada um guarda o seu tamanho e layout.
+        const PhoneSectionLabel('ESTE HINO'),
+        PhoneSliderRow(
+          label: 'TAMANHO DA NOTAÇÃO',
+          value: (_layout['unit']! as num).toDouble(),
+          min: 4.5,
+          max: 12,
+          divisions: 15,
+          formatValue: (v) => v.toStringAsFixed(1),
+          onChanged: (v) => _setLayoutValue('unit', v),
+          onChangeEnd: (_) => _commitLayout(),
         ),
         PhoneActionRow(
-          icon: _output == SoundOutput.midiKeyboard
-              ? Icons.piano
-              : Icons.graphic_eq,
-          label: _output == SoundOutput.midiKeyboard
-              ? 'Saída: teclado MIDI'
-              : 'Saída: sintetizador do app',
-          onTap: () => unawaited(
-            _setOutput(
-              _output == SoundOutput.midiKeyboard
-                  ? SoundOutput.appSynth
-                  : SoundOutput.midiKeyboard,
-            ),
-          ),
-        ),
-        PhoneActionRow(
-          icon: Icons.library_music,
-          label: _customSoundFont
-              ? 'Soundfont: personalizado — trocar'
-              : 'Soundfont: TimGM6mb (padrão) — trocar',
-          onTap: _loadingSoundFont ? null : () => unawaited(_chooseSoundFont()),
-        ),
-        if (_customSoundFont)
-          PhoneActionRow(
-            icon: Icons.restore,
-            label: 'Voltar ao soundfont padrão',
-            onTap: _loadingSoundFont
-                ? null
-                : () => unawaited(_resetSoundFont()),
-          ),
-        PhoneToggleRow(
-          label: 'Monitor MIDI (teclado sem som)',
-          value: _midiMonitorOn,
-          onChanged: _loadingSoundFont
-              ? null
-              : (_) => unawaited(_toggleMidiMonitor()),
-        ),
-        const PhoneSectionLabel('PARTITURA'),
-        PhoneActionRow(
-          icon: Icons.folder_open,
-          label: 'Abrir partitura',
-          onTap: () {
-            setState(() => _optionsOpen = false);
-            unawaited(_abrirPartitura());
-          },
+          icon: Icons.tune,
+          label: 'Layout deste hino (avançado)',
+          onTap: () => setState(() {
+            _optionsOpen = false;
+            _generalOpen = false;
+            _panelOpen = true;
+          }),
         ),
         PhoneActionRow(
           icon: Icons.chevron_left,
@@ -1504,21 +1592,25 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               ? _viewController.nextPage
               : null,
         ),
+        // O que vale para todos os hinos fica num painel só.
+        const PhoneSectionLabel('GERAL'),
         PhoneActionRow(
-          icon: Icons.tune,
-          label: 'Ajustes de layout (avançado)',
+          icon: Icons.settings_outlined,
+          label: 'Configurações gerais',
+          trailing: const Text(
+            'som, MIDI, cores',
+            style: TextStyle(fontSize: 13, color: kInkCaption),
+          ),
           onTap: () => setState(() {
             _optionsOpen = false;
-            _panelOpen = true;
+            _panelOpen = false;
+            _generalOpen = true;
           }),
         ),
         PhoneActionRow(
-          icon: Icons.piano,
-          label: 'Painel do monitor MIDI',
-          onTap: () => setState(() {
-            _optionsOpen = false;
-            _midiPanelOpen = true;
-          }),
+          icon: Icons.arrow_back,
+          label: 'Voltar à biblioteca',
+          onTap: _backToLibrary,
         ),
       ],
     );
@@ -1558,11 +1650,19 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 ),
               )
             : phone
+            // Enquanto o hino é gravado (a barra de progresso corre em
+            // cima); se a gravação falhar, o motivo fica à vista.
             ? Center(
-                child: FilledButton.icon(
-                  onPressed: _busy ? null : _abrirPartitura,
-                  icon: const Icon(Icons.folder_open),
-                  label: const Text('Abrir partitura'),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 64),
+                  child: Text(
+                    switch (_renderError) {
+                      final error? => 'Não deu para abrir o hino: $error',
+                      null => _scoreName ?? '',
+                    },
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 15, color: kInkCaption),
+                  ),
                 ),
               )
             : const Center(
@@ -1592,43 +1692,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 left: 0,
                 right: 0,
                 child: LinearProgressIndicator(),
-              ),
-            if (phone && hasPage)
-              Positioned(
-                left: 10,
-                top: 4,
-                child: IconButton(
-                  tooltip: 'Abrir partitura',
-                  onPressed: _busy ? null : _abrirPartitura,
-                  icon: const Icon(
-                    Icons.folder_open,
-                    size: 24,
-                    color: kInkCaption,
-                  ),
-                ),
-              ),
-            if (phone && _trainingMode)
-              Positioned(
-                left: 54,
-                right: 12,
-                top: 8,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    PhoneStatusPill(text: _trainingPillText),
-                    if (_practice case final practice?)
-                      ListenableBuilder(
-                        listenable: Listenable.merge([
-                          practice.correctCount,
-                          practice.wrongCount,
-                        ]),
-                        builder: (context, _) => PhoneCountersPill(
-                          correct: practice.correctCount.value,
-                          mistakes: practice.wrongCount.value,
-                        ),
-                      ),
-                  ],
-                ),
               ),
             if (_midiPanelOpen)
               Positioned(
@@ -1660,35 +1723,72 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 bottom: 8,
                 width: math.min(360, constraints.maxWidth - 16),
                 child: LayoutPanel(
+                  subtitle: _scoreName,
                   values: _layout,
                   pageFitsBox: _pageFitsBox,
                   fittedPage: _fittedPage,
                   onChanged: _setLayoutValue,
-                  onCommit: _renderAndShow,
+                  onCommit: _commitLayout,
                   onFitChanged: (v) {
                     setState(() => _pageFitsBox = v);
-                    _renderAndShow();
+                    _commitLayout();
                   },
                   onReset: _resetLayout,
                   onCopy: _copyOptions,
                   onClose: () => setState(() => _panelOpen = false),
-                  zoomSection: _zoomControls(),
-                  highlightColor: _highlightColor,
-                  onHighlightColorChanged: _setHighlightColor,
-                  haloWidth: _haloWidth,
-                  onHaloWidthChanged: (v) => setState(() => _haloWidth = v),
-                  barColor: _barColor,
-                  onBarColorChanged: (c) => setState(() => _barColor = c),
+                  // No celular a partitura não tem zoom (o tamanho é o
+                  // `unit`).
+                  zoomSection: phone ? null : _zoomControls(),
+                ),
+              )
+            else if (_generalOpen)
+              Positioned(
+                top: 8,
+                right: 8,
+                bottom: 8,
+                width: math.min(360, constraints.maxWidth - 16),
+                child: GeneralSettingsPanel(
+                  settings: _settings,
+                  midiDeviceManager: _midiDeviceManager,
+                  customSoundFont: _customSoundFont,
+                  onChooseSoundFont: () => unawaited(_chooseSoundFont()),
+                  onResetSoundFont: () => unawaited(_resetSoundFont()),
+                  onClose: () => setState(() => _generalOpen = false),
+                  live: LiveSettingsActions(
+                    busy: _loadingSoundFont,
+                    monitorOn: _midiMonitorOn,
+                    onMonitorChanged: (_) => unawaited(_toggleMidiMonitor()),
+                    inputLatencyMs: _inputLatencyMs,
+                    onCalibrate: () {
+                      setState(() => _generalOpen = false);
+                      unawaited(_openCalibration());
+                    },
+                    onOpenMidiPanel: () => setState(() {
+                      _generalOpen = false;
+                      _midiPanelOpen = true;
+                    }),
+                  ),
                 ),
               )
             else if (!phone)
               Positioned(
                 top: 8,
                 right: 8,
-                child: IconButton.filledTonal(
-                  tooltip: 'Opções',
-                  onPressed: () => setState(() => _panelOpen = true),
-                  icon: const Icon(Icons.tune),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton.filledTonal(
+                      tooltip: 'Configurações gerais',
+                      onPressed: () => setState(() => _generalOpen = true),
+                      icon: const Icon(Icons.settings_outlined),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      tooltip: 'Layout deste hino',
+                      onPressed: () => setState(() => _panelOpen = true),
+                      icon: const Icon(Icons.tune),
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -1700,12 +1800,54 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   @override
   Widget build(BuildContext context) {
     if (MediaQuery.sizeOf(context).width < kPhoneLayoutMaxWidth) {
-      return Scaffold(backgroundColor: kSurface, body: _buildPhoneBody());
+      // O "voltar" do aparelho fecha primeiro a gaveta de opções; só com
+      // ela fechada é que sai da partitura para a biblioteca.
+      return PopScope(
+        canPop: !_optionsOpen && !_panelOpen && !_generalOpen,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          setState(() {
+            _optionsOpen = false;
+            _panelOpen = false;
+            _generalOpen = false;
+          });
+        },
+        child: Scaffold(backgroundColor: kSurface, body: _buildPhoneBody()),
+      );
     }
     return Scaffold(
+      // A barra de `Main.dc.html`: "‹ Biblioteca" à esquerda, o título do
+      // hino no centro (com o número e o compositor por baixo) e o teclado
+      // MIDI à direita.
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Text('zywny • partitura → .vsb'),
+        backgroundColor: kPanelSideBg,
+        surfaceTintColor: Colors.transparent,
+        shape: const Border(bottom: BorderSide(color: kBorderPanel)),
+        automaticallyImplyLeading: false,
+        leadingWidth: 150,
+        leading: Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: TextButton.icon(
+              onPressed: _backToLibrary,
+              style: TextButton.styleFrom(foregroundColor: kInk),
+              icon: const Icon(Icons.chevron_left, size: 22),
+              label: const Text(
+                'Biblioteca',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+        ),
+        centerTitle: true,
+        title: switch (widget.opened?.hymn) {
+          final hymn? => ScoreTitle(
+            title: hymn.title,
+            caption: 'Hino ${hymn.number} · ${hymn.composer}',
+          ),
+          null => const ScoreTitle(title: 'nenhuma partitura'),
+        },
         actions: [
           MidiDevicePickerButton(
             deviceManager: _midiDeviceManager,
@@ -1718,24 +1860,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         child: Column(
           crossAxisAlignment: .stretch,
           children: [
-            Row(
-              children: [
-                FilledButton.icon(
-                  onPressed: _abrirPartitura,
-                  icon: const Icon(Icons.folder_open),
-                  label: const Text('Abrir partitura'),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _scoreName ?? 'nenhuma partitura',
-                    style: Theme.of(context).textTheme.bodySmall,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -1871,7 +1995,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                       : _output == SoundOutput.midiKeyboard
                       ? 'Ligar som (teclado MIDI conectado)'
                       : 'Ligar som (escolhe um .sf2)',
-                  onPressed: _loadingSoundFont ? null : _toggleSound,
+                  onPressed: _loadingSoundFont ? null : _userToggleSound,
                   icon: _engineButtonIcon(
                     _soundOn ? Icons.volume_up : Icons.volume_off,
                   ),
@@ -1879,7 +2003,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 PopupMenuButton<SoundOutput>(
                   tooltip: 'Saída de som',
                   initialValue: _output,
-                  onSelected: (value) => unawaited(_setOutput(value)),
+                  onSelected: (value) => _settings.output = value,
                   icon: Icon(
                     _output == SoundOutput.midiKeyboard
                         ? Icons.piano

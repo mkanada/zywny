@@ -70,7 +70,7 @@ mockup-images:
     tool/build_mockup_images.sh
 
 # Preparação completa a partir de um clone limpo.
-setup: native assets
+setup: native assets hinos
     flutter pub get
 
 # Compila a libverovio.so do verovio_flutter_bridge (não versionada).
@@ -80,6 +80,16 @@ native:
 # Gera assets/verovio_data.zip a partir de verovio/data (não versionado).
 assets:
     tool/build_verovio_assets.sh
+
+# Gera assets/hinos/ (os hinos embutidos) a partir do Hymn_Grabber (não
+# versionado). Rode de novo quando o extrator de lá mudar.
+hinos *ARGS:
+    tool/build_hymn_assets.py {{ARGS}}
+
+# APK de release (arm64 só, para instalar direto no celular). Rode antes
+# `just native-android native-audio-android hinos assets`, ao menos uma vez.
+build-apk:
+    flutter build apk --release --target-platform android-arm64
 
 # Compila a libzywny_audio.so nativa (native/zywny_audio/, K02; não
 # versionada).

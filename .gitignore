@@ -51,6 +51,11 @@ app.*.map.json
 # (run tool/build_verovio_assets.sh).
 /assets/verovio_data.zip
 
+# Embedded hymns — generated from Hymn_Grabber, regenerable (run
+# tool/build_hymn_assets.py / `just hinos`). Third-party scores: keep out of
+# the repository.
+/assets/hinos/
+
 # libverovio.so for Android (X01) — generated from verovio_flutter_bridge,
 # regenerable (run tool/build_verovio_android.sh / `just native-android`).
 /android/app/src/main/jniLibs/

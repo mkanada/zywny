@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.2+3
 
 environment:
   sdk: ^3.13.3
@@ -104,6 +104,10 @@ flutter:
     # o som do app funciona sem o usuário procurar um `.sf2`. Ele pode
     # trocar por outro; ver lib/audio/soundfont_store.dart.
     - assets/soundfonts/TimGM6mb.sf2
+    # Os hinos embutidos (lib/library/): um `NNN.musicxml.gz` por hino e o
+    # `indice.json` com número, título e autores. Gerados por
+    # tool/build_hymn_assets.py a partir do Hymn_Grabber. Não versionados.
+    - assets/hinos/
     - assets/mockup/partitura_padrao.png
     - assets/mockup/partitura_grande.png
   fonts:

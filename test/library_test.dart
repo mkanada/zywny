@@ -1,0 +1,266 @@
+// A biblioteca de hinos embutidos (lib/library/): ordenação, busca, progresso
+// e a tela inicial. Os hinos de verdade ficam em `assets/hinos/`, que não é
+// versionado — aqui o catálogo é uma lista pequena e nada vai a disco.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+
+import 'package:zywny/library/hymn.dart';
+import 'package:zywny/library/hymn_progress.dart';
+import 'package:zywny/library/library_screen.dart';
+import 'package:zywny/library/library_sort.dart';
+import 'package:zywny/main.dart';
+import 'package:zywny/ui/theme.dart';
+
+class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
+    with MockPlatformInterfaceMixin {
+  @override
+  Future<List<MidiDevice>?> get devices async => const <MidiDevice>[];
+
+  @override
+  Stream<MidiPacket>? get onMidiDataReceived => null;
+
+  @override
+  Stream<MidiSetupChange>? get onMidiSetupChanged => null;
+}
+
+Hymn _hymn(int n, String title, String composer, {String? original}) => Hymn(
+  number: n,
+  title: title,
+  composer: composer,
+  originalTitle: original,
+  titleKey: foldForSearch(title),
+  composerKey: foldForSearch(composer),
+  searchKey: foldForSearch('$n $title ${original ?? ''} $composer'),
+);
+
+final _hymns = [
+  _hymn(1, 'Santo, Santo, Santo!', 'John B. Dykes', original: 'Holy, Holy'),
+  _hymn(12, 'Vinde, Povo do Senhor', 'George J. Elvey'),
+  _hymn(120, 'Ao Deus de Abraão Louvai', 'Melodia hebraica'),
+  _hymn(244, 'Ó Vem à Igreja Comigo', 'William S. Pitts'),
+];
+
+Future<HymnCatalog> _loadCatalog() async => HymnCatalog(_hymns);
+
+List<int> _numbers(Iterable<Hymn> hymns) => [for (final h in hymns) h.number];
+
+void main() {
+  setUp(() {
+    MidiCommandPlatform.instance = _NoDevicesMidiCommandPlatform();
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
+
+  group('busca', () {
+    test('ignora acento, caixa e pontuação', () {
+      expect(_numbers(filterHymns(_hymns, 'abraao')), [120]);
+      expect(_numbers(filterHymns(_hymns, 'O VEM A IGREJA')), [244]);
+      expect(_numbers(filterHymns(_hymns, 'santo santo')), [1]);
+    });
+
+    test('acha por compositor e por título original', () {
+      expect(_numbers(filterHymns(_hymns, 'elvey')), [12]);
+      expect(_numbers(filterHymns(_hymns, 'holy')), [1]);
+    });
+
+    test('só dígitos é o número do hino, pelo começo', () {
+      expect(_numbers(filterHymns(_hymns, '12')), [12, 120]);
+      expect(_numbers(filterHymns(_hymns, '012')), [12, 120]);
+      expect(_numbers(filterHymns(_hymns, '2')), [244]);
+    });
+
+    test('vazia devolve tudo', () {
+      expect(filterHymns(_hymns, '  ').length, _hymns.length);
+    });
+  });
+
+  group('ordenação', () {
+    test('número, nome e compositor', () {
+      final progress = HymnProgressStore();
+      expect(_numbers(sortedHymns(_hymns, const SortState(), progress)), [
+        1,
+        12,
+        120,
+        244,
+      ]);
+      expect(
+        _numbers(
+          sortedHymns(_hymns, const SortState(key: SortKey.title), progress),
+        ),
+        // "Ó Vem…" entra no O, não depois do Z.
+        [120, 244, 1, 12],
+      );
+      expect(
+        _numbers(
+          sortedHymns(
+            _hymns,
+            const SortState(key: SortKey.composer, ascending: false),
+            progress,
+          ),
+        ),
+        [244, 120, 1, 12],
+      );
+    });
+
+    test(
+      'recentes e pontuação: quem nunca foi estudado vai para o fim',
+      () async {
+        var now = DateTime(2026, 10, 1, 9);
+        final progress = HymnProgressStore(now: () => now);
+        await progress.markOpened(120);
+        now = DateTime(2026, 10, 1, 10);
+        await progress.markOpened(12);
+        await progress.recordScore(12, 70);
+        await progress.recordScore(120, 90);
+        await progress.recordScore(120, 40); // pior que a melhor: não troca
+
+        const recent = SortState(key: SortKey.recent, ascending: false);
+        expect(_numbers(sortedHymns(_hymns, recent, progress)), [
+          12,
+          120,
+          1,
+          244,
+        ]);
+        expect(
+          _numbers(
+            sortedHymns(_hymns, recent.toggled(SortKey.recent), progress),
+          ),
+          [120, 12, 1, 244],
+        );
+        expect(
+          _numbers(
+            sortedHymns(
+              _hymns,
+              const SortState().toggled(SortKey.score),
+              progress,
+            ),
+          ),
+          [120, 12, 1, 244],
+        );
+        expect(progress[120]!.bestScore, 90);
+        expect(progress.lastOpenedNumber, 12);
+      },
+    );
+
+    test('o progresso sobrevive a fechar o app', () async {
+      final prefs = SharedPreferencesAsync();
+      final first = HymnProgressStore(prefs: prefs);
+      await first.markOpened(244);
+      await first.recordScore(244, 81);
+
+      final second = HymnProgressStore(prefs: prefs);
+      await second.load();
+      expect(second.lastOpenedNumber, 244);
+      expect(second[244]!.bestScore, 81);
+    });
+  });
+
+  test('whenStudied conta em dias de calendário', () {
+    final now = DateTime(2026, 10, 1, 8);
+    expect(whenStudied(DateTime(2026, 10, 1, 0, 5), now), 'hoje');
+    expect(whenStudied(DateTime(2026, 9, 30, 23, 50), now), 'ontem');
+    expect(whenStudied(DateTime(2026, 9, 27), now), 'há 4 dias');
+    expect(whenStudied(DateTime(2026, 9, 12), now), 'há 3 semanas');
+    expect(whenStudied(DateTime(2026, 6, 1), now), 'há 4 meses');
+  });
+
+  group('tela', () {
+    void phonePortrait(WidgetTester tester) {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    }
+
+    testWidgets('o app abre na biblioteca, sem importar partitura', (
+      tester,
+    ) async {
+      phonePortrait(tester);
+      await tester.pumpWidget(const MyApp(loadCatalog: _loadCatalog));
+      await tester.pump();
+
+      expect(find.text('Hinário'), findsOneWidget);
+      expect(find.text('4 hinos'), findsOneWidget);
+      expect(find.text('Santo, Santo, Santo!'), findsOneWidget);
+      expect(find.text('John B. Dykes'), findsOneWidget);
+      expect(find.byTooltip('Conectar teclado MIDI'), findsOneWidget);
+      // Nada estudado ainda: sem cartão "Continuar", e nenhuma forma de
+      // abrir arquivo.
+      expect(find.text('CONTINUAR'), findsNothing);
+      expect(find.byTooltip('Abrir arquivo'), findsNothing);
+      expect(find.text('Abrir partitura'), findsNothing);
+    });
+
+    testWidgets('busca filtra e os chips reordenam', (tester) async {
+      phonePortrait(tester);
+      await tester.pumpWidget(const MyApp(loadCatalog: _loadCatalog));
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), 'igreja');
+      await tester.pump();
+      expect(find.text('Ó Vem à Igreja Comigo'), findsOneWidget);
+      expect(find.text('Santo, Santo, Santo!'), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'xyz');
+      await tester.pump();
+      expect(find.text('Nenhum hino encontrado'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), '');
+      await tester.pump();
+      expect(find.text('Número ↓'), findsOneWidget);
+      await tester.tap(find.text('Nome'));
+      await tester.pump();
+      expect(find.text('Nome ↓'), findsOneWidget);
+      // Por nome, "Ao Deus…" (120) sobe para antes de "Santo…" (1).
+      expect(
+        tester.getTopLeft(find.text('Ao Deus de Abraão Louvai')).dy,
+        lessThan(tester.getTopLeft(find.text('Santo, Santo, Santo!')).dy),
+      );
+      await tester.tap(find.text('Nome ↓'));
+      await tester.pump();
+      expect(find.text('Nome ↑'), findsOneWidget);
+    });
+
+    testWidgets('tocar num hino abre a partitura e vira "Continuar"', (
+      tester,
+    ) async {
+      phonePortrait(tester);
+      OpenedHymn? opened;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: LibraryScreen(
+            loadCatalog: _loadCatalog,
+            extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+            scoreBuilder: (context, o) {
+              opened = o;
+              return const Scaffold(body: Text('partitura'));
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Vinde, Povo do Senhor'));
+      await tester.pumpAndSettle();
+      expect(find.text('partitura'), findsOneWidget);
+      expect(opened!.hymn.number, 12);
+      expect(opened!.scorePath, '/tmp/012.musicxml');
+
+      // Um treino avaliado terminou com 83% de precisão.
+      opened!.onPracticeScore(83);
+      Navigator.of(tester.element(find.text('partitura'))).pop();
+      await tester.pumpAndSettle();
+
+      expect(find.text('CONTINUAR'), findsOneWidget);
+      expect(find.text('Hino 12 · hoje · melhor 83'), findsOneWidget);
+      expect(find.text('George J. Elvey · hoje'), findsOneWidget);
+      expect(find.text('83'), findsOneWidget);
+    });
+  });
+}
