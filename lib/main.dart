@@ -36,6 +36,7 @@ import 'settings/app_settings.dart';
 import 'settings/general_settings_panel.dart';
 import 'settings/hymn_settings.dart';
 import 'splash_screen.dart';
+import 'trail/stage_result.dart' show StageResult;
 import 'trail/trail_controller.dart';
 import 'trail/trail_path.dart';
 import 'trail/trail_plan.dart';
@@ -714,7 +715,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       hymn: _trailHymnN,
     );
     final path = TrailPath.fromTimeline(player.timeline);
-    final plan = TrailPlan.build(path, track, n: n, includeFinal: false);
+    final plan = TrailPlan.build(path, track, n: n, includeFinal: true);
     if (plan.isEmpty) {
       setState(
         () => _trailUnavailable =
@@ -818,25 +819,48 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   }
 
   /// O intervalo terminou por conta própria: grava, limpa e mostra o resumo
-  /// da etapa. Parar no meio não passa por aqui (abandono, sem registro).
+  /// da etapa (ou do bloco de reforço). Parar no meio não passa por aqui
+  /// (abandono, sem registro).
   void _onTrailStageDone(PracticeController practice, TrailStage stage) {
     if (!mounted || !identical(_practice, practice)) return;
     final trail = _trail;
     final result = practice.stageResult;
     _endTrailRun();
     if (trail == null || result == null || !mounted) return;
+    final blockIndex = trail.blockIndexOf(stage);
     unawaited(() async {
+      if (blockIndex != null) {
+        await _onTrailBlockDone(trail, blockIndex, stage, result);
+        return;
+      }
       // Refez uma antiga (J06): o resumo oferece voltar à atual.
       final showBack =
           trail.selected?.id != trail.progress.current(trail.plan)?.id;
       await trail.recordDone(result);
       if (!mounted) return;
-      final numbers = <int>{};
-      for (final occurrence in result.badMeasures) {
-        final logical = trail.path.logicalOf(occurrence);
-        if (logical != null) numbers.add(trail.path.logical[logical].number);
+      // Aprovou a final.100: concluiu a trilha (tela própria, J07).
+      if (result.passed && stage.id == 'final.100') {
+        final action = await showTrailConclusion(context);
+        if (!mounted) return;
+        switch (action) {
+          case TrailConclusionAction.library:
+            _backToLibrary();
+          case TrailConclusionAction.free:
+            trail.setFreeMode(true);
+          case null:
+            break;
+        }
+        return;
       }
-      final bad = numbers.toList()..sort();
+      // Reprovou a final com reforço útil: treinar os blocos em vez de
+      // tentar de novo.
+      int? blocks;
+      if (!result.passed &&
+          stage.segment == null &&
+          trail.startReinforcement(result)) {
+        blocks = trail.blockViews.length;
+      }
+      final numbers = _trailBadLogical(trail, result);
       final action = await showStageSummary(
         context,
         stageRef: trailStripTextFor(
@@ -845,9 +869,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           stage.label,
         ),
         result: result,
-        badLogical: bad,
+        badLogical: numbers,
         isLast: trail.progress.current(trail.plan) == null,
         showBackToCurrent: showBack,
+        blockCount: blocks,
       );
       if (!mounted) return;
       switch (action) {
@@ -859,10 +884,55 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         case StageSummaryAction.skip:
           await trail.skipSelected();
           trail.next();
+        case StageSummaryAction.train:
+          trail.next();
         case null:
           break;
       }
     }());
+  }
+
+  /// Resultado de um bloco de reforço: guarda (sem tocar no plano) e mostra
+  /// o resumo do bloco.
+  Future<void> _onTrailBlockDone(
+    TrailController trail,
+    int blockIndex,
+    TrailStage stage,
+    StageResult result,
+  ) async {
+    trail.recordBlockDone(blockIndex, result);
+    if (!mounted) return;
+    final action = await showStageSummary(
+      context,
+      stageRef: stage.label,
+      result: result,
+      badLogical: _trailBadLogical(trail, result),
+      isLast: false,
+    );
+    if (!mounted) return;
+    switch (action) {
+      case StageSummaryAction.next:
+      case StageSummaryAction.backToCurrent:
+      case StageSummaryAction.train:
+        break;
+      case StageSummaryAction.retry:
+        unawaited(_startTrailStage());
+      case StageSummaryAction.skip:
+        trail.skipBlock(blockIndex);
+        break;
+      case null:
+        break;
+    }
+  }
+
+  /// Compassos lógicos com erro para o resumo.
+  List<int> _trailBadLogical(TrailController trail, StageResult result) {
+    final numbers = <int>{};
+    for (final occurrence in result.badMeasures) {
+      final logical = trail.path.logicalOf(occurrence);
+      if (logical != null) numbers.add(trail.path.logical[logical].number);
+    }
+    return numbers.toList()..sort();
   }
 
   /// Para a etapa no meio: sem registro e sem resumo.
@@ -1749,12 +1819,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       return _trailMessage('Fase final em breve');
     }
     return TrailStrip(
-      text: trailStripTextFor(
-        trail.plan.segmentCount,
-        stage.segment,
-        stage.label,
-      ),
-      stateText: trailStateText(trail.progress, stage.id),
+      text: stage.isReinforcement
+          ? stage.label
+          : trailStripTextFor(
+              trail.plan.segmentCount,
+              stage.segment,
+              stage.label,
+            ),
+      stateText: stage.isReinforcement
+          ? ''
+          : trailStateText(trail.progress, stage.id),
       running: trail.running,
       onStart: () => unawaited(_startTrailStage()),
       onStop: _abandonTrailStage,
@@ -1773,6 +1847,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       progress: trail.progress,
       selectedId: trail.selected?.id,
       currentId: trail.progress.current(trail.plan)?.id,
+      blocks: trail.blockViews,
       onClose: () => setState(() => _trailDrawerOpen = false),
       onSelectStage: (id) {
         _trail?.select(id);

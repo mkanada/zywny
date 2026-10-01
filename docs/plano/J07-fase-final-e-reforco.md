@@ -78,6 +78,22 @@ sempre com um compasso bom de cada lado — antes de tentar de novo.
    afastados: os dois blocos aparecem, cada um com os vizinhos certos.
 8. `just analyze` e `just test` limpos.
 
-## Notas de execução
+## Notas de execução (J07, 2026-10-01)
 
-_(preencher ao executar)_
+Implementado: reforço transitório em `TrailController` (`startReinforcement`
+a partir da final reprovada, `recordBlockDone`/`skipBlock`, etapa sintética
+`reforco.N` com `isReinforcement`), plano com final (`includeFinal: true`
+na tela), resumo com "Treinar os trechos com erro (N)" (`train`), tela de
+conclusão da `final.100` e blocos no grupo "Fase final" da gaveta. Testes:
+`test/trail_reinforcement_test.dart` (6: critérios 1–6) + widgets
+(resumo-trem, conclusão, blocos na gaveta). `just analyze` e `just test`
+limpos (176 testes, 1 manual pulado).
+
+- Blocos rodam como etapa comum (realtime, ambas, degrau reprovado,
+  contagem+metrônomo) com resumo próprio; pulo de bloco não marca a final;
+  todos feitos reabrem a final. Sem reforço útil (peça inteira ou sem
+  compassos) vale só "tentar de novo".
+- Faixa mostra "Reforço 1/3 · compassos 6–9 · 75%"; fechar a música
+  descarta (controlador refeito ao abrir).
+- Manual no aparelho (critério 7): hino 1 a 50% errando dois compassos
+  afastados, conferindo os dois blocos com os vizinhos.
