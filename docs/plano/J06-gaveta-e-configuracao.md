@@ -77,6 +77,22 @@ por música.
    "voltar" do aparelho a fecha antes de sair da partitura.
 7. `just analyze` e `just test` limpos.
 
-## Notas de execução
+## Notas de execução (J06, 2026-10-01)
 
-_(preencher ao executar)_
+Implementado: `TrailDrawer` + `confirmTrailReset` + `TrailNSelector` em
+`lib/trail/trail_widgets.dart` (`first`/`last` novos em `TrailStage` para
+"compassos 5–9"); na tela, gaveta sobre a partitura (faixa abre, voltar
+fecha via `PopScope`), N do hino na gaveta de opções, N geral no painel
+(`general_settings_panel.dart`), descarte ao abrir com N trocado e
+reconstrução ao trocar o geral. O grupo "Fase final" aparece ("em breve",
+sem etapas — J07 liga). Testes: `test/trail_drawer_test.dart` (9:
+critérios 1–5; o E2E de trocar N na `ScoreHomePage` é manual).
+`just analyze` e `just test` limpos (167 testes, 1 manual pulado).
+
+- Resumo de etapa refeita mostra "Voltar à etapa atual" (`backToCurrent`).
+- N do hino é `-`/`+` (3–20, teto nos compassos lógicos) + "usar o padrão";
+  trocar o N efetivo com progresso confirma ("Isto reinicia…") e zera só o
+  hino; cancelar mantém tudo. Geral avisa uma vez; cada hino cai ao abrir.
+- Dois achados nos testes: o parser acusa `if` fora de lista quando falta
+  fechar o `Padding` (não o `if`), e `ListView` monta os grupos sob demanda
+  (rolar até o trecho no teste).

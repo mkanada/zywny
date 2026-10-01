@@ -40,7 +40,7 @@ import 'trail/trail_controller.dart';
 import 'trail/trail_path.dart';
 import 'trail/trail_plan.dart';
 import 'trail/trail_progress.dart';
-import 'trail/trail_stage.dart';
+import 'trail/trail_stage.dart' show TrailStage, kTrailMinMeasures;
 import 'trail/trail_widgets.dart';
 import 'ui/phone_chrome.dart';
 import 'ui/theme.dart';
@@ -239,6 +239,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// ou sem partitura.
   String? _trailUnavailable;
 
+  /// N da trilha deste hino (`null` = o geral); começa no guardado e muda
+  /// pela gaveta de opções (J06).
+  int? _trailHymnN;
+
+  /// Gaveta da trilha aberta (J06).
+  bool _trailDrawerOpen = false;
+
   /// Acessórios de treino (T04). O loop guarda **ocorrências** de compasso
   /// (índices em `ScorePlayer.measures`, ordem de execução); metrônomo e
   /// contagem só soam com o som do app ligado (o agendador é quem clica).
@@ -354,6 +361,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // eles que [_onSettingsChanged] compara para saber o que mudou.
     _output = _settings.output;
     _soundSetting = _settings.soundOn;
+    _trailHymnN = _stored.trailMeasures;
     _settings.addListener(_onSettingsChanged);
     if (widget.opened == null) unawaited(_settings.load());
     unawaited(
@@ -382,6 +390,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (_settings.output != _output) unawaited(_applyOutput(_settings.output));
     _midiOutEngine?.useScoreInstruments = _settings.useScoreInstruments;
     _scheduler?.metronomeOn = _settings.metronomeOn;
+    // O N geral mudou e o hino usa o padrão: o corte muda junto (a trilha
+    // antiga cai ao abrir, em `_setupTrail`).
+    final trail = _trail;
+    if (trail != null && !trail.running) {
+      final effective = effectiveTrailMeasures(
+        general: _settings.trailMeasures,
+        hymn: _trailHymnN,
+      );
+      if (effective != trail.plan.n) unawaited(_setupTrail());
+    }
     // No treino o player destaca em azul ("esperado agora"); a cor
     // configurada volta em [_endPractice].
     if (_practice == null) _player?.highlightColor = _settings.highlightColor;
@@ -406,18 +424,60 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   Timer? _saveDebounce;
 
+  HymnSettings _hymnSettingsWith({int? trailMeasures}) => HymnSettings(
+    layout: HymnSettings.layoutOverrides(_layout, _layoutDefaults),
+    pageFitsBox: _pageFitsBox,
+    speed: _speed == 1.0 ? null : _speed,
+    hand: _hand == _kDefaultHand ? null : _hand,
+    trailMeasures: trailMeasures,
+  );
+
   void _flushHymnSettings() {
     if (_saveDebounce == null) return;
     _saveDebounce?.cancel();
     _saveDebounce = null;
     widget.opened?.onHymnSettingsChanged(
-      HymnSettings(
-        layout: HymnSettings.layoutOverrides(_layout, _layoutDefaults),
-        pageFitsBox: _pageFitsBox,
-        speed: _speed == 1.0 ? null : _speed,
-        hand: _hand == _kDefaultHand ? null : _hand,
-      ),
+      _hymnSettingsWith(trailMeasures: _trailHymnN),
     );
+  }
+
+  /// Maior N que o controle do hino oferece: 20, ou os compassos lógicos.
+  int get _trailMaxN {
+    final measures = _trail?.path.measureCount ?? 20;
+    if (measures < kTrailMinMeasures) return kTrailMinMeasures;
+    return measures < 20 ? measures : 20;
+  }
+
+  /// Troca o N do hino (`null` = padrão geral). Mudar o N efetivo com
+  /// progresso pede confirmação e zera a trilha do hino (J06).
+  Future<void> _setHymnTrailN(int? value) async {
+    final opened = widget.opened;
+    if (opened == null) return;
+    final oldEffective = effectiveTrailMeasures(
+      general: _settings.trailMeasures,
+      hymn: _trailHymnN,
+    );
+    final newEffective = effectiveTrailMeasures(
+      general: _settings.trailMeasures,
+      hymn: value,
+    );
+    if (newEffective != oldEffective &&
+        _trail != null &&
+        _trail!.progress.done > 0 &&
+        mounted) {
+      final ok = await confirmTrailReset(
+        context,
+        title: 'Trocar o corte?',
+        message: 'Isto reinicia a trilha deste hino.',
+        confirmLabel: 'Trocar',
+      );
+      if (!ok) return;
+      await _trailStore.reset(opened.hymn.number);
+    }
+    opened.onHymnSettingsChanged(_hymnSettingsWith(trailMeasures: value));
+    if (!mounted) return;
+    setState(() => _trailHymnN = value);
+    if (newEffective != oldEffective) unawaited(_setupTrail());
   }
 
   @override
@@ -651,7 +711,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
     final n = effectiveTrailMeasures(
       general: _settings.trailMeasures,
-      hymn: _stored.trailMeasures,
+      hymn: _trailHymnN,
     );
     final path = TrailPath.fromTimeline(player.timeline);
     final plan = TrailPlan.build(path, track, n: n, includeFinal: false);
@@ -663,8 +723,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       );
       return;
     }
-    final progress = await _trailStore.ensureLoaded(hymnNumber);
+    var progress = await _trailStore.ensureLoaded(hymnNumber);
     if (!mounted || !identical(_document, document)) return;
+    // O N efetivo mudou desde o guardado (pelo geral): a trilha antiga é
+    // de outro corte e é descartada ao abrir (J06).
+    if (progress.total > 0 && progress.n != n) {
+      await _trailStore.reset(hymnNumber);
+      progress = TrailProgress(n: n, total: plan.stages.length);
+    }
     final trail = TrailController(
       path: path,
       plan: plan,
@@ -760,6 +826,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _endTrailRun();
     if (trail == null || result == null || !mounted) return;
     unawaited(() async {
+      // Refez uma antiga (J06): o resumo oferece voltar à atual.
+      final showBack =
+          trail.selected?.id != trail.progress.current(trail.plan)?.id;
       await trail.recordDone(result);
       if (!mounted) return;
       final numbers = <int>{};
@@ -778,10 +847,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         result: result,
         badLogical: bad,
         isLast: trail.progress.current(trail.plan) == null,
+        showBackToCurrent: showBack,
       );
       if (!mounted) return;
       switch (action) {
         case StageSummaryAction.next:
+        case StageSummaryAction.backToCurrent:
           trail.next();
         case StageSummaryAction.retry:
           unawaited(_startTrailStage());
@@ -1687,6 +1758,37 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       running: trail.running,
       onStart: () => unawaited(_startTrailStage()),
       onStop: _abandonTrailStage,
+      onTap: () => setState(() => _trailDrawerOpen = true),
+    );
+  }
+
+  /// Gaveta da trilha (J06): lista de etapas, pular, refazer e reiniciar.
+  /// Os retornos falam com o `_trail` corrente (não o da construção), pois
+  /// reiniciar troca o controlador com a gaveta aberta.
+  Widget _buildTrailDrawer() {
+    final trail = _trail;
+    if (trail == null) return const SizedBox.shrink();
+    return TrailDrawer(
+      plan: trail.plan,
+      progress: trail.progress,
+      selectedId: trail.selected?.id,
+      currentId: trail.progress.current(trail.plan)?.id,
+      onClose: () => setState(() => _trailDrawerOpen = false),
+      onSelectStage: (id) {
+        _trail?.select(id);
+        setState(() => _trailDrawerOpen = false);
+      },
+      onSkipCurrent: () async {
+        final current = _trail;
+        if (current == null) return;
+        await current.skipSelected();
+        current.next();
+      },
+      onRestartTrail: () async {
+        final number = _trail?.hymnNumber;
+        if (number != null) await _trailStore.reset(number);
+        unawaited(_setupTrail());
+      },
     );
   }
 
@@ -1777,6 +1879,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           ),
         ),
         if (_optionsOpen) _buildOptionsDrawer(),
+        if (_trailDrawerOpen) _buildTrailDrawer(),
       ],
     );
   }
@@ -1858,6 +1961,22 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         ),
         // O que é só deste hino: cada um guarda o seu tamanho e layout.
         const PhoneSectionLabel('ESTE HINO'),
+        if (widget.opened != null) ...[
+          PhoneToggleRow(
+            label:
+                'Usar o padrão da trilha (${_settings.trailMeasures})',
+            value: _trailHymnN == null,
+            onChanged: (v) => unawaited(
+              _setHymnTrailN(v ? null : _settings.trailMeasures),
+            ),
+          ),
+          if (_trailHymnN case final hymnN?)
+            TrailNSelector(
+              value: hymnN,
+              max: _trailMaxN,
+              onChanged: (v) => unawaited(_setHymnTrailN(v)),
+            ),
+        ],
         PhoneSliderRow(
           label: 'TAMANHO DA NOTAÇÃO',
           value: (_layout['unit']! as num).toDouble(),
@@ -2104,13 +2223,18 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       // O "voltar" do aparelho fecha primeiro a gaveta de opções; só com
       // ela fechada é que sai da partitura para a biblioteca.
       return PopScope(
-        canPop: !_optionsOpen && !_panelOpen && !_generalOpen,
+        canPop:
+            !_optionsOpen &&
+            !_panelOpen &&
+            !_generalOpen &&
+            !_trailDrawerOpen,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
           setState(() {
             _optionsOpen = false;
             _panelOpen = false;
             _generalOpen = false;
+            _trailDrawerOpen = false;
           });
         },
         child: Scaffold(backgroundColor: kSurface, body: _buildPhoneBody()),
@@ -2156,38 +2280,40 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: .stretch,
-          children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.deepPurple.shade100),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: _buildScoreArea(),
-                  ),
-                  if (_trailStrip() case final strip?)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(16),
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: .stretch,
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.deepPurple.shade100),
                         ),
-                        child: strip,
+                        clipBehavior: Clip.antiAlias,
+                        child: _buildScoreArea(),
                       ),
-                    ),
-                ],
-              ),
-            ),
+                      if (_trailStrip() case final strip?)
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(16),
+                            ),
+                            child: strip,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
             const SizedBox(height: 8),
             // `maxLines: 1` matters beyond truncating long text: this Text is
             // a Column sibling of the (Expanded) score area, not wrapped in
@@ -2428,7 +2554,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             ],
           ],
         ),
-      ),
+          ),
+        if (_trailDrawerOpen) _buildTrailDrawer(),
+      ],
+    ),
     );
   }
 }
