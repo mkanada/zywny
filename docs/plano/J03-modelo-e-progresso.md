@@ -93,6 +93,26 @@ por música). Sem tela.
    lido do JSON é trazido para ≥ 3.
 8. `just analyze` e `just test` limpos.
 
-## Notas de execução
+## Notas de execução (J03, 2026-10-01)
 
-_(preencher ao executar)_
+Implementado: `lib/trail/trail_stage.dart` (`TrailPhase`, `TrailStage`,
+`kTrailDefaultMeasures/Min`, `kTrailSpeeds`), `lib/trail/trail_plan.dart`
+(`TrailPlan.build`, `effectiveTrailMeasures`),
+`lib/trail/trail_progress.dart` (`StageState`, `StageRecord`,
+`TrailProgress`, `TrailProgressStore`), `trailMeasures` em `AppSettings`
+(`trail_measures`) e `HymnSettings` (JSON, entra em `isDefault`).
+Testes: `test/trail_plan_test.dart` (9 testes, critérios 1–7).
+
+- Plano: trechos via `cutSegments` (caminho não contíguo → plano vazio,
+  trilha indisponível até o J08); mão com nota = evento não-ornamento da
+  pauta em `[startMs, endMs)`; trecho sem nota nenhuma é atravessado sem
+  etapas; fase final (`final.50/75/100`, caminho inteiro) sempre que há
+  plano.
+- `TrailPlan` guarda o `n` do corte; `TrailProgress` guarda `n` + `total`
+  (cache p/ a biblioteca): com plano de outro N, atual/done contam como
+  vazios, sem misturar ids.
+- Store: um JSON por hino (`trail_<n>`, `'v': 1`, com `done`/`total`);
+  `load()` lê 1–600 em lote; JSON estragado vira trilha vazia.
+- `percent`/`best` em conta inteira; `trailMeasures` lido fora da faixa
+  volta para ≥ 3 (geral e por hino).
+- `just analyze` e `just test` limpos.
