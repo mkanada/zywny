@@ -176,15 +176,15 @@ Medido nos 600 hinos de `assets/hinos/` em 2026-10-01 (`grep` no MusicXML):
 
 | Passo | Título | Depende de | Status |
 | --- | --- | --- | --- |
-| [J01](J01-caminho-e-trechos.md) | Caminho sem repetições e corte em trechos (Dart puro) | — | pendente |
-| [J02](J02-avaliacao-da-etapa.md) | Avaliação da etapa e blocos de reforço (Dart puro) | — | pendente |
-| [J03](J03-modelo-e-progresso.md) | Modelo da trilha, desbloqueio e progresso persistente | J01 | pendente |
-| [J04](J04-passagem-unica.md) | `PracticeController`: passagem única de um intervalo, com resultado | J02 | pendente |
-| [J05](J05-tela-da-etapa.md) | Tela: executar uma etapa (faixa, resumo, avançar) | J03, J04 | pendente |
-| [J06](J06-gaveta-e-configuracao.md) | Tela: lista de etapas, pular, refazer e configuração de N | J05 | pendente |
-| [J07](J07-fase-final-e-reforco.md) | Fase final e reforço | J05 | pendente |
-| [J08](J08-saltos-no-caminho.md) | Saltos no caminho: músicas com casas e vários ritornelos | J04, J07 | pendente |
-| [J09](J09-progresso-na-biblioteca.md) | Progresso da trilha na biblioteca | J03 | pendente |
+| [J01](J01-caminho-e-trechos.md) | Caminho sem repetições e corte em trechos (Dart puro) | — | concluído (medição dos 600 nas notas) |
+| [J02](J02-avaliacao-da-etapa.md) | Avaliação da etapa e blocos de reforço (Dart puro) | — | concluído |
+| [J03](J03-modelo-e-progresso.md) | Modelo da trilha, desbloqueio e progresso persistente | J01 | concluído |
+| [J04](J04-passagem-unica.md) | `PracticeController`: passagem única de um intervalo, com resultado | J02 | concluído |
+| [J05](J05-tela-da-etapa.md) | Tela: executar uma etapa (faixa, resumo, avançar) | J03, J04 | concluído (critérios manuais 5-6 no aparelho, aguardando verificação) |
+| [J06](J06-gaveta-e-configuracao.md) | Tela: lista de etapas, pular, refazer e configuração de N | J05 | concluído (critério manual 6 no aparelho, aguardando verificação) |
+| [J07](J07-fase-final-e-reforco.md) | Fase final e reforço | J05 | concluído (critério manual 7 no aparelho, aguardando verificação) |
+| [J08](J08-saltos-no-caminho.md) | Saltos no caminho: músicas com casas e vários ritornelos | J04, J07 | concluído (critério manual 5 no aparelho, aguardando verificação) |
+| [J09](J09-progresso-na-biblioteca.md) | Progresso da trilha na biblioteca | J03 | concluído (critério manual 5 em 360 dp, aguardando verificação) |
 
 Ordem sugerida: J01 e J02 (independentes) → J03 e J04 → J05 → J06, J07 e
 J09 → J08. A trilha fica utilizável no fim do J05; o J08 só amplia o

@@ -260,15 +260,15 @@ zywny
 | [X02](X02-windows-render.md) | Windows: `verovio.dll` e partitura rodando (sem som) | — | D-WIN | pendente |
 | [K06](K06-motor-no-windows.md) | Motor de áudio no Windows (WASAPI) | K04, X02 | D-WIN | pendente |
 | [V01](V01-portao-da-1-0.md) | Portão da 1.0: matriz de plataformas | todos | — | pendente |
-| [J01](J01-caminho-e-trechos.md) | Trilha: caminho sem repetições e corte em trechos (Dart puro) | — | — | pendente |
-| [J02](J02-avaliacao-da-etapa.md) | Trilha: avaliação da etapa e blocos de reforço (Dart puro) | — | — | pendente |
-| [J03](J03-modelo-e-progresso.md) | Trilha: modelo, desbloqueio e progresso persistente | J01 | — | pendente |
-| [J04](J04-passagem-unica.md) | Trilha: passagem única de um intervalo no `PracticeController` | J02 | — | pendente |
-| [J05](J05-tela-da-etapa.md) | Trilha: tela para executar uma etapa | J03, J04 | — | pendente |
-| [J06](J06-gaveta-e-configuracao.md) | Trilha: lista de etapas, pular, refazer, configuração de N | J05 | — | pendente |
-| [J07](J07-fase-final-e-reforco.md) | Trilha: fase final e reforço | J05 | — | pendente |
-| [J08](J08-saltos-no-caminho.md) | Trilha: saltos no caminho (casas, vários ritornelos) | J04, J07 | D-SALTO | pendente |
-| [J09](J09-progresso-na-biblioteca.md) | Trilha: progresso na biblioteca | J03 | — | pendente |
+| [J01](J01-caminho-e-trechos.md) | Trilha: caminho sem repetições e corte em trechos (Dart puro) | — | — | concluído (medição dos 600 nas notas) |
+| [J02](J02-avaliacao-da-etapa.md) | Trilha: avaliação da etapa e blocos de reforço (Dart puro) | — | — | concluído |
+| [J03](J03-modelo-e-progresso.md) | Trilha: modelo, desbloqueio e progresso persistente | J01 | — | concluído |
+| [J04](J04-passagem-unica.md) | Trilha: passagem única de um intervalo no `PracticeController` | J02 | — | concluído |
+| [J05](J05-tela-da-etapa.md) | Trilha: tela para executar uma etapa | J03, J04 | — | concluído (critérios manuais 5-6 no aparelho, aguardando verificação) |
+| [J06](J06-gaveta-e-configuracao.md) | Trilha: lista de etapas, pular, refazer, configuração de N | J05 | — | concluído (critério manual 6 no aparelho, aguardando verificação) |
+| [J07](J07-fase-final-e-reforco.md) | Trilha: fase final e reforço | J05 | — | concluído (critério manual 7 no aparelho, aguardando verificação) |
+| [J08](J08-saltos-no-caminho.md) | Trilha: saltos no caminho (casas, vários ritornelos) | J04, J07 | D-SALTO | concluído (critério manual 5 no aparelho, aguardando verificação) |
+| [J09](J09-progresso-na-biblioteca.md) | Trilha: progresso na biblioteca | J03 | — | concluído (critério manual 5 em 360 dp, aguardando verificação) |
 | [L01](L01-sorteio-do-sumico.md) | Decorar: colunas e sorteio do sumiço (Dart puro) | J01 | — | pendente |
 | [L02](L02-esconder-notas.md) | Decorar: esconder colunas no `score_bridge` (nota, barra, linha suplementar) | G09 (bridge) | — | pendente |
 | [L03](L03-pausa-substituta.md) | Decorar: pausa substituta colorida (`score_bridge`) | L02, G09 (bridge) | — | pendente |
