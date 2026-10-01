@@ -36,6 +36,12 @@ import 'settings/app_settings.dart';
 import 'settings/general_settings_panel.dart';
 import 'settings/hymn_settings.dart';
 import 'splash_screen.dart';
+import 'trail/trail_controller.dart';
+import 'trail/trail_path.dart';
+import 'trail/trail_plan.dart';
+import 'trail/trail_progress.dart';
+import 'trail/trail_stage.dart';
+import 'trail/trail_widgets.dart';
 import 'ui/phone_chrome.dart';
 import 'ui/theme.dart';
 import 'diag_log.dart';
@@ -221,6 +227,17 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   PracticeMode get _practiceMode => _settings.practiceMode;
   set _practiceMode(PracticeMode value) => _settings.practiceMode = value;
   PracticeController? _practice;
+
+  /// Trilha de estudo (fase J): plano do hino, progresso e etapa selecionada.
+  /// `null` sem trilha (caminho com saltos até o J08, ou partitura sem
+  /// número de hino) — aí a tela abre direto no modo livre. Detalhes em
+  /// `lib/trail/`.
+  final TrailProgressStore _trailStore = TrailProgressStore();
+  TrailController? _trail;
+
+  /// Por que não há trilha (explicação no lugar da faixa); `null` com trilha
+  /// ou sem partitura.
+  String? _trailUnavailable;
 
   /// Acessórios de treino (T04). O loop guarda **ocorrências** de compasso
   /// (índices em `ScorePlayer.measures`, ordem de execução); metrônomo e
@@ -411,6 +428,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _settings.removeListener(_onSettingsChanged);
     if (widget.opened == null) _settings.dispose();
     _practice?.dispose();
+    _trail?.removeListener(_onTrailChanged);
+    _trail?.dispose();
     _midiDeviceManager.connected.removeListener(_onMidiDeviceChanged);
     _midiMonitor?.dispose();
     _midiInput.dispose();
@@ -550,6 +569,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       // playback that belonged to the old one.
       _practice?.dispose();
       _practice = null;
+      _trail?.setRunning(false);
       _player?.dispose();
       _player = null;
       _setPlaying(false);
@@ -587,6 +607,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         }
         _busy = false;
       });
+      unawaited(_setupTrail());
       _restoreSound();
     } catch (e) {
       if (!mounted) return;
@@ -605,6 +626,195 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _renderQueued = false;
       unawaited(_renderAndShow());
     }
+  }
+
+  /// Monta a trilha depois de cada gravura: caminho sem repetições (J01),
+  /// plano de etapas (J03, sem fase final até o J07) e progresso do hino.
+  /// Sem plano (saltos) ou sem número de hino, explica e fica no livre.
+  Future<void> _setupTrail() async {
+    final document = _document;
+    final track = _track;
+    final player = _player;
+    _trail?.removeListener(_onTrailChanged);
+    _trail?.dispose();
+    _trail = null;
+    _trailUnavailable = null;
+    if (!mounted) return;
+    if (document == null || track == null || player == null) return;
+    final hymnNumber = widget.opened?.hymn.number;
+    if (hymnNumber == null) {
+      setState(
+        () => _trailUnavailable =
+            'Trilha indisponível sem número de hino — treino livre',
+      );
+      return;
+    }
+    final n = effectiveTrailMeasures(
+      general: _settings.trailMeasures,
+      hymn: _stored.trailMeasures,
+    );
+    final path = TrailPath.fromTimeline(player.timeline);
+    final plan = TrailPlan.build(path, track, n: n, includeFinal: false);
+    if (plan.isEmpty) {
+      setState(
+        () => _trailUnavailable =
+            'Trilha indisponível neste hino (casas de repetição) — '
+            'treino livre',
+      );
+      return;
+    }
+    final progress = await _trailStore.ensureLoaded(hymnNumber);
+    if (!mounted || !identical(_document, document)) return;
+    final trail = TrailController(
+      path: path,
+      plan: plan,
+      progress: progress,
+      store: _trailStore,
+      hymnNumber: hymnNumber,
+    );
+    trail.addListener(_onTrailChanged);
+    setState(() => _trail = trail);
+  }
+
+  void _onTrailChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Começa (ou para, se já está rodando) a etapa selecionada da trilha. A
+  /// etapa manda nos controles enquanto roda — modo, mão, andamento,
+  /// intervalo, contagem e metrônomo nas etapas com tempo — sem gravar nada:
+  /// ao sair valem de novo os valores do aluno.
+  Future<void> _startTrailStage() async {
+    final trail = _trail;
+    final track = _track;
+    final player = _player;
+    if (trail == null || track == null || player == null) return;
+    if (trail.running) {
+      _abandonTrailStage();
+      return;
+    }
+    final stage = trail.selected;
+    if (stage == null) return;
+    if (_midiDeviceManager.connected.value == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('conecte um teclado MIDI primeiro')),
+      );
+      return;
+    }
+    final engine = await _ensureEngine();
+    if (engine == null || !mounted) return;
+    if (_scheduler == null || !_soundOn) {
+      _attachAudio(engine, track);
+    }
+    final scheduler = _scheduler;
+    if (scheduler == null || !mounted) return;
+    // O andamento da etapa vale só nela (sem gravar no hino).
+    if ((stage.speed ?? _speed) != scheduler.speed) {
+      scheduler.setSpeed(stage.speed ?? _speed);
+    }
+    _controller.clearAll();
+    player.seek(Duration(microseconds: (stage.startMs * 1000).round()));
+    await _loadInputLatency();
+    if (!mounted) return;
+    final timed = stage.speed != null;
+    final practice = PracticeController(
+      midiInput: _midiInput,
+      track: track,
+      scheduler: scheduler,
+      controller: _controller,
+      hand: stage.phase.hand,
+      ghosts: _ghosts,
+      inputLatencyMs: _inputLatencyMs,
+      mode: stage.phase.mode,
+      magicEngine: stage.phase.mode == PracticeMode.rhythm ? engine : null,
+      measureIndexAt: player.timeline.measureIndexAt,
+      passOf: (i) => player.measures[i].pass,
+      range: (startMs: stage.startMs, endMs: stage.endMs),
+      onRangeDone: () {
+        final current = _practice;
+        if (current != null) _onTrailStageDone(current, stage);
+      },
+    );
+    _midiMonitor?.muted = stage.phase.mode == PracticeMode.rhythm;
+    if (timed) scheduler.metronomeOn = true;
+    practice.start(countIn: timed ? true : _countInOn);
+    player.play();
+    // No treino, o "esperado agora" acende em azul, como no modo livre.
+    player.highlightColor = kPracticePendingColor;
+    trail.setRunning(true);
+    trail.clearResult();
+    setState(() {
+      _practice = practice;
+      _soundOn = true;
+      _setPlaying(true);
+    });
+  }
+
+  /// O intervalo terminou por conta própria: grava, limpa e mostra o resumo
+  /// da etapa. Parar no meio não passa por aqui (abandono, sem registro).
+  void _onTrailStageDone(PracticeController practice, TrailStage stage) {
+    if (!mounted || !identical(_practice, practice)) return;
+    final trail = _trail;
+    final result = practice.stageResult;
+    _endTrailRun();
+    if (trail == null || result == null || !mounted) return;
+    unawaited(() async {
+      await trail.recordDone(result);
+      if (!mounted) return;
+      final numbers = <int>{};
+      for (final occurrence in result.badMeasures) {
+        final logical = trail.path.logicalOf(occurrence);
+        if (logical != null) numbers.add(trail.path.logical[logical].number);
+      }
+      final bad = numbers.toList()..sort();
+      final action = await showStageSummary(
+        context,
+        stageRef: trailStripTextFor(
+          trail.plan.segmentCount,
+          stage.segment,
+          stage.label,
+        ),
+        result: result,
+        badLogical: bad,
+        isLast: trail.progress.current(trail.plan) == null,
+      );
+      if (!mounted) return;
+      switch (action) {
+        case StageSummaryAction.next:
+          trail.next();
+        case StageSummaryAction.retry:
+          unawaited(_startTrailStage());
+        case StageSummaryAction.skip:
+          await trail.skipSelected();
+          trail.next();
+        case null:
+          break;
+      }
+    }());
+  }
+
+  /// Para a etapa no meio: sem registro e sem resumo.
+  void _abandonTrailStage() {
+    if (_practice == null || _trail == null) return;
+    _endTrailRun();
+  }
+
+  /// Solta o que a etapa prendeu e devolve os controles do aluno (andamento
+  /// do agendador, metrônomo, cor de destaque).
+  void _endTrailRun() {
+    final practice = _practice;
+    if (practice == null) return;
+    _midiMonitor?.muted = false;
+    _player?.highlightColor = _highlightColor;
+    practice.stop();
+    practice.dispose();
+    _practice = null;
+    _scheduler?.setSpeed(_speed);
+    if (_scheduler != null) _scheduler!.metronomeOn = _settings.metronomeOn;
+    _player?.pause();
+    _trail?.setRunning(false);
+    if (mounted) setState(() => _setPlaying(false));
   }
 
   /// Every write to [_playing] goes through here so the screen wakelock
@@ -644,6 +854,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Stops playback and rewinds to the start.
   void _stop() {
+    if (_trail?.running == true) {
+      _abandonTrailStage();
+      return;
+    }
     final player = _player;
     if (player == null) return;
     // `ScoreAudioScheduler.stop` reancora em 0 mas não solta o freio nem o
@@ -1447,6 +1661,54 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
+  /// Faixa da trilha sobre a partitura (J05): altura fixa, fora da caixa de
+  /// layout da partitura — não muda a área gravada e não dispara re-render.
+  /// `null` no modo livre, sem partitura ou sem trilha montada; com trilha
+  /// indisponível ou concluída (fase final até o J07), uma linha explicando.
+  Widget? _trailStrip() {
+    if (_player == null) return null;
+    final unavailable = _trailUnavailable;
+    if (unavailable != null && _trail == null) {
+      return _trailMessage(unavailable);
+    }
+    final trail = _trail;
+    if (trail == null || trail.freeMode) return null;
+    final stage = trail.selected;
+    if (stage == null) {
+      return _trailMessage('Fase final em breve');
+    }
+    return TrailStrip(
+      text: trailStripTextFor(
+        trail.plan.segmentCount,
+        stage.segment,
+        stage.label,
+      ),
+      stateText: trailStateText(trail.progress, stage.id),
+      running: trail.running,
+      onStart: () => unawaited(_startTrailStage()),
+      onStop: _abandonTrailStage,
+    );
+  }
+
+  Widget _trailMessage(String text) => Container(
+    height: kTrailStripHeight,
+    alignment: Alignment.centerLeft,
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    decoration: const BoxDecoration(
+      color: kPanelSideBg,
+      border: Border(bottom: BorderSide(color: kBorderPanel)),
+    ),
+    child: Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 12, color: kInkCaption),
+    ),
+  );
+
+  /// Trilha no comando (faixa) em vez do treino/modo livre de hoje.
+  bool get _trailMode => _trail != null && !_trail!.freeMode;
+
   Widget _buildPhoneBody() {
     final player = _player;
     return Stack(
@@ -1461,31 +1723,55 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _buildPhoneTitleBar(),
-                      Expanded(child: _buildScoreArea(phone: true)),
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            _buildScoreArea(phone: true),
+                            if (_trailStrip() case final strip?)
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                child: strip,
+                              ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
               ValueListenableBuilder<int>(
                 valueListenable: player?.currentMeasureIndex ?? _noMeasure,
-                builder: (context, index, _) => PhoneRail(
-                  playing: _playing,
-                  onPlayPause: _canTrain
-                      ? () => unawaited(_togglePractice())
-                      : (_canPlay ? _togglePlay : null),
-                  playTooltip: _canTrain
-                      ? (_practice != null ? 'Pausar' : 'Praticar')
-                      : null,
-                  playIcon: _canTrain && _practice == null
-                      ? const Icon(Icons.play_arrow, size: 24)
-                      : null,
-                  measure: _measureCount == null ? null : index + 1,
-                  totalMeasures: _measureCount,
-                  onMeasureTap: _measureCount == null ? null : _openMeasureJump,
-                  tempoPercent: (_speed * 100).round(),
-                  handLabel: _hand.shortLabel,
-                  onOptions: () => setState(() => _optionsOpen = true),
-                ),
+                builder: (context, index, _) {
+                  final trail = _trailMode ? _trail : null;
+                  return PhoneRail(
+                    playing: _playing,
+                    onPlayPause: trail != null
+                        ? () => unawaited(_startTrailStage())
+                        : (_canTrain
+                              ? () => unawaited(_togglePractice())
+                              : (_canPlay ? _togglePlay : null)),
+                    playTooltip: trail != null
+                        ? (trail.running ? 'Parar etapa' : 'Começar etapa')
+                        : (_canTrain
+                              ? (_practice != null ? 'Pausar' : 'Praticar')
+                              : null),
+                    playIcon: trail != null
+                        ? (trail.running
+                              ? null
+                              : const Icon(Icons.play_arrow, size: 24))
+                        : (_canTrain && _practice == null
+                              ? const Icon(Icons.play_arrow, size: 24)
+                              : null),
+                    measure: _measureCount == null ? null : index + 1,
+                    totalMeasures: _measureCount,
+                    onMeasureTap: _measureCount == null ? null : _openMeasureJump,
+                    tempoPercent: (_speed * 100).round(),
+                    handLabel: _hand.shortLabel,
+                    onOptions: () => setState(() => _optionsOpen = true),
+                  );
+                },
               ),
             ],
           ),
@@ -1510,6 +1796,21 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       onTempoChanged: (v) => _setSpeed(v / 100),
       onClose: () => setState(() => _optionsOpen = false),
       children: [
+        if (_trail != null) ...[
+          const PhoneSectionLabel('TRILHA'),
+          PhoneActionRow(
+            icon: _trailMode ? Icons.school_outlined : Icons.route,
+            label: _trailMode ? 'Treino livre' : 'Voltar à trilha',
+            onTap: () {
+              final trail = _trail;
+              if (trail == null) return;
+              setState(() {
+                trail.setFreeMode(!trail.freeMode);
+                _optionsOpen = false;
+              });
+            },
+          ),
+        ],
         const PhoneSectionLabel('TREINO'),
         PhoneToggleRow(
           label: 'Tempo real (a música não espera)',
@@ -1861,14 +2162,30 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           crossAxisAlignment: .stretch,
           children: [
             Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.deepPurple.shade100),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: _buildScoreArea(),
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.deepPurple.shade100),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: _buildScoreArea(),
+                  ),
+                  if (_trailStrip() case final strip?)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
+                        ),
+                        child: strip,
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 8),
@@ -1893,19 +2210,44 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               spacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                if (_trail != null)
+                  IconButton.filledTonal(
+                    tooltip: _trailMode ? 'Treino livre' : 'Voltar à trilha',
+                    onPressed: () {
+                      final trail = _trail;
+                      if (trail != null) {
+                        setState(() => trail.setFreeMode(!trail.freeMode));
+                      }
+                    },
+                    icon: Icon(
+                      _trailMode ? Icons.school_outlined : Icons.route,
+                    ),
+                  ),
                 IconButton.filled(
-                  tooltip: _canTrain
-                      ? (_practice != null
-                            ? 'Parar prática'
-                            : 'Praticar (modo espera)')
-                      : (_playing ? 'Pausar' : 'Tocar (destacar notas)'),
-                  onPressed: _canTrain
-                      ? () => unawaited(_togglePractice())
-                      : (_canPlay ? _togglePlay : null),
+                  tooltip: _trailMode
+                      ? ((_trail?.running ?? false)
+                            ? 'Parar etapa'
+                            : 'Começar etapa')
+                      : (_canTrain
+                            ? (_practice != null
+                                  ? 'Parar prática'
+                                  : 'Praticar (modo espera)')
+                            : (_playing ? 'Pausar' : 'Tocar (destacar notas)')),
+                  onPressed: _trailMode
+                      ? () => unawaited(_startTrailStage())
+                      : (_canTrain
+                            ? () => unawaited(_togglePractice())
+                            : (_canPlay ? _togglePlay : null)),
                   icon: Icon(
-                    _canTrain
-                        ? (_practice != null ? Icons.pause : Icons.school)
-                        : (_playing ? Icons.pause : Icons.play_arrow),
+                    _trailMode
+                        ? ((_trail?.running ?? false)
+                              ? Icons.pause
+                              : Icons.school)
+                        : (_canTrain
+                              ? (_practice != null
+                                    ? Icons.pause
+                                    : Icons.school)
+                              : (_playing ? Icons.pause : Icons.play_arrow)),
                   ),
                 ),
                 IconButton.filledTonal(

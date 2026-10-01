@@ -100,6 +100,35 @@ ponta (sem a lista completa de etapas — J06 — e sem a fase final — J07).
    pauta em 360×780 dp em paisagem.
 7. `just analyze` e `just test` limpos.
 
-## Notas de execução
+## Notas de execução (J05, 2026-10-01)
 
-_(preencher ao executar)_
+Implementado: `lib/trail/trail_controller.dart` (`TrailController`: plano,
+progresso, selecionada/atual, `recordDone`/`skipSelected`/`next`,
+`freeMode`, `running`, `lastResult/lastStage`), `lib/trail/trail_widgets.dart`
+(`TrailStrip` fixa de 34 px, `showStageSummary` com `StageSummaryAction`,
+textos testáveis) e a cola em `lib/main.dart` (`_setupTrail` pós-gravura,
+`_startTrailStage`, `_onTrailStageDone`, `_abandonTrailStage`,
+`_endTrailRun`). Plano sem fase final (`includeFinal: false` novo em
+`TrailPlan.build`); ao concluir o último trecho a faixa diz "Fase final em
+breve". Testes: `test/trail_controller_test.dart` (6) e
+`test/trail_widgets_test.dart` (5) — fluxos aprovar→próxima, reprovar→tentar
+de novo, pular com confirmação.
+
+- A etapa manda nos controles sem gravar: modo/mão da fase, andamento no
+  agendador (restaurado a `_speed`), contagem+metrônomo forçados nas etapas
+  com tempo, resto do aluno intacto. Sem teclado MIDI, a faixa avisa em vez
+  de começar.
+- Faixa em sobreposição (fora da caixa de layout): não muda a área gravada
+  e não dispara re-render — vale no celular e no layout largo.
+- Sem trilha (saltos, sem número de hino): linha explicando + modo livre
+  direto. "Treino livre"/"Voltar à trilha" na gaveta e no layout largo; o
+  livre não toca na trilha e só ele alimenta `onPracticeScore`.
+- Parar no meio não registra e não abre resumo (só o fim por conta própria
+  chama `onRangeDone`).
+- Critérios 1–3 cobertos nos testes de controlador+widgets (com motor e
+  MIDI falsos no controlador J04); o fluxo E2E na `ScoreHomePage` (que pede
+  Verovio nativo, sem implementação em `flutter test`) fica nos manuais
+  5–6, pendentes no aparelho: hino 1 com teclado, contagem/metrônomo e a
+  outra mão nas etapas de uma mão; faixa sem re-render nem corte em
+  360×780 em paisagem.
+- `just analyze` e `just test` limpos.
