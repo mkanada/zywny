@@ -61,6 +61,22 @@ marca quando a música foi concluída (fase final a 100% aprovada).
    empurra o título em 360 dp de largura.
 6. `just analyze` e `just test` limpos.
 
-## Notas de execução
+## Notas de execução (J09, 2026-10-01)
 
-_(preencher ao executar)_
+Implementado: resumo pronto no `TrailProgress` (`skipped`, `resume` com
+rótulo da etapa atual carimbado pelo controlador a cada gravação),
+`LibraryScreen` com `TrailProgressStore` próprio ou injetado (lote no
+abrir), linha com "feitas/total" + puladas à parte e marca de concluída, e
+cartão "Continuar" com a etapa onde parou. A partitura usa o store da
+biblioteca (via `OpenedHymn`), então voltar atualiza a linha sem reabrir.
+Testes em `test/library_test.dart` (5: critérios 1–4; o 360 dp em retrato
+fica manual). `just analyze` e `just test` limpos (181 testes, 1 manual).
+
+- Linha sem trilha iniciada fica como hoje; "Pontuação" do treino livre
+  não se mistura. Linha e cartão usam uma linha só com elipse (sem
+  empurrar o título).
+- "600 hinos sem plano": a tela só lê `summary`/`resume` do store (teste
+  confere que `library_screen.dart` não importa plano) — o `resume`
+  guarda rótulo + trecho, sem montar nada.
+- Achado: `scrollUntilVisible` com vários `Scrollable` na árvore falha
+  ("No element"); o teste confere a primeira linha, sem rolagem.

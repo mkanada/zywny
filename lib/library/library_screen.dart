@@ -8,6 +8,8 @@ import '../midi/midi_device_picker.dart';
 import '../settings/app_settings.dart';
 import '../settings/general_settings_panel.dart';
 import '../settings/hymn_settings.dart';
+import '../trail/trail_progress.dart';
+import '../trail/trail_widgets.dart' show trailResumeText;
 import '../ui/theme.dart';
 import 'hymn.dart';
 import 'hymn_progress.dart';
@@ -24,6 +26,7 @@ class OpenedHymn {
     required this.appSettings,
     required this.hymnSettings,
     required this.onHymnSettingsChanged,
+    required this.trailProgress,
   });
 
   final Hymn hymn;
@@ -46,6 +49,10 @@ class OpenedHymn {
   /// vai o que o usuário mudar nele.
   final HymnSettings hymnSettings;
   final ValueChanged<HymnSettings> onHymnSettingsChanged;
+
+  /// O progresso da trilha (o mesmo da biblioteca, para a linha do hino
+  /// atualizar ao voltar da partitura sem reabrir nada — J09).
+  final TrailProgressStore trailProgress;
 }
 
 /// Tela inicial, em retrato — artboard `CelularBiblioteca.dc.html` do
@@ -61,6 +68,7 @@ class LibraryScreen extends StatefulWidget {
     this.progress,
     this.appSettings,
     this.hymnSettings,
+    this.trailProgress,
   });
 
   /// Constrói a tela de partitura do hino aberto (`ScoreHomePage`).
@@ -72,6 +80,9 @@ class LibraryScreen extends StatefulWidget {
   final HymnProgressStore? progress;
   final AppSettings? appSettings;
   final HymnSettingsStore? hymnSettings;
+
+  /// Resumos da trilha por hino (J09); os testes injetam com dados.
+  final TrailProgressStore? trailProgress;
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -89,6 +100,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   late final Future<void> _settingsLoaded = _settings.load();
   late final HymnSettingsStore _hymnSettings =
       widget.hymnSettings ?? HymnSettingsStore();
+  late final TrailProgressStore _trail =
+      widget.trailProgress ?? TrailProgressStore();
 
   SortState _sort = const SortState();
   String _query = '';
@@ -99,6 +112,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     super.initState();
     _lockPortrait();
     unawaited(_progress.load());
+    unawaited(_trail.load());
     unawaited(_settingsLoaded);
   }
 
@@ -106,6 +120,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void dispose() {
     _midi.dispose();
     if (widget.progress == null) _progress.dispose();
+    if (widget.trailProgress == null) _trail.dispose();
     if (widget.appSettings == null) _settings.dispose();
     super.dispose();
   }
@@ -144,6 +159,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               hymnSettings: hymnSettings,
               onHymnSettingsChanged: (changed) =>
                   unawaited(_hymnSettings.save(hymn.number, changed)),
+              trailProgress: _trail,
             ),
           ),
         ),
@@ -200,7 +216,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               child: FutureBuilder<HymnCatalog>(
                 future: _catalog,
                 builder: (context, snapshot) => ListenableBuilder(
-                  listenable: _progress,
+                  listenable: Listenable.merge([_progress, _trail]),
                   builder: (context, _) => _content(snapshot),
                 ),
               ),
@@ -323,10 +339,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _continueCard(Hymn hymn) {
     final progress = _progress[hymn.number];
+    final trail = _trail[hymn.number];
     final details = [
       'Hino ${hymn.number}',
       if (progress?.lastOpened case final at?) whenStudied(at, DateTime.now()),
       if (progress?.bestScore case final score?) 'melhor $score',
+      if (trail.resume case final resume?) trailResumeText(resume),
     ].join(' · ');
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
@@ -451,6 +469,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         return _HymnRow(
           hymn: hymn,
           progress: _progress[hymn.number],
+          trail: _trail[hymn.number],
           now: now,
           onTap: () => unawaited(_open(hymn)),
         );
@@ -463,21 +482,30 @@ class _HymnRow extends StatelessWidget {
   const _HymnRow({
     required this.hymn,
     required this.progress,
+    required this.trail,
     required this.now,
     required this.onTap,
   });
 
   final Hymn hymn;
   final HymnProgress? progress;
+
+  /// Progresso da trilha (resumo pronto do JSON, sem plano — J09). Sem nada
+  /// iniciado (`total == 0`), a linha fica como hoje.
+  final TrailProgress trail;
   final DateTime now;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final score = progress?.bestScore;
+    final started = trail.total > 0;
     final subtitle = [
       hymn.composer,
       if (progress?.lastOpened case final at?) whenStudied(at, now),
+      if (started)
+        '${trail.done}/${trail.total}'
+            '${trail.skipped > 0 ? ' · ${trail.skipped} ${trail.skipped == 1 ? 'pulada' : 'puladas'}' : ''}',
     ].join(' · ');
     return InkWell(
       onTap: onTap,
@@ -528,6 +556,18 @@ class _HymnRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
+            if (trail.finalApproved)
+              const Padding(
+                padding: EdgeInsets.only(right: 7),
+                child: Tooltip(
+                  message: 'Trilha concluída',
+                  child: Icon(
+                    Icons.check_circle,
+                    size: 16,
+                    color: kGoodColor,
+                  ),
+                ),
+              ),
             Container(
               width: 10,
               height: 10,

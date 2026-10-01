@@ -233,7 +233,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// `null` sem trilha (caminho com saltos até o J08, ou partitura sem
   /// número de hino) — aí a tela abre direto no modo livre. Detalhes em
   /// `lib/trail/`.
-  final TrailProgressStore _trailStore = TrailProgressStore();
+  ///
+  /// O store é o da biblioteca (a linha do hino atualiza ao voltar sem
+  /// reabrir nada — J09); só é desta tela quando não veio de fora.
+  late final TrailProgressStore _trailStore =
+      widget.opened?.trailProgress ?? TrailProgressStore();
   TrailController? _trail;
 
   /// Por que não há trilha (explicação no lugar da faixa); `null` com trilha
@@ -491,6 +495,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _practice?.dispose();
     _trail?.removeListener(_onTrailChanged);
     _trail?.dispose();
+    if (widget.opened == null) _trailStore.dispose();
     _midiDeviceManager.connected.removeListener(_onMidiDeviceChanged);
     _midiMonitor?.dispose();
     _midiInput.dispose();

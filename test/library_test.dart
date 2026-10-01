@@ -2,6 +2,8 @@
 // e a tela inicial. Os hinos de verdade ficam em `assets/hinos/`, que não é
 // versionado — aqui o catálogo é uma lista pequena e nada vai a disco.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +17,8 @@ import 'package:zywny/library/hymn_progress.dart';
 import 'package:zywny/library/library_screen.dart';
 import 'package:zywny/library/library_sort.dart';
 import 'package:zywny/main.dart';
+import 'package:zywny/trail/stage_result.dart';
+import 'package:zywny/trail/trail_progress.dart';
 import 'package:zywny/ui/theme.dart';
 
 class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
@@ -261,6 +265,166 @@ void main() {
       expect(find.text('Hino 12 · hoje · melhor 83'), findsOneWidget);
       expect(find.text('George J. Elvey · hoje'), findsOneWidget);
       expect(find.text('83'), findsOneWidget);
+    });
+  });
+
+  group('trilha (J09)', () {
+    void phonePortrait(WidgetTester tester) {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    }
+
+    /// 12 de 51 feitas (10 aprovadas + 2 puladas), parou no trecho 2/4.
+    TrailProgress progress12of51() => TrailProgress(
+      n: 5,
+      total: 51,
+      records: {
+        for (var i = 0; i < 10; i++)
+          's$i': const StageRecord(state: StageState.aprovada, best: 92),
+        'p0': const StageRecord(state: StageState.pulada, best: 0),
+        'p1': const StageRecord(state: StageState.pulada, best: 0),
+      },
+      resume: const TrailResume(
+        stageId: 's12',
+        label: 'Ritmo da esquerda 75%',
+        segment: 1,
+        segments: 4,
+      ),
+    );
+
+    Future<Widget> libraryWith(TrailProgressStore trail) async {
+      await trail.save(12, progress12of51());
+      return MaterialApp(
+        theme: buildAppTheme(),
+        home: LibraryScreen(
+          loadCatalog: _loadCatalog,
+          extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+          trailProgress: trail,
+          scoreBuilder: (context, o) =>
+              const Scaffold(body: Text('partitura')),
+        ),
+      );
+    }
+
+    testWidgets('linha mostra feitas/total e puladas; sem trilha, como hoje',
+        (tester) async {
+      phonePortrait(tester);
+      await tester.pumpWidget(await libraryWith(TrailProgressStore()));
+      await tester.pump();
+      expect(find.textContaining('12/51'), findsOneWidget);
+      expect(find.textContaining('2 puladas'), findsOneWidget);
+      // O hino sem trilha não mostra nada dela (só compositor).
+      expect(find.text('John B. Dykes'), findsOneWidget);
+      expect(find.textContaining('12/51'), findsOneWidget);
+    });
+
+    testWidgets('final.100 aprovada marca concluído', (tester) async {
+      phonePortrait(tester);
+      final trail = TrailProgressStore();
+      await trail.save(
+        12,
+        const TrailProgress(n: 5, total: 51, records: {
+          'final.100': StageRecord(state: StageState.aprovada, best: 95),
+        }),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: LibraryScreen(
+            loadCatalog: _loadCatalog,
+            extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+            trailProgress: trail,
+            scoreBuilder: (context, o) =>
+                const Scaffold(body: Text('partitura')),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byTooltip('Trilha concluída'), findsOneWidget);
+    });
+
+    testWidgets('voltar da partitura atualiza a linha sem reabrir', (
+      tester,
+    ) async {
+      phonePortrait(tester);
+      final trail = TrailProgressStore();
+      await tester.pumpWidget(await libraryWith(trail));
+      await tester.pump();
+      expect(find.textContaining('12/51'), findsOneWidget);
+      // A partitura (mesmo store) grava mais uma etapa: a linha refaz.
+      final updated = progress12of51().recordResult(
+        's12',
+        const StageResult(hits: 9, total: 10, badMeasures: {}),
+      );
+      await trail.save(12, updated);
+      await tester.pump();
+      expect(find.textContaining('13/51'), findsOneWidget);
+    });
+
+    testWidgets('continuar diz em que etapa parou', (tester) async {
+      phonePortrait(tester);
+      final trail = TrailProgressStore();
+      final progress = HymnProgressStore();
+      await progress.markOpened(12);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: LibraryScreen(
+            loadCatalog: _loadCatalog,
+            extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+            progress: progress,
+            trailProgress: trail,
+            scoreBuilder: (context, o) =>
+                const Scaffold(body: Text('partitura')),
+          ),
+        ),
+      );
+      await trail.save(12, progress12of51());
+      await tester.pump();
+      expect(find.text('CONTINUAR'), findsOneWidget);
+      expect(
+        find.textContaining('Trecho 2/4 · Ritmo da esquerda 75%'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('600 hinos abrem sem montar nenhum plano', (tester) async {
+      phonePortrait(tester);
+      final trail = TrailProgressStore();
+      await trail.save(1, progress12of51());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: LibraryScreen(
+            loadCatalog: () async => HymnCatalog([
+              for (var n = 1; n <= 600; n++)
+                Hymn(
+                  number: n,
+                  title: 'Hino $n',
+                  composer: 'Autor',
+                  titleKey: 'hino $n',
+                  composerKey: 'autor',
+                  searchKey: 'hino $n',
+                ),
+            ]),
+            extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+            trailProgress: trail,
+            scoreBuilder: (context, o) =>
+                const Scaffold(body: Text('partitura')),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pumpAndSettle();
+      // A primeira linha já sai do resumo, sem plano nenhum.
+      expect(find.textContaining('12/51'), findsOneWidget);
+      // A tela só lê resumos do store: nenhum plano entra aqui.
+      final source = File(
+        'lib/library/library_screen.dart',
+      ).readAsStringSync();
+      expect(source, isNot(contains('trail_plan')));
+      expect(source, isNot(contains('TrailPlan')));
     });
   });
 }
