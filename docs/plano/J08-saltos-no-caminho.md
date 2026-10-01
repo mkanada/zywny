@@ -83,6 +83,29 @@ no modo livre.
 6. A medição atualizada está nas notas, com o número de hinos sem trilha.
 7. `just analyze` e `just test` limpos.
 
-## Notas de execução
+## Notas de execução (J08, 2026-10-01)
 
-_(preencher ao executar)_
+D-SALTO resolvida pela via **(a)** e registrada em `docs/plano/README.md`:
+a medição do J01 mostrou que só 15 dos 115 saltos são casas puras (a via
+b resgatava 15; o resto é introdução + casas e ritornelos seguidos, onde a
+última passagem também salta) — pela regra do plano ("senão, (a)"), salto
+no agendador.
+
+Implementado: `ScoreAudioScheduler.setJumps/clearJumps/onJump/jumpCount`
+(igual à volta do loop, mas para a frente: emite até o início com `offMs`
+cortados, reancora no destino sem lacuna), `PerformanceTrack.rangeView`
+(só o que toca, sem vãos), `PracticeController(rangeJumps/onRangeJump)` com
+sessões pré-filtradas (sem tocar em `Wait`/`Realtime`/`Rhythm`), `cutSegments`
+atravessando saltos, `trailStageGaps` e a cola na tela (busca do player no
+pulo). Testes: `test/trail_jumps_test.dart` (7: critérios 1–3 — trecho B,D
+toca B1 e depois D sem C nem A2 nas 3 modalidades, toque após o salto casa
+com D, metrônomo fora do vão; teste de `erik-satie`/`maple-leaf-rag`).
+
+- Sem saltos, tudo idêntico a antes (sessões na peça cheia, sem teto nem
+  vãos): J01–J07 verdes sem mexer (critério 4).
+- Medição refeita (`TRAIL_STATS=1`): 485 contíguos + 115 com salto (95×1,
+  14×2, 6×3), **0 sem trilha** — os 600 abrem plano com etapas (critério 6;
+  incompletos e pautas como no J01).
+- Manual no aparelho (critério 5): hino 10 (casas) cruzando a casa sem
+  falha audível, com a partitura acompanhando.
+- `just analyze` e `just test` limpos.

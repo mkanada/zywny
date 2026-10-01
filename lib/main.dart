@@ -724,8 +724,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (plan.isEmpty) {
       setState(
         () => _trailUnavailable =
-            'Trilha indisponível neste hino (casas de repetição) — '
-            'treino livre',
+            'Trilha indisponível neste hino — treino livre',
       );
       return;
     }
@@ -790,6 +789,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     await _loadInputLatency();
     if (!mounted) return;
     final timed = stage.speed != null;
+    final gaps = trailStageGaps(trail.path, stage);
     final practice = PracticeController(
       midiInput: _midiInput,
       track: track,
@@ -803,10 +803,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       measureIndexAt: player.timeline.measureIndexAt,
       passOf: (i) => player.measures[i].pass,
       range: (startMs: stage.startMs, endMs: stage.endMs),
+      rangeJumps: gaps,
       onRangeDone: () {
         final current = _practice;
         if (current != null) _onTrailStageDone(current, stage);
       },
+      onRangeJump: (ms) =>
+          player.seek(Duration(microseconds: (ms * 1000).round())),
     );
     _midiMonitor?.muted = stage.phase.mode == PracticeMode.rhythm;
     if (timed) scheduler.metronomeOn = true;

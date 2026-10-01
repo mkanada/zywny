@@ -165,6 +165,33 @@ class PerformanceTrack {
     );
   }
 
+  /// Recorte para as sessões de um intervalo com saltos (J08): só eventos
+  /// com `onMs` em `[startMs, endMs)` fora dos vãos. Sem pedal (as sessões
+  /// não usam). O agendador continua na peça cheia, com teto e saltos.
+  PerformanceTrack rangeView({
+    required double startMs,
+    required double endMs,
+    List<({double startMs, double endMs})> gaps = const [],
+  }) {
+    bool inGap(double ms) {
+      for (final gap in gaps) {
+        if (ms >= gap.startMs && ms < gap.endMs) return true;
+      }
+      return false;
+    }
+
+    final filtered = [
+      for (final e in events)
+        if (e.onMs >= startMs && e.onMs < endMs && !inGap(e.onMs)) e,
+    ];
+    return PerformanceTrack._(
+      events: filtered,
+      pedal: const [],
+      durationMs: durationMs,
+      staves: filtered.map((e) => e.staff).toSet(),
+    );
+  }
+
   /// Eventos com `onMs` em `[fromMs, toMs)`. Busca binária em [events]
   /// (ordenado por `onMs`) — o agendador (K04) chama isto a cada ~25 ms.
   Iterable<SoundEvent> startingIn(

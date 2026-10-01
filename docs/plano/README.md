@@ -212,7 +212,7 @@ zywny
 | D-WEB-SYNTH | Síntese na Web: SpessaSynth (JS) ou o crate Rust em wasm? | W04 | SpessaSynth (maduro, AudioWorklet pronto); mesmo `.sf2` nos dois lados | **aberta** |
 | D-TREINO | Tolerâncias e UX do treino (janela de acerto, o que conta como erro) | T03 | ±75 ms "certo", ±150 ms "quase", fora disso "errado/perdido"; ornamentos e apojaturas não cobrados na 1.0 | **aberta** |
 | D-RITMO | Treino de rítmica: janelas, cobrar duração, som do toque | T05 | ±60 ms "certo", ±130 ms "quase" (de parede); duração não cobrada; toque soa as notas esperadas do onset ("piano mágico") | **aberta** |
-| D-SALTO | Trilha em músicas cujo caminho sem repetições tem salto (casas de 1ª/2ª vez, vários ritornelos): salto no agendador ou usar a última passagem? | J08 | Decidir pela medição dos 600 hinos feita no J01 — ver [J08](J08-saltos-no-caminho.md) | **aberta** |
+| D-SALTO | Trilha em músicas cujo caminho sem repetições tem salto (casas de 1ª/2ª vez, vários ritornelos): salto no agendador ou usar a última passagem? | J08 | **decidida (a)**: salto no agendador (generaliza o loop para vãos; sessões pré-filtradas sem os vãos) — a via (b) resgatava só 15/115 saltos (o resto é intro+casas e ritornelos seguidos); medição refeita: 0 hinos sem trilha — ver [J08](J08-saltos-no-caminho.md) | **decidida** |
 
 ## Riscos conhecidos
 
