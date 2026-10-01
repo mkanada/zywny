@@ -88,6 +88,36 @@ UI, sem áudio.
    são anacruse.
 8. `just analyze` e `just test` limpos.
 
-## Notas de execução
+## Notas de execução (J01, 2026-10-01)
 
-_(preencher ao executar)_
+Implementado: `lib/trail/trail_path.dart` (`PathMeasure`, `LogicalMeasure`,
+`TrailPath.fromTimeline`, `measureQuarterLengths`) e
+`lib/trail/trail_segments.dart` (`TrailSegment`, `cutSegments`).
+Testes: `test/trail_path_test.dart` (7 testes). Medição:
+`test/trail_stats_manual_test.dart` (`@Tags(['manual'])`, só com
+`TRAIL_STATS=1`; fora do `just test`).
+
+- Fixtures: `erik-satie.vsb` → 39 lógicos, **não contíguo**, 1 salto
+  antes do lógico 31 (casa 1 descartada: 8 compassos). `maple-leaf-rag.vsb`
+  → 80 lógicos (anacruse grudada no 1), **não contíguo**, 4 saltos.
+- 600 hinos (`TRAIL_STATS=1`, 0 falhas): **485 contíguos (80,8%)**,
+  **115 com salto (19,2%)** — 95 com 1 salto, 14 com 2, 6 com 3.
+  Lógicos por hino: mín 11, máx 92. Ocorrências: mín 12, máx 184.
+- Cruzamento com o `grep` do J00 (112 com `<ending>`): 102 dos 112 têm
+  salto; 10 com casa têm caminho contíguo (casas que o Verovio toca em
+  sequência — ver J08/D-SALTO) e 13 sem casa têm salto (ritornelos
+  seguidos e outros saltos para a frente). Ex. salto sem casa: 024, 143,
+  168, 246, 288; ex. casa sem salto: 033, 112, 149, 351.
+- Incompletos (`qstamp`): **324 hinos (54%)** têm ao menos um lógico
+  grudado — 0: 276 hinos; 1: 246; 2: 67; 3: 7; 4: 2; 9: 2.
+  **Anacruse (grudado nº 1): 37 hinos** (ex.: 011, 057, 135, 146).
+  **Partido no meio (grudado nº > 1): 319 hinos** — o caso
+  "metade final gruda na inicial" do J00 (compasso partido na barra de
+  repetição/fim de linha, ex. 003: medida 0 `implicit="yes"` com
+  `repeat forward`). A regra "incompleto não final gruda para trás;
+  primeiro gruda para a frente; solitário no fim volta" cobre os 600
+  sem exceção.
+- P2/pauta (pergunta do J01): em **todos os 600**, `PerformanceTrack`
+  tem pautas `{1, 2}` — P1 → pauta 1, P2 → pauta 2. J03/J04 podem
+  assumir a convenção do N03.
+- `just analyze` e `just test` limpos (o manual pula sem `TRAIL_STATS=1`).
