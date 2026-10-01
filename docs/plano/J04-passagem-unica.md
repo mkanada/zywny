@@ -86,6 +86,24 @@ modos, inclusive no modo espera (que hoje não tem resumo).
 6. Teste: os testes de loop já existentes continuam passando sem mudança.
 7. `just analyze` e `just test` limpos.
 
-## Notas de execução
+## Notas de execução (J04, 2026-10-01)
 
-_(preencher ao executar)_
+Implementado em `lib/practice/practice_controller.dart`: `range`
+(`startMs`/`endMs`), `onRangeDone` (uma vez), `stageResult`
+(J02: `WaitTally` no espera, `fromReport` com tempo/ritmo) e teto de áudio
+em `endMs` (`ScoreAudioScheduler.setStopAt/clearStopAt`: nada com
+`onMs >= endMs` é agendado e os `offMs` são cortados, mas a posição corre
+até `endMs + folga` para o último toque casar). Testes novos em
+`test/practice_controller_test.dart` (6, todos os critérios 1–5; os de
+loop passam sem mudança — critério 6).
+
+- Espera: `resetTo(startMs)` no `start`; fim quando o pendente tem
+  `onMs >= endMs` (ou a sessão acaba). `WaitTally` ligado a `currentStep`
+  (`stepStarted`/`stepDone`) e aos `wrong`. Dois bugs achados nos testes:
+  tecla repetida entre passos exige soltar (soltar após cada passo) e a
+  republicação do passo a cada nota certa não conta como avanço (só a
+  troca de índice).
+- Tempo real/ritmo: `resetTo(startMs, untilMs: endMs)`; `_tick` fecha em
+  `endMs + folga` (o que faltou vira `missed`) e termina sozinho.
+- `stop` no meio dá o parcial avaliado; a tela trata como abandono (J05).
+- `just analyze` e `just test` limpos.
