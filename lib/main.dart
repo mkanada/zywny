@@ -1969,6 +1969,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       number: hymn?.number,
       title: hymn?.title ?? '',
       onBack: _backToLibrary,
+      center: _trailChip(),
       trailing: [
         if (_trainingMode) PhoneStatusPill(text: _trainingPillText),
         if (_practice case final practice?)
@@ -1983,6 +1984,40 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             ),
           ),
       ],
+    );
+  }
+
+  /// A trilha na barra do título do celular (U01): no lugar da faixa, que
+  /// cobria o topo da pauta. No treino livre com trilha, "Treino livre" e um
+  /// toque volta à trilha.
+  Widget? _trailChip() {
+    if (_player == null) return null;
+    final unavailable = _trailUnavailable;
+    if (unavailable != null && _trail == null) {
+      return TrailTitleChip(text: unavailable);
+    }
+    final trail = _trail;
+    if (trail == null) return null;
+    if (trail.freeMode) {
+      return TrailTitleChip(
+        text: 'Treino livre',
+        onTap: () => setState(() => trail.setFreeMode(false)),
+      );
+    }
+    final stage = trail.selected;
+    if (stage == null) return const TrailTitleChip(text: 'Fase final em breve');
+    return TrailTitleChip(
+      text: stage.isReinforcement
+          ? stage.label
+          : trailStripTextFor(
+              trail.plan.segmentCount,
+              stage.segment,
+              stage.label,
+            ),
+      stateText: stage.isReinforcement
+          ? ''
+          : trailStateText(trail.progress, stage.id),
+      onTap: () => setState(() => _trailDrawerOpen = true),
     );
   }
 
@@ -2084,20 +2119,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _buildPhoneTitleBar(),
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            _buildScoreArea(phone: true),
-                            if (_trailStrip() case final strip?)
-                              Positioned(
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                child: strip,
-                              ),
-                          ],
-                        ),
-                      ),
+                      Expanded(child: _buildScoreArea(phone: true)),
                     ],
                   ),
                 ),

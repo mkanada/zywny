@@ -95,3 +95,17 @@ título. Achado A3; sugestão A3.
    mudou).
 5. O roteiro das telas passa inteiro.
 6. `just analyze` e `just test` limpos.
+
+## Notas de execução
+
+- D-FAIXA decidida pelo usuário: **(a)**, barra do título.
+- `TrailTitleChip` (em `trail_widgets.dart`) + parâmetro `center` em
+  `PhoneTitleBar`: título e chip dividem o espaço em partes iguais e cortam
+  com reticências. `_trailChip()` em `main.dart` monta o chip; `_trailStrip()`
+  segue só no layout largo. No treino livre com trilha o chip diz "Treino
+  livre" e o toque volta à trilha.
+- O roteiro das telas foi atualizado (`TrailTitleChip` no lugar de
+  `TrailStrip`), mas **não foi rodado**: critérios 3–5 pendentes. Os
+  critérios 1, 2 e 6 passam (`flutter test`, `just analyze`).
+- `dart format` reformatou também `trail_widgets.dart` e
+  `test/trail_widgets_test.dart` inteiros; o ruído foi mantido.

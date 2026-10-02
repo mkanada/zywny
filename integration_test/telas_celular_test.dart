@@ -209,7 +209,7 @@ Future<void> _scoreReady(WidgetTester tester) async {
     () =>
         _landscape(tester) &&
         _has(find.byType(ScoreView)) &&
-        _has(find.byType(TrailStrip)),
+        _has(find.byType(TrailTitleChip)),
     what: 'partitura com a trilha',
     seconds: 90,
   );
@@ -225,9 +225,9 @@ Future<void> _openOptions(WidgetTester tester) async {
   );
 }
 
-/// Um toque no texto da faixa da trilha abre a gaveta com as etapas.
+/// Um toque no texto da trilha, na barra do título, abre a gaveta com as etapas.
 Future<void> _openTrailDrawer(WidgetTester tester) async {
-  await tester.tapAt(tester.getCenter(find.byType(TrailStrip)));
+  await tester.tapAt(tester.getCenter(find.byType(TrailTitleChip)));
   await _until(
     tester,
     () => _has(find.byType(TrailDrawer)),
