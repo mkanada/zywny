@@ -20,7 +20,7 @@ sobrevive a fechar o app e a instalar uma versão nova por cima:
 
 - **Gerais** (`lib/settings/app_settings.dart`, painel
   `GeneralSettingsPanel`): som ligado, saída, instrumentos da partitura,
-  metrônomo, contagem, tipo de treino e cores. Valem para todos os hinos; o
+  metrônomo, tipo de treino e cores. Valem para todos os hinos; o
   painel abre pela engrenagem da biblioteca ou por "Configurações gerais" na
   partitura. Soundfont, monitor MIDI e latência já eram guardados à parte.
 - **De cada hino** (`lib/settings/hymn_settings.dart`, painel `LayoutPanel`

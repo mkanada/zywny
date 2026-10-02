@@ -97,6 +97,11 @@ Feito (código + testes); critérios 3 e 4 (manuais) **pendentes**.
   posição parada em `fromMs` (piso) e cliques nas batidas do compasso.
   Metrônomo e contagem só soam com o **som do app ligado** (o agendador é
   quem clica).
+  Deixou de ser opção: play, tempo real e ritmo sempre começam com ela (o
+  modo espera, em que o tempo espera o aluno, não). Por cima da partitura,
+  `lib/practice/count_in_overlay.dart` mostra os tempos que faltam (4, 3,
+  2, 1) em azul, esmaecendo a cada tempo; lê `ScoreAudioScheduler.countInTick`
+  ou, no play sem som, a contagem muda da tela (só o número, sem cliques).
 - **Calibração** — `lib/audio/latency_calibration.dart` (8 cliques a 100
   bpm, mediana sem os 2 primeiros, aviso >80 ms) + diálogo em
   `practice_tools.dart`, aberto por "Calibrar latência" no seletor de

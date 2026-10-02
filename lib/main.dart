@@ -27,8 +27,8 @@ import 'midi/midi_monitor_panel.dart';
 import 'midi/midi_out_sound_engine.dart';
 import 'music/performance_track.dart';
 import 'native_paths.dart';
+import 'practice/count_in_overlay.dart';
 import 'practice/hand.dart';
-import 'practice/practice_colors.dart';
 import 'practice/practice_controller.dart';
 import 'practice/practice_report.dart';
 import 'practice/practice_tools.dart';
@@ -254,12 +254,18 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Acessórios de treino (T04). O loop guarda **ocorrências** de compasso
   /// (índices em `ScorePlayer.measures`, ordem de execução); metrônomo e
   /// contagem só soam com o som do app ligado (o agendador é quem clica).
-  /// Metrônomo e contagem são configurações gerais ([_settings]).
+  /// O metrônomo é configuração geral ([_settings]); a contagem não é
+  /// escolha: tudo o que anda no tempo (play, tempo real, ritmo) começa com
+  /// 1 compasso dela, e o modo espera — em que o tempo espera o aluno — não.
   bool get _metronomeOn => _settings.metronomeOn;
   set _metronomeOn(bool value) => _settings.metronomeOn = value;
-  bool get _countInOn => _settings.countInOn;
-  set _countInOn(bool value) => _settings.countInOn = value;
   ({int a, int b})? _loop;
+
+  /// Contagem muda: sem som não há agendador para contar, então a tela
+  /// segura o player por 1 compasso e conta sozinha (só o número, sem
+  /// cliques). `null` fora dela.
+  Timer? _silentCountInTimer;
+  CountInTick? Function()? _silentCountIn;
 
   /// Latência de entrada+saída calibrada para o teclado/saída correntes.
   double _inputLatencyMs = 0;
@@ -324,6 +330,19 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Color get _highlightColor => _settings.highlightColor;
   double get _haloWidth => _settings.haloWidth;
   Color get _barColor => _settings.barColor;
+
+  // Haste fina: meia cabeça de nota (o padrão do `ScoreView` são duas). O
+  // player e a vista precisam do mesmo valor.
+  double _barWidthOf(VsbDocument document) {
+    if (!identical(document, _barWidthDocument)) {
+      _barWidthDocument = document;
+      _barWidth = defaultBarWidth(document) / 4;
+    }
+    return _barWidth;
+  }
+
+  VsbDocument? _barWidthDocument;
+  double _barWidth = 0;
 
   bool get _canPlay => (_document?.timemap?.isNotEmpty ?? false) && !_busy;
 
@@ -405,9 +424,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       );
       if (effective != trail.plan.n) unawaited(_setupTrail());
     }
-    // No treino o player destaca em azul ("esperado agora"); a cor
-    // configurada volta em [_endPractice].
-    if (_practice == null) _player?.highlightColor = _settings.highlightColor;
+    // No treino o player destaca na cor de "esperado agora"; a cor da
+    // reprodução volta em [_endPractice].
+    _player?.highlightColor = _practice == null
+        ? _settings.highlightColor
+        : _settings.practicePendingColor;
+    _practice
+      ?..correctColor = _settings.highlightColor
+      ..wrongColor = _settings.practiceWrongColor;
     if (_settings.soundOn != _soundSetting) {
       _soundSetting = _settings.soundOn;
       if (_soundSetting != _soundOn && !_loadingSoundFont) {
@@ -492,6 +516,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _flushHymnSettings();
     _settings.removeListener(_onSettingsChanged);
     if (widget.opened == null) _settings.dispose();
+    _silentCountInTimer?.cancel();
     _practice?.dispose();
     _trail?.removeListener(_onTrailChanged);
     _trail?.dispose();
@@ -636,6 +661,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _practice?.dispose();
       _practice = null;
       _trail?.setRunning(false);
+      _cancelSilentCountIn();
       _player?.dispose();
       _player = null;
       _setPlaying(false);
@@ -654,7 +680,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 controller: _controller,
                 view: _viewController,
                 onEntry: _onEntry,
+                barWidth: _barWidthOf(document),
                 highlightColor: _highlightColor,
+                // Ligadura é uma tecla só: a cadeia acende junta.
+                mergeTies: true,
               )
             : null;
         final engine = _engine;
@@ -723,8 +752,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final plan = TrailPlan.build(path, track, n: n, includeFinal: true);
     if (plan.isEmpty) {
       setState(
-        () => _trailUnavailable =
-            'Trilha indisponível neste hino — treino livre',
+        () =>
+            _trailUnavailable = 'Trilha indisponível neste hino — treino livre',
       );
       return;
     }
@@ -810,13 +839,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       },
       onRangeJump: (ms) =>
           player.seek(Duration(microseconds: (ms * 1000).round())),
+      correctColor: _settings.highlightColor,
+      wrongColor: _settings.practiceWrongColor,
     );
     _midiMonitor?.muted = stage.phase.mode == PracticeMode.rhythm;
     if (timed) scheduler.metronomeOn = true;
-    practice.start(countIn: timed ? true : _countInOn);
+    practice.start(countIn: timed);
     player.play();
-    // No treino, o "esperado agora" acende em azul, como no modo livre.
-    player.highlightColor = kPracticePendingColor;
+    // No treino, o "esperado agora" acende na cor própria, como no modo
+    // livre.
+    player.highlightColor = _settings.practicePendingColor;
     trail.setRunning(true);
     trail.clearResult();
     setState(() {
@@ -978,6 +1010,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final player = _player;
     if (player == null) return;
     if (_playing) {
+      _cancelSilentCountIn();
       player.pause();
       _scheduler?.pause();
       _controller.releaseAll();
@@ -992,13 +1025,57 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         player.seek(Duration(microseconds: (range.startMs * 1000).round()));
       }
     }
-    player.play();
+    // Do fim, o play recomeça a música: a contagem é a do 1º compasso.
+    if (player.position >= player.duration) player.seek(Duration.zero);
+    if (_soundOn) {
+      player.play();
+    } else {
+      _startSilentCountIn(player);
+    }
     _scheduler?.play(
       player.position.inMicroseconds / 1000,
       speed: _speed,
-      countIn: _countInOn,
+      countIn: true,
     );
     setState(() => _setPlaying(true));
+  }
+
+  /// Play sem som: conta 1 compasso na tela e só então solta [player] (que,
+  /// mudo, anda pelo relógio próprio).
+  void _startSilentCountIn(ScorePlayer player) {
+    final fromMs = player.position.inMicroseconds / 1000;
+    final clicks = countInBeats(metronomeBeats(player.timeline), fromMs);
+    if (clicks.isEmpty) {
+      player.play();
+      return;
+    }
+    final firstMs = clicks.first.ms;
+    final speed = _speed;
+    final watch = Stopwatch()..start();
+    _silentCountIn = () => countInTickAt(
+      clicks,
+      fromMs,
+      firstMs + watch.elapsedMicroseconds / 1000 * speed,
+    );
+    _silentCountInTimer = Timer(
+      Duration(microseconds: ((fromMs - firstMs) / speed * 1000).round()),
+      () {
+        _silentCountInTimer = null;
+        _silentCountIn = null;
+        player.play();
+      },
+    );
+  }
+
+  /// Desiste da contagem muda em curso; devolve se havia uma (o player
+  /// ainda não tinha sido solto).
+  bool _cancelSilentCountIn() {
+    final timer = _silentCountInTimer;
+    if (timer == null) return false;
+    timer.cancel();
+    _silentCountInTimer = null;
+    _silentCountIn = null;
+    return true;
   }
 
   /// Stops playback and rewinds to the start.
@@ -1013,11 +1090,47 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // filtro de pauta do modo treino (T02) — sem isto, o próximo Play
     // ficaria preso no freio antigo.
     _endPractice();
+    _cancelSilentCountIn();
     player.pause();
     player.seek(Duration.zero);
     _scheduler?.stop();
     _controller.clearAll();
     if (_playing && mounted) setState(() => _setPlaying(false));
+  }
+
+  /// Reiniciar: volta ao começo e segue como estava — tocando, recomeça de
+  /// lá; parado, fica parado no começo. "Começo" é o da etapa na trilha, o
+  /// do trecho em repetição no modo livre, ou o da música.
+  Future<void> _restart() async {
+    final player = _player;
+    if (player == null) return;
+    if (_trailMode) {
+      final trail = _trail!;
+      if (trail.running) {
+        _abandonTrailStage();
+        await _startTrailStage();
+        return;
+      }
+      final stage = trail.selected;
+      if (stage != null) _seekTo(stage.startMs);
+      return;
+    }
+    if (_practice != null) {
+      _stopPractice();
+      await _togglePractice();
+      return;
+    }
+    final wasPlaying = _playing;
+    if (wasPlaying) _togglePlay();
+    _controller.clearAll();
+    _seekTo(_loopRangeMs?.startMs ?? 0);
+    if (wasPlaying) _togglePlay();
+  }
+
+  /// Leva o player e o agendador de áudio (se houver) para [ms].
+  void _seekTo(double ms) {
+    _player?.seek(Duration(microseconds: (ms * 1000).round()));
+    _scheduler?.seek(ms);
   }
 
   /// Arma/desarma o modo treino (T02) — só decide se o Play vira
@@ -1075,14 +1188,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       passOf: (i) => player.measures[i].pass,
       onLoopRestart: (ms) =>
           player.seek(Duration(microseconds: (ms * 1000).round())),
+      correctColor: _settings.highlightColor,
+      wrongColor: _settings.practiceWrongColor,
     );
     _midiMonitor?.muted = _practiceMode == PracticeMode.rhythm;
-    practice.start(fromMs: fromMs, countIn: _countInOn);
+    practice.start(fromMs: fromMs, countIn: _practiceMode != PracticeMode.wait);
     if (range != null) practice.setLoop(range.startMs, range.endMs);
     player.play();
-    // No treino, o "esperado agora" acende em azul (kPracticePendingColor):
-    // o vermelho padrão do player confundia pendente com errada.
-    player.highlightColor = kPracticePendingColor;
+    // No treino, o "esperado agora" acende na cor própria (azul por
+    // padrão): o vermelho padrão do player confundia pendente com errada.
+    player.highlightColor = _settings.practicePendingColor;
     setState(() {
       _practice = practice;
       _soundOn = true;
@@ -1190,6 +1305,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// player — chamado ao ligar o som e de novo a cada nova gravura enquanto
   /// ele já estiver ligado.
   void _attachAudio(SoundEngine engine, PerformanceTrack track) {
+    // O som chegou no meio da contagem muda: daqui em diante quem manda no
+    // tempo é o agendador, então o player é solto já.
+    if (_cancelSilentCountIn()) _player?.play();
     final scheduler = ScoreAudioScheduler(engine: engine, track: track);
     _scheduler = scheduler;
     _audioClock = AudioPlaybackClock(scheduler);
@@ -1208,8 +1326,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     setState(() => _metronomeOn = !_metronomeOn);
     _scheduler?.metronomeOn = _metronomeOn;
   }
-
-  void _toggleCountIn() => setState(() => _countInOn = !_countInOn);
 
   /// `[startMs, endMs)` do loop atual, ou `null`.
   ({double startMs, double endMs})? get _loopRangeMs {
@@ -1336,7 +1452,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void _restoreSound() {
     if (_autoSoundDone) return;
     _autoSoundDone = true;
-    if (!_settings.soundOn || _soundOn) return;
+    if (_soundOn) return;
+    if (!_settings.soundOn) {
+      // Som desligado: mesmo assim deixa o motor do app armado (dispositivo
+      // aberto, `.sf2` carregado) enquanto o aluno ainda olha a partitura —
+      // senão o primeiro play espera por isso. O play continua mudo até
+      // alguém ligar o som. O motor MIDI não custa nada para abrir e
+      // reclamaria da falta de teclado, então fica para quando for usado.
+      if (_output == SoundOutput.appSynth) unawaited(_ensureEngine());
+      return;
+    }
     if (_output == SoundOutput.midiKeyboard &&
         _midiDeviceManager.connected.value == null) {
       return;
@@ -1353,7 +1478,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final existing = _engine;
     if (existing != null) return existing;
     if (_output == SoundOutput.midiKeyboard) return _ensureMidiOutEngine();
-    if (_loadingSoundFont) return null;
+    // Já abrindo (armado na entrada, ou dois pedidos seguidos): quem chega
+    // depois espera a mesma abertura em vez de desistir.
+    return _engineOpening ??= _openAppEngine().whenComplete(
+      () => _engineOpening = null,
+    );
+  }
+
+  Future<SoundEngine?>? _engineOpening;
+
+  Future<SoundEngine?> _openAppEngine() async {
     setState(() => _loadingSoundFont = true);
     SoundEngine? engine;
     try {
@@ -1369,7 +1503,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     } finally {
       if (mounted) setState(() => _loadingSoundFont = false);
     }
-    if (engine == null || !mounted) return null;
+    if (engine == null) return null;
+    if (!mounted) {
+      // A tela fechou enquanto abria (armado na entrada): ninguém mais o
+      // descartaria.
+      unawaited(engine.dispose());
+      return null;
+    }
     DiagLog.log('som', 'motor do app aberto');
     _appEngine = engine;
     return engine;
@@ -1949,9 +2089,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                         : (_canTrain && _practice == null
                               ? const Icon(Icons.play_arrow, size: 24)
                               : null),
+                    onRestart: _canPlay ? () => unawaited(_restart()) : null,
                     measure: _measureCount == null ? null : index + 1,
                     totalMeasures: _measureCount,
-                    onMeasureTap: _measureCount == null ? null : _openMeasureJump,
+                    onMeasureTap: _measureCount == null
+                        ? null
+                        : _openMeasureJump,
                     tempoPercent: (_speed * 100).round(),
                     handLabel: _hand.shortLabel,
                     onOptions: () => setState(() => _optionsOpen = true),
@@ -2025,11 +2168,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           value: _metronomeOn,
           onChanged: (_) => _toggleMetronome(),
         ),
-        PhoneToggleRow(
-          label: 'Contagem antes de começar',
-          value: _countInOn,
-          onChanged: (_) => _toggleCountIn(),
-        ),
         PhoneActionRow(
           icon: Icons.repeat,
           label: _loop == null
@@ -2046,12 +2184,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         const PhoneSectionLabel('ESTE HINO'),
         if (widget.opened != null) ...[
           PhoneToggleRow(
-            label:
-                'Usar o padrão da trilha (${_settings.trailMeasures})',
+            label: 'Usar o padrão da trilha (${_settings.trailMeasures})',
             value: _trailHymnN == null,
-            onChanged: (v) => unawaited(
-              _setHymnTrailN(v ? null : _settings.trailMeasures),
-            ),
+            onChanged: (v) =>
+                unawaited(_setHymnTrailN(v ? null : _settings.trailMeasures)),
           ),
           if (_trailHymnN case final hymnN?)
             TrailNSelector(
@@ -2150,6 +2286,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   ghosts: _ghosts,
                   haloSigmaScale: _haloWidth,
                   barColor: _barColor,
+                  barWidth: _barWidthOf(document),
+                  // A página nova fica ilegível até a haste começar a sair:
+                  // o foco é o fim da página que ainda toca.
+                  revealBlurSigma: _barWidthOf(document) * 4,
                 ),
               )
             : phone
@@ -2188,6 +2328,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                       ),
                       child: content,
                     ),
+            ),
+            Positioned.fill(
+              child: CountInOverlay(
+                active: _playing,
+                read: () => _silentCountIn?.call() ?? _scheduler?.countInTick,
+              ),
             ),
             if (_busy)
               const Positioned(
@@ -2307,10 +2453,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       // ela fechada é que sai da partitura para a biblioteca.
       return PopScope(
         canPop:
-            !_optionsOpen &&
-            !_panelOpen &&
-            !_generalOpen &&
-            !_trailDrawerOpen,
+            !_optionsOpen && !_panelOpen && !_generalOpen && !_trailDrawerOpen,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
           setState(() {
@@ -2397,250 +2540,257 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     ],
                   ),
                 ),
-            const SizedBox(height: 8),
-            // `maxLines: 1` matters beyond truncating long text: this Text is
-            // a Column sibling of the (Expanded) score area, not wrapped in
-            // one itself, so its height comes out of the score area's share
-            // of the fixed Column height. Left unbounded, a status message
-            // long enough to wrap on a narrow (phone) width shrinks the
-            // score box just past `_onBoxSize`'s 2% threshold, which
-            // schedules a re-render — whose *own* status text then differs
-            // in length from this one, flipping the wrap back and forth
-            // forever. Desktop windows are wide enough that no status
-            // string wraps, so this never showed up before a real phone.
-            Text(
-              'status: $_status',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (_trail != null)
-                  IconButton.filledTonal(
-                    tooltip: _trailMode ? 'Treino livre' : 'Voltar à trilha',
-                    onPressed: () {
-                      final trail = _trail;
-                      if (trail != null) {
-                        setState(() => trail.setFreeMode(!trail.freeMode));
-                      }
-                    },
-                    icon: Icon(
-                      _trailMode ? Icons.school_outlined : Icons.route,
+                const SizedBox(height: 8),
+                // `maxLines: 1` matters beyond truncating long text: this Text is
+                // a Column sibling of the (Expanded) score area, not wrapped in
+                // one itself, so its height comes out of the score area's share
+                // of the fixed Column height. Left unbounded, a status message
+                // long enough to wrap on a narrow (phone) width shrinks the
+                // score box just past `_onBoxSize`'s 2% threshold, which
+                // schedules a re-render — whose *own* status text then differs
+                // in length from this one, flipping the wrap back and forth
+                // forever. Desktop windows are wide enough that no status
+                // string wraps, so this never showed up before a real phone.
+                Text(
+                  'status: $_status',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (_trail != null)
+                      IconButton.filledTonal(
+                        tooltip: _trailMode
+                            ? 'Treino livre'
+                            : 'Voltar à trilha',
+                        onPressed: () {
+                          final trail = _trail;
+                          if (trail != null) {
+                            setState(() => trail.setFreeMode(!trail.freeMode));
+                          }
+                        },
+                        icon: Icon(
+                          _trailMode ? Icons.school_outlined : Icons.route,
+                        ),
+                      ),
+                    IconButton.filled(
+                      tooltip: _trailMode
+                          ? ((_trail?.running ?? false)
+                                ? 'Parar etapa'
+                                : 'Começar etapa')
+                          : (_canTrain
+                                ? (_practice != null
+                                      ? 'Parar prática'
+                                      : 'Praticar (modo espera)')
+                                : (_playing
+                                      ? 'Pausar'
+                                      : 'Tocar (destacar notas)')),
+                      onPressed: _trailMode
+                          ? () => unawaited(_startTrailStage())
+                          : (_canTrain
+                                ? () => unawaited(_togglePractice())
+                                : (_canPlay ? _togglePlay : null)),
+                      icon: Icon(
+                        _trailMode
+                            ? ((_trail?.running ?? false)
+                                  ? Icons.pause
+                                  : Icons.school)
+                            : (_canTrain
+                                  ? (_practice != null
+                                        ? Icons.pause
+                                        : Icons.school)
+                                  : (_playing
+                                        ? Icons.pause
+                                        : Icons.play_arrow)),
+                      ),
                     ),
-                  ),
-                IconButton.filled(
-                  tooltip: _trailMode
-                      ? ((_trail?.running ?? false)
-                            ? 'Parar etapa'
-                            : 'Começar etapa')
-                      : (_canTrain
-                            ? (_practice != null
-                                  ? 'Parar prática'
-                                  : 'Praticar (modo espera)')
-                            : (_playing ? 'Pausar' : 'Tocar (destacar notas)')),
-                  onPressed: _trailMode
-                      ? () => unawaited(_startTrailStage())
-                      : (_canTrain
-                            ? () => unawaited(_togglePractice())
-                            : (_canPlay ? _togglePlay : null)),
-                  icon: Icon(
-                    _trailMode
-                        ? ((_trail?.running ?? false)
-                              ? Icons.pause
-                              : Icons.school)
-                        : (_canTrain
-                              ? (_practice != null
-                                    ? Icons.pause
-                                    : Icons.school)
-                              : (_playing ? Icons.pause : Icons.play_arrow)),
-                  ),
-                ),
-                IconButton.filledTonal(
-                  tooltip: 'Parar',
-                  onPressed:
-                      _canPlay &&
-                          (_playing ||
-                              (_player?.position ?? Duration.zero) >
-                                  Duration.zero)
-                      ? _stop
-                      : null,
-                  icon: const Icon(Icons.stop),
-                ),
-                IconButton.filledTonal(
-                  tooltip: _trainingMode
-                      ? 'Desarmar modo treino (T02)'
-                      : 'Armar modo treino (T02): Play vira Praticar com '
-                            'teclado MIDI conectado',
-                  onPressed: _toggleTrainingMode,
-                  icon: Icon(
-                    _trainingMode ? Icons.school : Icons.school_outlined,
-                  ),
-                ),
-                if (_trainingMode && _practice == null)
-                  IconButton.filledTonal(
-                    tooltip: switch (_practiceMode) {
-                      PracticeMode.wait =>
-                        'Modo espera — trocar para tempo real',
-                      PracticeMode.realtime =>
-                        'Tempo real — trocar para ritmo (qualquer tecla)',
-                      PracticeMode.rhythm => 'Ritmo — trocar para modo espera',
-                    },
-                    onPressed: () => setState(
-                      () => _practiceMode = switch (_practiceMode) {
-                        PracticeMode.wait => PracticeMode.realtime,
-                        PracticeMode.realtime => PracticeMode.rhythm,
-                        PracticeMode.rhythm => PracticeMode.wait,
-                      },
+                    IconButton.filledTonal(
+                      tooltip: 'Reiniciar',
+                      onPressed: _canPlay ? () => unawaited(_restart()) : null,
+                      icon: const Icon(Icons.skip_previous),
                     ),
-                    icon: Icon(switch (_practiceMode) {
-                      PracticeMode.wait => Icons.hourglass_bottom,
-                      PracticeMode.realtime => Icons.speed,
-                      PracticeMode.rhythm => Icons.music_note,
-                    }),
-                  ),
-                if (_trainingMode && _practice == null)
-                  PopupMenuButton<Hand>(
-                    tooltip: 'Mão do aluno',
-                    initialValue: _hand,
-                    onSelected: _setHand,
-                    icon: const Icon(Icons.back_hand),
-                    itemBuilder: (context) => [
-                      for (final h in Hand.values)
-                        PopupMenuItem(value: h, child: Text(h.label)),
-                    ],
-                  ),
-                IconButton.filledTonal(
-                  tooltip: _metronomeOn
-                      ? 'Desligar metrônomo'
-                      : 'Ligar metrônomo (com som do app)',
-                  onPressed: _toggleMetronome,
-                  icon: Icon(
-                    _metronomeOn ? Icons.av_timer : Icons.timer_outlined,
-                  ),
-                ),
-                IconButton.filledTonal(
-                  tooltip: _countInOn
-                      ? 'Desligar contagem inicial'
-                      : 'Ligar contagem de 1 compasso antes de começar',
-                  onPressed: _toggleCountIn,
-                  icon: Icon(
-                    _countInOn ? Icons.filter_1 : Icons.filter_1_outlined,
-                  ),
-                ),
-                IconButton.filledTonal(
-                  tooltip: _loop == null
-                      ? 'Repetir um trecho (loop A-B)'
-                      : 'Loop: compassos ${_loop!.a + 1}–${_loop!.b + 1}',
-                  onPressed: _player == null
-                      ? null
-                      : () => unawaited(_openLoopSheet()),
-                  icon: Icon(_loop == null ? Icons.repeat : Icons.repeat_on),
-                ),
-                IconButton.filledTonal(
-                  tooltip: _soundOn
-                      ? 'Desligar som'
-                      : _output == SoundOutput.midiKeyboard
-                      ? 'Ligar som (teclado MIDI conectado)'
-                      : 'Ligar som (escolhe um .sf2)',
-                  onPressed: _loadingSoundFont ? null : _userToggleSound,
-                  icon: _engineButtonIcon(
-                    _soundOn ? Icons.volume_up : Icons.volume_off,
-                  ),
-                ),
-                PopupMenuButton<SoundOutput>(
-                  tooltip: 'Saída de som',
-                  initialValue: _output,
-                  onSelected: (value) => _settings.output = value,
-                  icon: Icon(
-                    _output == SoundOutput.midiKeyboard
-                        ? Icons.piano
-                        : Icons.graphic_eq,
-                  ),
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: SoundOutput.appSynth,
-                      child: Text('Sintetizador do app'),
+                    IconButton.filledTonal(
+                      tooltip: 'Parar',
+                      onPressed:
+                          _canPlay &&
+                              (_playing ||
+                                  (_player?.position ?? Duration.zero) >
+                                      Duration.zero)
+                          ? _stop
+                          : null,
+                      icon: const Icon(Icons.stop),
                     ),
-                    PopupMenuItem(
-                      value: SoundOutput.midiKeyboard,
-                      child: Text('Teclado MIDI'),
+                    IconButton.filledTonal(
+                      tooltip: _trainingMode
+                          ? 'Desarmar modo treino (T02)'
+                          : 'Armar modo treino (T02): Play vira Praticar com '
+                                'teclado MIDI conectado',
+                      onPressed: _toggleTrainingMode,
+                      icon: Icon(
+                        _trainingMode ? Icons.school : Icons.school_outlined,
+                      ),
+                    ),
+                    if (_trainingMode && _practice == null)
+                      IconButton.filledTonal(
+                        tooltip: switch (_practiceMode) {
+                          PracticeMode.wait =>
+                            'Modo espera — trocar para tempo real',
+                          PracticeMode.realtime =>
+                            'Tempo real — trocar para ritmo (qualquer tecla)',
+                          PracticeMode.rhythm =>
+                            'Ritmo — trocar para modo espera',
+                        },
+                        onPressed: () => setState(
+                          () => _practiceMode = switch (_practiceMode) {
+                            PracticeMode.wait => PracticeMode.realtime,
+                            PracticeMode.realtime => PracticeMode.rhythm,
+                            PracticeMode.rhythm => PracticeMode.wait,
+                          },
+                        ),
+                        icon: Icon(switch (_practiceMode) {
+                          PracticeMode.wait => Icons.hourglass_bottom,
+                          PracticeMode.realtime => Icons.speed,
+                          PracticeMode.rhythm => Icons.music_note,
+                        }),
+                      ),
+                    if (_trainingMode && _practice == null)
+                      PopupMenuButton<Hand>(
+                        tooltip: 'Mão do aluno',
+                        initialValue: _hand,
+                        onSelected: _setHand,
+                        icon: const Icon(Icons.back_hand),
+                        itemBuilder: (context) => [
+                          for (final h in Hand.values)
+                            PopupMenuItem(value: h, child: Text(h.label)),
+                        ],
+                      ),
+                    IconButton.filledTonal(
+                      tooltip: _metronomeOn
+                          ? 'Desligar metrônomo'
+                          : 'Ligar metrônomo (com som do app)',
+                      onPressed: _toggleMetronome,
+                      icon: Icon(
+                        _metronomeOn ? Icons.av_timer : Icons.timer_outlined,
+                      ),
+                    ),
+                    IconButton.filledTonal(
+                      tooltip: _loop == null
+                          ? 'Repetir um trecho (loop A-B)'
+                          : 'Loop: compassos ${_loop!.a + 1}–${_loop!.b + 1}',
+                      onPressed: _player == null
+                          ? null
+                          : () => unawaited(_openLoopSheet()),
+                      icon: Icon(
+                        _loop == null ? Icons.repeat : Icons.repeat_on,
+                      ),
+                    ),
+                    IconButton.filledTonal(
+                      tooltip: _soundOn
+                          ? 'Desligar som'
+                          : _output == SoundOutput.midiKeyboard
+                          ? 'Ligar som (teclado MIDI conectado)'
+                          : 'Ligar som (escolhe um .sf2)',
+                      onPressed: _loadingSoundFont ? null : _userToggleSound,
+                      icon: _engineButtonIcon(
+                        _soundOn ? Icons.volume_up : Icons.volume_off,
+                      ),
+                    ),
+                    PopupMenuButton<SoundOutput>(
+                      tooltip: 'Saída de som',
+                      initialValue: _output,
+                      onSelected: (value) => _settings.output = value,
+                      icon: Icon(
+                        _output == SoundOutput.midiKeyboard
+                            ? Icons.piano
+                            : Icons.graphic_eq,
+                      ),
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: SoundOutput.appSynth,
+                          child: Text('Sintetizador do app'),
+                        ),
+                        PopupMenuItem(
+                          value: SoundOutput.midiKeyboard,
+                          child: Text('Teclado MIDI'),
+                        ),
+                      ],
+                    ),
+                    if (_output == SoundOutput.midiKeyboard)
+                      IconButton.filledTonal(
+                        tooltip: _useScoreInstruments
+                            ? 'Desligar instrumentos da partitura (usar o som '
+                                  'do teclado)'
+                            : 'Usar instrumentos da partitura (Program Change)',
+                        onPressed: () =>
+                            _setUseScoreInstruments(!_useScoreInstruments),
+                        icon: Icon(
+                          _useScoreInstruments
+                              ? Icons.music_note
+                              : Icons.music_off,
+                        ),
+                      ),
+                    IconButton.filledTonal(
+                      tooltip: _midiMonitorOn
+                          ? 'Desligar monitor MIDI'
+                          : 'Ligar monitor MIDI (teclado sem som próprio)',
+                      onPressed: _loadingSoundFont ? null : _toggleMidiMonitor,
+                      icon: _engineButtonIcon(
+                        _midiMonitorOn ? Icons.piano : Icons.piano_outlined,
+                      ),
+                    ),
+                    SizedBox(
+                      width: 160,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.speed, size: 18),
+                          Expanded(
+                            child: Slider(
+                              min: 0.5,
+                              max: 1.5,
+                              divisions: 10,
+                              label: '${_speed.toStringAsFixed(2)}×',
+                              value: _speed,
+                              onChanged: _canPlay ? _setSpeed : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton.filledTonal(
+                      tooltip: 'Página anterior',
+                      onPressed: _pageIndex > 0 && !_busy
+                          ? _viewController.previousPage
+                          : null,
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    Text(
+                      _pageCount == 0 ? '—' : '${_pageIndex + 1} / $_pageCount',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    IconButton.filledTonal(
+                      tooltip: 'Próxima página',
+                      onPressed: _pageIndex < _pageCount - 1 && !_busy
+                          ? _viewController.nextPage
+                          : null,
+                      icon: const Icon(Icons.chevron_right),
                     ),
                   ],
                 ),
-                if (_output == SoundOutput.midiKeyboard)
-                  IconButton.filledTonal(
-                    tooltip: _useScoreInstruments
-                        ? 'Desligar instrumentos da partitura (usar o som '
-                              'do teclado)'
-                        : 'Usar instrumentos da partitura (Program Change)',
-                    onPressed: () =>
-                        _setUseScoreInstruments(!_useScoreInstruments),
-                    icon: Icon(
-                      _useScoreInstruments ? Icons.music_note : Icons.music_off,
-                    ),
-                  ),
-                IconButton.filledTonal(
-                  tooltip: _midiMonitorOn
-                      ? 'Desligar monitor MIDI'
-                      : 'Ligar monitor MIDI (teclado sem som próprio)',
-                  onPressed: _loadingSoundFont ? null : _toggleMidiMonitor,
-                  icon: _engineButtonIcon(
-                    _midiMonitorOn ? Icons.piano : Icons.piano_outlined,
-                  ),
-                ),
-                SizedBox(
-                  width: 160,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.speed, size: 18),
-                      Expanded(
-                        child: Slider(
-                          min: 0.5,
-                          max: 1.5,
-                          divisions: 10,
-                          label: '${_speed.toStringAsFixed(2)}×',
-                          value: _speed,
-                          onChanged: _canPlay ? _setSpeed : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton.filledTonal(
-                  tooltip: 'Página anterior',
-                  onPressed: _pageIndex > 0 && !_busy
-                      ? _viewController.previousPage
-                      : null,
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                Text(
-                  _pageCount == 0 ? '—' : '${_pageIndex + 1} / $_pageCount',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                IconButton.filledTonal(
-                  tooltip: 'Próxima página',
-                  onPressed: _pageIndex < _pageCount - 1 && !_busy
-                      ? _viewController.nextPage
-                      : null,
-                  icon: const Icon(Icons.chevron_right),
-                ),
+                if (widget.debugMode) ...[
+                  const SizedBox(height: 8),
+                  const SoundEngineDebugPanel(),
+                ],
               ],
             ),
-            if (widget.debugMode) ...[
-              const SizedBox(height: 8),
-              const SoundEngineDebugPanel(),
-            ],
-          ],
-        ),
           ),
-        if (_trailDrawerOpen) _buildTrailDrawer(),
-      ],
-    ),
+          if (_trailDrawerOpen) _buildTrailDrawer(),
+        ],
+      ),
     );
   }
 }

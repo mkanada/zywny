@@ -66,9 +66,10 @@ void main() {
         ..useScoreInstruments = true
         ..soundOn = true
         ..metronomeOn = true
-        ..countInOn = true
         ..practiceMode = PracticeMode.rhythm
-        ..highlightColor = const Color(0xFF2E7D32)
+        ..highlightColor = const Color(0xFF00838F)
+        ..practicePendingColor = const Color(0xFFF57C00)
+        ..practiceWrongColor = const Color(0xFFAD1457)
         ..haloWidth = 2.5
         ..barColor = const Color(0xFF6A1B9A);
       await pumpEventQueue();
@@ -79,9 +80,10 @@ void main() {
       expect(second.useScoreInstruments, isTrue);
       expect(second.soundOn, isTrue);
       expect(second.metronomeOn, isTrue);
-      expect(second.countInOn, isTrue);
       expect(second.practiceMode, PracticeMode.rhythm);
-      expect(second.highlightColor, const Color(0xFF2E7D32));
+      expect(second.highlightColor, const Color(0xFF00838F));
+      expect(second.practicePendingColor, const Color(0xFFF57C00));
+      expect(second.practiceWrongColor, const Color(0xFFAD1457));
       expect(second.haloWidth, 2.5);
       expect(second.barColor, const Color(0xFF6A1B9A));
     });
@@ -203,7 +205,7 @@ void main() {
       expect(find.text('Layout deste hino'), findsOneWidget);
       expect(find.text('Tamanho da notação (unit)'), findsOneWidget);
       // Nada do que é geral mora aqui.
-      expect(find.text('Cor da nota destacada'), findsNothing);
+      expect(find.text('Nota destacada'), findsNothing);
       expect(find.text('Som do app'), findsNothing);
       await tester.tap(find.byTooltip('Fechar'));
       await tester.pump();
@@ -214,14 +216,14 @@ void main() {
       expect(find.text('Som do app'), findsOneWidget);
       expect(find.text('Dispositivo'), findsOneWidget);
       await tester.scrollUntilVisible(
-        find.text('Cor da nota destacada'),
+        find.text('Nota destacada'),
         200,
         scrollable: find.descendant(
           of: find.byType(GeneralSettingsPanel),
           matching: find.byType(Scrollable),
         ),
       );
-      expect(find.text('Cor da nota destacada'), findsOneWidget);
+      expect(find.text('Nota destacada'), findsOneWidget);
       // E nada do que é de um hino.
       expect(find.text('Tamanho da notação (unit)'), findsNothing);
       expect(find.text('Página acompanha a área'), findsNothing);

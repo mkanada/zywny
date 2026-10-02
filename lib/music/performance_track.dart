@@ -20,6 +20,10 @@ class SoundEvent {
   final int velocity;
   final bool ornament;
 
+  /// Ids das notas de continuação da ligadura (`MidiNote.tied`): não soam
+  /// de novo, mas acendem junto com esta — é uma tecla só.
+  final List<String> tied;
+
   const SoundEvent({
     required this.id,
     required this.pitch,
@@ -30,6 +34,7 @@ class SoundEvent {
     required this.program,
     required this.velocity,
     required this.ornament,
+    this.tied = const [],
   });
 }
 
@@ -111,6 +116,7 @@ class PerformanceTrack {
                 program: note.program,
                 velocity: note.velocity,
                 ornament: note.ornament,
+                tied: note.tied,
               ),
             )
             .toList()
