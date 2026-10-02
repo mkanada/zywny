@@ -101,3 +101,25 @@ C4.
 6. `just telas`: telas 03, 04, 05 e 28 refeitas conferem. O roteiro usa
    `find.textContaining('Dificuldade')` etc. — continua valendo.
 7. `just analyze` e `just test` limpos.
+
+## Notas de execução
+
+- D-ORDEM decidida pelo usuário: **direção real**. `SortState.arrowFor`
+  devolve "↑" crescente e "↓" decrescente (a direção inicial de cada chave
+  não mudou). O `lib/mockup/` tem a regra antiga e ficou como estava.
+- **Fila de pastilhas:** `ShaderMask` com esmaecido na borda direita
+  enquanto `extentAfter > 1`; o estado `_moreChips` é atualizado pelas
+  notificações de rolagem/métricas (no quadro seguinte). A conferência
+  visual fica para o aparelho.
+- **Ordem dos resultados:** `filterHymns` põe primeiro quem tem todas as
+  palavras no título (`titleKey`), depois os demais; a busca por número não
+  mudou.
+- **Por que casou:** `hymnMatch` (`lib/library/library_sort.dart`) dobra o
+  texto caractere a caractere (pontuação vira espaço, 1 por 1) e devolve
+  trechos em índices do texto original, por campo. A linha negrita (peso 800
+  e cor de destaque) o que casou no título e no compositor; casou só no
+  letrista, a segunda linha diz "letra: …"; só no título original, "original:
+  …".
+- **Sem resultado:** "Nenhum hino com “chopin”." e "Limpar a busca"; o
+  campo agora tem controlador e um "×" quando há texto.
+- Critérios 1–5 e 7 passam. O 6 (`just telas`) não foi rodado.

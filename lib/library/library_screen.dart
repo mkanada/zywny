@@ -105,7 +105,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   SortState _sort = const SortState();
   String _query = '';
+  final TextEditingController _searchController = TextEditingController();
   bool _opening = false;
+
+  /// Há pastilhas de ordenação fora da tela, à direita (o esmaecido na borda
+  /// avisa; some ao rolar até o fim — U14).
+  bool _moreChips = true;
 
   @override
   void initState() {
@@ -118,6 +123,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     _midi.dispose();
     if (widget.progress == null) _progress.dispose();
     if (widget.trailProgress == null) _trail.dispose();
@@ -320,6 +326,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return SizedBox(
       height: 44,
       child: TextField(
+        controller: _searchController,
         onChanged: (v) => setState(() => _query = v),
         textInputAction: TextInputAction.search,
         style: const TextStyle(fontSize: 15),
@@ -328,6 +335,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
           hintText: 'Buscar número, título ou autor',
           hintStyle: const TextStyle(color: kInkCaption),
           prefixIcon: const Icon(Icons.search, color: kInkCaption, size: 20),
+          suffixIcon: _query.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Limpar a busca',
+                  onPressed: _clearSearch,
+                  iconSize: 18,
+                  color: kInkCaption,
+                  icon: const Icon(Icons.close),
+                ),
           filled: true,
           fillColor: kSurface,
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -337,6 +353,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ),
       ),
     );
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _query = '');
   }
 
   Widget _continueCard(Hymn hymn) {
@@ -443,6 +464,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  void _updateMoreChips(ScrollMetrics metrics) {
+    final more = metrics.extentAfter > 1;
+    if (more == _moreChips) return;
+    // As notificações chegam durante o layout: o redesenho espera o quadro.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && more != _moreChips) setState(() => _moreChips = more);
+    });
+  }
+
   Widget _sortChips() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -459,18 +489,43 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const SizedBox(height: 8),
         SizedBox(
           height: 36,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: SortKey.values.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, i) {
-              final key = SortKey.values[i];
-              return _SortChip(
-                label: '${labelFor(key)}${_sort.arrowFor(key)}',
-                selected: _sort.key == key,
-                onTap: () => setState(() => _sort = _sort.toggled(key)),
-              );
+          child: NotificationListener<ScrollMetricsNotification>(
+            onNotification: (n) {
+              _updateMoreChips(n.metrics);
+              return false;
             },
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                _updateMoreChips(n.metrics);
+                return false;
+              },
+              // Um esmaecido na borda direita enquanto houver pastilhas
+              // fora da tela: "Pontuação" e "Compositor" têm pista.
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (rect) => LinearGradient(
+                  colors: [
+                    Colors.black,
+                    Colors.black,
+                    _moreChips ? Colors.transparent : Colors.black,
+                  ],
+                  stops: const [0, 0.88, 1],
+                ).createShader(rect),
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: SortKey.values.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) {
+                    final key = SortKey.values[i];
+                    return _SortChip(
+                      label: '${labelFor(key)}${_sort.arrowFor(key)}',
+                      selected: _sort.key == key,
+                      onTap: () => setState(() => _sort = _sort.toggled(key)),
+                    );
+                  },
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -483,10 +538,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _query,
     );
     if (hymns.isEmpty) {
-      return const Center(
-        child: Text(
-          'Nenhum hino encontrado',
-          style: TextStyle(color: kInkCaption),
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _query.trim().isEmpty
+                  ? 'Nenhum hino encontrado'
+                  : 'Nenhum hino com “${_query.trim()}”.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: kInkCaption),
+            ),
+            if (_query.isNotEmpty)
+              TextButton(
+                onPressed: _clearSearch,
+                child: const Text('Limpar a busca'),
+              ),
+          ],
         ),
       );
     }
@@ -503,6 +571,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           progress: _progress[hymn.number],
           trail: _trail[hymn.number],
           now: now,
+          match: hymnMatch(hymn, _query),
           onTap: () => unawaited(_open(hymn)),
         );
       },
@@ -517,7 +586,11 @@ class _HymnRow extends StatelessWidget {
     required this.trail,
     required this.now,
     required this.onTap,
+    this.match,
   });
+
+  /// Onde a busca casou neste hino (U14); `null` sem busca.
+  final HymnMatch? match;
 
   final Hymn hymn;
   final HymnProgress? progress;
@@ -527,6 +600,38 @@ class _HymnRow extends StatelessWidget {
   final TrailProgress trail;
   final DateTime now;
   final VoidCallback onTap;
+
+  /// O que a segunda linha diz de autoria. Com busca que casou só no
+  /// letrista ou só no título original, mostra esse campo (com o motivo) no
+  /// lugar do compositor; fora disso, o compositor, com o que casou em
+  /// negrito.
+  TextSpan _matchedAuthor() {
+    const style = TextStyle(fontSize: 13, color: kInkCaption);
+    final m = match;
+    if (m != null && m.composer.isEmpty) {
+      final lyricist = hymn.lyricist;
+      if (lyricist != null && m.lyricist.isNotEmpty) {
+        return TextSpan(
+          style: style,
+          children: [
+            const TextSpan(text: 'letra: '),
+            _highlighted(lyricist, m.lyricist, style),
+          ],
+        );
+      }
+      final original = hymn.originalTitle;
+      if (original != null && m.title.isEmpty && m.originalTitle.isNotEmpty) {
+        return TextSpan(
+          style: style,
+          children: [
+            const TextSpan(text: 'original: '),
+            _highlighted(original, m.originalTitle, style),
+          ],
+        );
+      }
+    }
+    return _highlighted(hymn.composer, m?.composer ?? const [], style);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -566,18 +671,21 @@ class _HymnRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    hymn.title,
+                  Text.rich(
+                    _highlighted(
+                      hymn.title,
+                      match?.title ?? const [],
+                      const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w600,
+                        color: kInk,
+                      ),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w600,
-                      color: kInk,
-                    ),
                   ),
                   const SizedBox(height: 1),
-                  _SubtitleLine(composer: hymn.composer, rest: rest),
+                  _SubtitleLine(composer: _matchedAuthor(), rest: rest),
                 ],
               ),
             ),
@@ -592,12 +700,36 @@ class _HymnRow extends StatelessWidget {
   }
 }
 
+/// [text] com os trechos [ranges] em negrito e na cor de destaque.
+TextSpan _highlighted(
+  String text,
+  List<TextSpanRange> ranges,
+  TextStyle style,
+) {
+  if (ranges.isEmpty) return TextSpan(text: text, style: style);
+  final bold = style.copyWith(fontWeight: FontWeight.w800, color: kAccentDark);
+  final spans = <TextSpan>[];
+  var at = 0;
+  for (final r in ranges) {
+    final start = r.start.clamp(0, text.length);
+    final end = r.end.clamp(start, text.length);
+    if (start > at) spans.add(TextSpan(text: text.substring(at, start)));
+    if (end > start) {
+      spans.add(TextSpan(text: text.substring(start, end), style: bold));
+    }
+    at = end;
+  }
+  if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
+  return TextSpan(style: style, children: spans);
+}
+
 /// Segunda linha da lista: o compositor cede (reticências) para que "nível",
 /// "quando" e "melhor" apareçam inteiros.
 class _SubtitleLine extends StatelessWidget {
   const _SubtitleLine({required this.composer, required this.rest});
 
-  final String composer;
+  /// O compositor (ou o campo que casou na busca), já com os negritos.
+  final TextSpan composer;
   final String rest;
 
   static const _style = TextStyle(fontSize: 13, color: kInkCaption);
@@ -620,11 +752,10 @@ class _SubtitleLine extends StatelessWidget {
           children: [
             ConstrainedBox(
               constraints: BoxConstraints(maxWidth: composerMax),
-              child: Text(
+              child: Text.rich(
                 composer,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: _style,
               ),
             ),
             if (rest.isNotEmpty)

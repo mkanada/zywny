@@ -259,22 +259,22 @@ void main() {
 
       await tester.enterText(find.byType(TextField), 'xyz');
       await tester.pump();
-      expect(find.text('Nenhum hino encontrado'), findsOneWidget);
+      expect(find.text('Nenhum hino com “xyz”.'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), '');
       await tester.pump();
-      expect(find.text('Número ↓'), findsOneWidget);
+      expect(find.text('Número ↑'), findsOneWidget);
       await tester.tap(find.text('Nome'));
       await tester.pump();
-      expect(find.text('Nome ↓'), findsOneWidget);
+      expect(find.text('Nome ↑'), findsOneWidget);
       // Por nome, "Ao Deus…" (120) sobe para antes de "Santo…" (1).
       expect(
         tester.getTopLeft(find.text('Ao Deus de Abraão Louvai')).dy,
         lessThan(tester.getTopLeft(find.text('Santo, Santo, Santo!')).dy),
       );
-      await tester.tap(find.text('Nome ↓'));
+      await tester.tap(find.text('Nome ↑'));
       await tester.pump();
-      expect(find.text('Nome ↑'), findsOneWidget);
+      expect(find.text('Nome ↓'), findsOneWidget);
     });
 
     testWidgets('tocar num hino abre a partitura e vira "Continuar"', (

@@ -142,7 +142,7 @@ Os achados baixos do estudo (A12, A13, B5, D2–D4, E4) não têm passo.
 | [U11](U11-gaveta-de-opcoes.md) | Gaveta de opções: um seletor de modo, e o que vale na trilha | — | D-MODOS | concluído (critério 5, no emulador, aguardando verificação) |
 | [U12](U12-resumos-legiveis.md) | Resumos: erros na pauta e frases no lugar de milissegundos | U02, U05 | — | concluído (critério 5, no emulador, aguardando verificação) |
 | [U13](U13-progresso-a-vista.md) | Progresso à vista: gaveta, linha do hino e pontuação | — | — | concluído (critérios 6–7, no emulador e no aparelho, aguardando verificação) |
-| [U14](U14-ordenar-e-buscar.md) | Biblioteca: ordenar e buscar | — | D-ORDEM | pendente |
+| [U14](U14-ordenar-e-buscar.md) | Biblioteca: ordenar e buscar | — | D-ORDEM | concluído (critério 6, no emulador, aguardando verificação) |
 | [U15](U15-conectar-o-teclado.md) | Conectar o teclado: orientação e estado | — | — | pendente |
 | [U16](U16-primeiro-uso.md) | Primeiro uso: cartão de começo | U13, U15 | — | pendente |
 | [U17](U17-vocabulario.md) | Vocabulário das configurações | U15 | — | pendente |
