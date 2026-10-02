@@ -87,15 +87,13 @@ void main() {
   }
 
   // Nos testes o texto sai na fonte de quadrados (Ahem, 1 em de largura por
-  // letra), muito mais larga que a real: por isso a janela é maior que os 360
+  // letra), muito mais larga que a real: por isso a janela (1000) é maior que os 360
   // dp do critério — o que se confere é a regra (o compositor cede, o resto e
   // o progresso ficam inteiros), não os pixels do aparelho.
   testWidgets('o compositor cede; o resto da linha e o progresso aparecem '
       'inteiros', (tester) async {
     const longComposer = 'Compositor Com Um Nome Bem Longo X'; // 34 letras
-    final store = HymnProgressStore(
-      now: () => DateTime.now().subtract(const Duration(days: 21)),
-    );
+    final store = HymnProgressStore();
     await store.markOpened(7);
     await store.recordScore(7, 78);
     final trail = TrailProgressStore();
@@ -105,13 +103,13 @@ void main() {
       hymns: [_hymn(7, longComposer, level: 3)],
       progress: store,
       trail: trail,
-      size: const Size(760, 900),
+      size: const Size(1000, 900),
     );
     expect(tester.takeException(), isNull);
     // 13 feitas (12 aprovadas + 1 pulada) de 75, a pulada à parte.
     expect(find.text('13/75 · 1 pul.'), findsOneWidget);
     // O resto da linha, inteiro: a largura é a do texto todo.
-    const restText = ' · nível 3 · há 3 semanas · melhor 78%';
+    const restText = ' · nível 3 de 5 · hoje · melhor 78%';
     final rest = find.text(restText);
     expect(rest, findsOneWidget);
     final natural = (TextPainter(

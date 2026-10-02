@@ -72,3 +72,24 @@ teclado ligado. Achado C6; sugestão C6.
    roteiro abre o hino por `find.text('Jubilosos Te Adoramos')`, que com o
    cartão no topo continua visível sem rolar — confira.
 6. `just analyze` e `just test` limpos.
+
+## Notas de execução
+
+- `_startCard` em `lib/library/library_screen.dart`, no lugar do
+  "Continuar" quando nenhum hino foi aberto. Só aparece **depois** de o
+  histórico ser lido (`_progressLoaded`): sem isso o cartão piscaria para
+  quem já estudou, porque `HymnProgressStore.load` não avisa quando não há
+  nada gravado.
+- "Ver os mais fáceis" ordena por dificuldade (crescente) e leva a lista ao
+  topo (`ScrollController` da lista). Com teclado conectado o segundo botão
+  vira o texto "Teclado conectado ✓"; sem, abre o seletor do U15. Os dois
+  ficam num `Wrap`.
+- A linha diz "nível N de 5". Isso alonga a segunda linha do hino; no pior
+  caso em 360 dp (ver o U13) quem cede é o compositor, e depois o fim do
+  resto.
+- Critérios 1–4 e 6 passam. O 5 (`just telas`; o roteiro abre o hino por
+  `find.text('Jubilosos Te Adoramos')`, que com o cartão no topo precisa
+  continuar visível sem rolar) **não foi conferido**.
+- Nota de processo: o commit do U15 saiu com um teste de configurações
+  quebrado (esperava o texto antigo do teclado); foi corrigido no commit
+  seguinte.

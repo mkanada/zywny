@@ -106,6 +106,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
   SortState _sort = const SortState();
   String _query = '';
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _listScroll = ScrollController();
+
+  /// O histórico já foi lido: antes disso não se sabe se é o primeiro uso, e
+  /// o cartão de começo não pode piscar para quem já estudou (U16).
+  bool _progressLoaded = false;
   bool _opening = false;
 
   /// Há pastilhas de ordenação fora da tela, à direita (o esmaecido na borda
@@ -116,13 +121,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void initState() {
     super.initState();
     _lockPortrait();
-    unawaited(_progress.load());
+    unawaited(
+      _progress.load().whenComplete(() {
+        if (mounted) setState(() => _progressLoaded = true);
+      }),
+    );
     unawaited(_trail.load());
     unawaited(_settingsLoaded);
   }
 
   @override
   void dispose() {
+    _listScroll.dispose();
     _searchController.dispose();
     _midi.dispose();
     if (widget.progress == null) _progress.dispose();
@@ -247,6 +257,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
         if (catalog != null) ...[
           if (_continuing(catalog) case final hymn?) ...[
             _continueCard(hymn),
+            const SizedBox(height: 14),
+          ] else if (_progressLoaded) ...[
+            // Primeiro uso: o mesmo lugar do "Continuar" diz por onde começar.
+            _startCard(),
             const SizedBox(height: 14),
           ],
           _sortChips(),
@@ -472,6 +486,78 @@ class _LibraryScreenState extends State<LibraryScreen> {
     });
   }
 
+  /// Cartão de primeiro uso (U16): no lugar do "Continuar" enquanto nenhum
+  /// hino foi aberto. Não bloqueia nada e some sozinho no primeiro hino.
+  Widget _startCard() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorderSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'COMECE POR AQUI',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.7,
+              color: kAccent,
+            ),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            'Escolha um hino fácil e ligue o teclado ao celular.',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: kInk,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilledButton(
+                onPressed: _showEasiest,
+                child: const Text('Ver os mais fáceis'),
+              ),
+              ListenableBuilder(
+                listenable: _midi.connected,
+                builder: (context, _) => _midi.connected.value != null
+                    ? const Text(
+                        'Teclado conectado ✓',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: kGoodColor,
+                        ),
+                      )
+                    : OutlinedButton(
+                        onPressed: () =>
+                            unawaited(showMidiDevicePicker(context, _midi)),
+                        child: const Text('Conectar teclado'),
+                      ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "Ver os mais fáceis": ordena por dificuldade (crescente) e volta ao topo.
+  void _showEasiest() {
+    setState(() => _sort = const SortState(key: SortKey.difficulty));
+    if (_listScroll.hasClients) _listScroll.jumpTo(0);
+  }
+
   Widget _sortChips() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -559,6 +645,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
     final now = DateTime.now();
     return ListView.builder(
+      controller: _listScroll,
       // 600 linhas iguais: altura fixa deixa a rolagem e a barra exatas.
       itemExtent: 64,
       itemCount: hymns.length,
@@ -638,7 +725,7 @@ class _HymnRow extends StatelessWidget {
     final started = trail.total > 0;
     // O que vem depois do compositor, sem reticências: é ele quem cede.
     final rest = [
-      if (hymn.level case final level?) 'nível $level',
+      if (hymn.level case final level?) 'nível $level de 5',
       if (progress?.lastOpened case final at?) whenStudied(at, now),
       if (score != null) 'melhor $score%',
     ].map((part) => ' · $part').join();
