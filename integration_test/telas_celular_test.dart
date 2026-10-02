@@ -310,7 +310,7 @@ Future<void> _shotCountIn(WidgetTester tester, String name) async {
 
 bool _summaryOpen() =>
     _has(find.textContaining('Aprovado')) ||
-    _has(find.textContaining('Faltou'));
+    _has(find.textContaining('Precisa de'));
 
 /// A etapa selecionada, lida da gaveta da trilha (que precisa estar aberta).
 TrailStage _selectedStage(WidgetTester tester) {

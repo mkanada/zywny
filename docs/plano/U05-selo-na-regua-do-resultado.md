@@ -92,3 +92,17 @@ meta de 90% está escrita. Achados A5 e B1; sugestões A5 e B1.
    entre as duas fotos, mas não pode haver ✓ maior que ✗ com resultado de
    10%.
 6. `just analyze` e `just test` limpos; o roteiro das telas passa.
+
+## Notas de execução
+
+- D-SELO decidida pelo usuário: % corrente e meta ("72% · meta 90%").
+- `PracticeController.liveScore` é incremental (contadores em `_record`,
+  `_onRhythmVerdict` e, no modo espera com intervalo, `WaitTally.firstTry`/
+  `done` a cada passo concluído). Travado contra `stageResult` nos testes de
+  espera (certa e com tecla errada), tempo real (certo e silêncio, com
+  `missed`) e ritmo (certo e com toque `extra`).
+- `PhoneScorePill` na barra do título: trilha com meta; tempo real/ritmo
+  livres sem meta (neutro); modo espera livre mantém os dois contadores.
+- Resumo: "Aprovado · meta 90%" / "Precisa de 90% para passar"; o 90 sai de
+  `kTrailPassAccuracy`. O roteiro passou a procurar "Precisa de".
+- Critério 5 (`just telas`) **não foi rodado**.

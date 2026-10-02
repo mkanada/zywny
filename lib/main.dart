@@ -36,7 +36,7 @@ import 'settings/app_settings.dart';
 import 'settings/general_settings_panel.dart';
 import 'settings/hymn_settings.dart';
 import 'splash_screen.dart';
-import 'trail/stage_result.dart' show StageResult;
+import 'trail/stage_result.dart' show StageResult, kTrailPassAccuracy;
 import 'trail/trail_controller.dart';
 import 'trail/trail_path.dart';
 import 'trail/trail_plan.dart';
@@ -2123,16 +2123,30 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           ),
         if (_trainingMode) PhoneStatusPill(text: _trainingPillText),
         if (_practice case final practice?)
-          ListenableBuilder(
-            listenable: Listenable.merge([
-              practice.correctCount,
-              practice.wrongCount,
-            ]),
-            builder: (context, _) => PhoneCountersPill(
-              correct: practice.correctCount.value,
-              mistakes: practice.wrongCount.value,
-            ),
-          ),
+          practice.mode == PracticeMode.wait && practice.range == null
+              // Modo espera livre não tem resultado: os dois contadores.
+              ? ListenableBuilder(
+                  listenable: Listenable.merge([
+                    practice.correctCount,
+                    practice.wrongCount,
+                  ]),
+                  builder: (context, _) => PhoneCountersPill(
+                    correct: practice.correctCount.value,
+                    mistakes: practice.wrongCount.value,
+                  ),
+                )
+              // Com resultado (trilha ou tempo real/ritmo livre): a
+              // porcentagem do resumo, com a meta na trilha (U05).
+              : ValueListenableBuilder(
+                  valueListenable: practice.liveScore,
+                  builder: (context, score, _) => PhoneScorePill(
+                    hits: score.hits,
+                    total: score.total,
+                    goalPercent: practice.range != null
+                        ? (kTrailPassAccuracy * 100).round()
+                        : null,
+                  ),
+                ),
       ],
     );
   }
