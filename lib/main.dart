@@ -516,6 +516,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   @override
   void dispose() {
     _listenTimer?.cancel();
+    _countInPlayTimer?.cancel();
     if (_playing) unawaited(WakelockPlus.disable());
     _resizeDebounce?.cancel();
     _flushHymnSettings();
@@ -921,7 +922,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _midiMonitor?.muted = stage.phase.mode == PracticeMode.rhythm;
     if (timed) scheduler.metronomeOn = true;
     practice.start(countIn: timed);
-    player.play();
+    _playPlayerAfterCount(player, stage.startMs);
     // No treino, o "esperado agora" acende na cor própria, como no modo
     // livre.
     player.highlightColor = _settings.practicePendingColor;
@@ -1139,6 +1140,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _midiMonitor?.muted = false;
     _player?.highlightColor = _highlightColor;
     _player?.highlightColorOf = null;
+    _countInPlayTimer?.cancel();
+    _countInPlayTimer = null;
     practice.stop();
     practice.dispose();
     _practice = null;
@@ -1179,12 +1182,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // Do fim, o play recomeça a música: a contagem é a do 1º compasso.
     if (player.position >= player.duration) player.seek(Duration.zero);
     if (_soundOn) {
-      player.play();
-      _scheduler?.play(
-        player.position.inMicroseconds / 1000,
-        speed: _speed,
-        countIn: true,
-      );
+      final fromMs = player.position.inMicroseconds / 1000;
+      final scheduler = _scheduler;
+      if (scheduler == null) {
+        player.play();
+      } else {
+        scheduler.play(fromMs, speed: _speed, countIn: true);
+        _playPlayerAfterCount(player, fromMs);
+      }
     } else {
       _startSilentCountIn(player);
     }
@@ -1245,9 +1250,37 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
+  Timer? _countInPlayTimer;
+
+  /// Solta o player no ponto [startMs]. Com contagem inicial em curso nada
+  /// fica aceso na pauta até o primeiro tempo (U09): apaga o destaque do
+  /// instante de partida e o devolve, com o `seek`, quando a contagem acaba.
+  void _playPlayerAfterCount(ScorePlayer player, double startMs) {
+    _countInPlayTimer?.cancel();
+    _countInPlayTimer = null;
+    final scheduler = _scheduler;
+    if (scheduler == null || !scheduler.isCountingIn) {
+      player.play();
+      return;
+    }
+    _controller.clearHighlights();
+    _countInPlayTimer = Timer.periodic(const Duration(milliseconds: 16), (
+      timer,
+    ) {
+      if (scheduler.isCountingIn) return;
+      timer.cancel();
+      _countInPlayTimer = null;
+      if (!mounted || !identical(player, _player) || !_playing) return;
+      player.seek(Duration(microseconds: (startMs * 1000).round()));
+      player.play();
+    });
+  }
+
   /// Desiste da contagem sem som em curso (e dos cliques que ainda não
   /// soaram); devolve se havia uma (o player ainda não tinha sido solto).
   bool _cancelSilentCountIn() {
+    _countInPlayTimer?.cancel();
+    _countInPlayTimer = null;
     final timer = _silentCountInTimer;
     if (timer == null) return false;
     timer.cancel();
@@ -1376,7 +1409,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _midiMonitor?.muted = _practiceMode == PracticeMode.rhythm;
     practice.start(fromMs: fromMs, countIn: _practiceMode != PracticeMode.wait);
     if (range != null) practice.setLoop(range.startMs, range.endMs);
-    player.play();
+    _playPlayerAfterCount(player, fromMs);
     // No treino, o "esperado agora" acende na cor própria (azul por
     // padrão): o vermelho padrão do player confundia pendente com errada.
     player.highlightColor = _settings.practicePendingColor;
@@ -1413,6 +1446,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // "esperado agora", ver _togglePractice).
     _player?.highlightColor = _highlightColor;
     _player?.highlightColorOf = null;
+    _countInPlayTimer?.cancel();
+    _countInPlayTimer = null;
     if (practice.mode != PracticeMode.wait && practice.hasVerdicts) {
       practice.finish();
       report = practice.report;
@@ -2665,6 +2700,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             ),
             Positioned.fill(
               child: CountInOverlay(
+                phone: phone,
                 active: _playing,
                 read: () => _silentCountIn?.call() ?? _scheduler?.countInTick,
               ),

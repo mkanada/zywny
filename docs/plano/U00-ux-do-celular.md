@@ -137,7 +137,7 @@ Os achados baixos do estudo (A12, A13, B5, D2–D4, E4) não têm passo.
 | [U06](U06-virada-legivel.md) | Virada de página que deixa ler adiante | — | D-VIRADA | dispensado (D-VIRADA = c, como está) |
 | [U07](U07-barra-lateral-da-trilha.md) | Barra lateral com os valores da etapa | U03 | — | concluído (critérios 4–5, no emulador, aguardando verificação) |
 | [U08](U08-cores-do-destaque.md) | Cores do destaque: primeira nota, mão do app, legenda | — | — | concluído (sem o "×" da nota perdida, adiado; critérios 3–5, no emulador, aguardando verificação) |
-| [U09](U09-contagem-fora-do-primeiro-compasso.md) | A contagem sai de cima do primeiro compasso | — | D-CONTAGEM | pendente |
+| [U09](U09-contagem-fora-do-primeiro-compasso.md) | A contagem sai de cima do primeiro compasso | — | D-CONTAGEM | concluído (critérios 3–5, no emulador, aguardando verificação) |
 | [U10](U10-aproveitar-a-tela.md) | Aproveitar a tela: imersivo, centro, dois sistemas | U01 | D-SISTEMAS | pendente |
 | [U11](U11-gaveta-de-opcoes.md) | Gaveta de opções: um seletor de modo, e o que vale na trilha | — | D-MODOS | pendente |
 | [U12](U12-resumos-legiveis.md) | Resumos: erros na pauta e frases no lugar de milissegundos | U02, U05 | — | pendente |

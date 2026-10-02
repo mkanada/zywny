@@ -225,7 +225,7 @@ zywny
 | D-SOM | "Som do app" nasce ligado? | U04 | Sim, respeitando quem já gravou desligado; mais um alto-falante na barra do título | **aberta** |
 | D-SELO | O que o selo mostra durante o treino | U05 | A porcentagem corrente na conta do resultado, com a meta ("72% · meta 90%"); alternativa: os quatro contadores do resumo | **aberta** |
 | D-VIRADA | Desfoque da página revelada na virada | U06 | (a) manter, mas nítida no último quarto do último compasso e sempre nítida em pausa; (b) tirar o desfoque; (c) como está | **decidida (c)**: como está, sem mudança — o U06 foi dispensado |
-| D-CONTAGEM | Onde fica o número da contagem inicial | U09 | (a) grande, na metade direita, sem crescer nem desfocar, opacidade até 50%; (b) pontos de pulso na barra do título; (c) como está | **aberta** |
+| D-CONTAGEM | Onde fica o número da contagem inicial | U09 | (a) grande, na metade direita, sem crescer nem desfocar, opacidade até 50%; (b) pontos de pulso na barra do título; (c) como está | **decidida (a)**: número grande na metade direita (U09) |
 | D-SISTEMAS | Dois sistemas por página no celular (notação menor que 12)? | U10 (parte 3) | Decidir com a tabela que o U10 mede (compassos por página × altura do pentagrama); as partes 1 e 2 do passo não dependem disto | **aberta** |
 | D-MODOS | Um seletor só de quatro modos (Ouvir, Espera, Tempo real, Ritmo) no lugar do seletor de dois + dois interruptores? | U11 | Sim | **aberta** |
 | D-ORDEM | A seta da ordenação: direção real ("↑" crescente) ou a regra do artboard ("↓" = direção padrão da chave)? | U14 (só a seta) | Direção real | **aberta** |
@@ -302,7 +302,7 @@ zywny
 | [U06](U06-virada-legivel.md) | UX: virada de página que deixa ler adiante | — | D-VIRADA | dispensado (D-VIRADA = c, como está) |
 | [U07](U07-barra-lateral-da-trilha.md) | UX: barra lateral com os valores da etapa | U03 | — | concluído (critérios 4–5, no emulador, aguardando verificação) |
 | [U08](U08-cores-do-destaque.md) | UX: cores do destaque — primeira nota, mão do app, legenda | — | — | concluído (sem o "×" da nota perdida, adiado; critérios 3–5, no emulador, aguardando verificação) |
-| [U09](U09-contagem-fora-do-primeiro-compasso.md) | UX: a contagem sai de cima do primeiro compasso | — | D-CONTAGEM | pendente |
+| [U09](U09-contagem-fora-do-primeiro-compasso.md) | UX: a contagem sai de cima do primeiro compasso | — | D-CONTAGEM | concluído (critérios 3–5, no emulador, aguardando verificação) |
 | [U10](U10-aproveitar-a-tela.md) | UX: aproveitar a tela — imersivo, centro, dois sistemas | U01 | D-SISTEMAS | pendente |
 | [U11](U11-gaveta-de-opcoes.md) | UX: gaveta de opções — um seletor de modo, e o que vale na trilha | — | D-MODOS | pendente |
 | [U12](U12-resumos-legiveis.md) | UX: resumos — erros na pauta e frases no lugar de milissegundos | U02, U05 | — | pendente |

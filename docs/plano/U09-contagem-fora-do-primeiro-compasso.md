@@ -89,3 +89,27 @@ nada na pauta está aceso. Achado A9; sugestão A9.
 5. Modo espera (tela 32): a nota esperada continua acesa desde o começo.
 6. `just analyze` e `just test` limpos (e `cd score_bridge && flutter test`
    se o player mudou); o roteiro das telas passa.
+
+## Notas de execução
+
+- D-CONTAGEM decidida pelo usuário: **(a)**.
+- `CountInOverlay(phone: true)`: número na metade direita (`Alignment(0.5,
+  0)`), até 45% da altura, sem escala nem desfoque, opacidade máxima
+  `kCountInPhoneMaxOpacity` = 0,5. O layout largo mantém a contagem
+  central. O número fica **sempre** à direita (não vai para o lado oposto
+  ao do primeiro compasso do trecho quando ele começa no meio da página):
+  o passo permitia isso.
+- **Nada aceso na contagem:** `ScoreAudioScheduler.isCountingIn` (novo;
+  `countInTick` é `null` também antes do 1º clique soar) e
+  `_playPlayerAfterCount` em `lib/main.dart`: com contagem em curso o
+  player só é solto quando ela acaba, depois de apagar o destaque do
+  instante de partida e de um `seek` que o reacende. O `score_bridge` não
+  mudou — o player não reaplicava as entradas do instante inicial, então o
+  `seek` no fim da contagem faz esse papel. Vale na etapa, no treino livre
+  e no play com som. O play mudo (`_startSilentCountIn`) já soltava o
+  player só no fim.
+- O roteiro passou a esperar opacidade > 0,45 (e < 0,25 no esmaecido).
+- Critérios 1 e 2 e 6 passam (`flutter test`, `just analyze`; o
+  `score_bridge` não mudou). 3–5 (`just telas`) **não foram rodados**: o
+  `_playPlayerAfterCount` só se confirma no aparelho/emulador, em especial
+  que a haste e o compasso corrente não "pulem" ao sair da contagem.

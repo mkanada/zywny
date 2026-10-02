@@ -301,9 +301,10 @@ Future<void> _shotCountIn(WidgetTester tester, String name) async {
     await tester.pump(const Duration(milliseconds: 8));
     if (!_has(opacity)) continue;
     final value = tester.widget<Opacity>(opacity.first).opacity;
-    if (value < 0.5) seenFaded = true;
-    // ...e pega o seguinte assim que ele acende.
-    if (seenFaded && value > 0.9) break;
+    if (value < 0.25) seenFaded = true;
+    // ...e pega o seguinte assim que ele acende (no celular a opacidade
+    // máxima é 0,5 — U09).
+    if (seenFaded && value > 0.45) break;
   }
   await _shot(tester, name);
 }
