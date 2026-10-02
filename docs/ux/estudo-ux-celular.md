@@ -4,6 +4,10 @@ Avaliação das 46 telas de `docs/telas/celular/` (2026-10-02, versão 1.0.3+4,
 branch `biblioteca-de-hinos`). Os números entre parênteses — (11), (33) —
 são os das telas; o índice está no README daquela pasta.
 
+O que fazer com cada achado alto ou médio está em
+[sugestoes-ux-celular.md](sugestoes-ux-celular.md); os planos de execução,
+na fase U de `docs/plano/` ([U00](../plano/U00-ux-do-celular.md)).
+
 ## Método e limites
 
 - **Avaliação heurística**, de um avaliador só, sobre as fotos e o código que
@@ -207,10 +211,12 @@ lugar nenhum do app. "10% · precisa de 90%" diz o mesmo sem conta.
 **B2 · média · Os compassos com erro são só uma lista de números.** (34, 39)
 "Compassos com erro: 1, 2, 3, 4, 5, 6" obriga a contar compassos na pauta.
 Marcar esses compassos na partitura atrás do resumo — ou ao fechá-lo —
-transforma a lista em algo que se vê. E as duas numerações não batem: a
-gaveta chama o trecho de "compassos 1–5" (posição no caminho), o resumo
-aponta erro no "6" (número do compasso na partitura). Para o aluno, parece
-erro do app.
+transforma a lista em algo que se vê. E numa etapa do trecho que a gaveta
+chama de "compassos 1–5" o resumo apontou erro no compasso 6: um veredito
+está sendo atribuído ao compasso seguinte ao fim do trecho (defeito a
+investigar, não numeração diferente — gaveta e resumo contam igual). Já a
+barra lateral conta de outro jeito: "5 de 56" são ocorrências da música com
+as repetições, enquanto a trilha fala dos compassos do caminho.
 
 **B3 · média · O resumo do treino livre fala em milissegundos.** (42)
 "Em média 100 ms atrasado (desvio 100 ms, regularidade ±38 ms)" e três

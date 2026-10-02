@@ -41,8 +41,8 @@ Ao editar o **bridge**, siga também o `CLAUDE.md` e as convenções de
 saídas temporárias em `compare/out/`, não alterar `View`/`SvgDeviceContext`,
 a spec `docs/formato/especificacao-v1.md` é atualizada junto com o formato).
 O plano **daquele** repo usa os prefixos F/S/R/A/E/P (+ G, ver abaixo); os
-passos deste plano usam prefixos próprios (X, N, C, K, M, T, W, V, J, L)
-para não colidir.
+passos deste plano usam prefixos próprios (X, N, C, K, M, T, W, V, J, L,
+U) para não colidir.
 
 A fase **J** (trilha de estudo: a música em trechos, com etapas que se
 desbloqueiam como fases de um jogo) tem especificação própria em
@@ -55,6 +55,14 @@ coloridas até a prova com a partitura coberta) tem especificação em
 quem executa um passo L lê o J00 e o L00. A parte que depende do fork e do
 formato `.vsb` (glifos de pausa, figura da nota, regra do que apagar) está
 no plano **do bridge**, como G07–G09; L02 e L03 são a porta Dart.
+
+A fase **U** (UX do celular) executa as sugestões de
+[`docs/ux/sugestoes-ux-celular.md`](../ux/sugestoes-ux-celular.md), que
+respondem ao estudo de [`docs/ux/estudo-ux-celular.md`](../ux/estudo-ux-celular.md)
+sobre as telas de `docs/telas/celular/`. O índice, os princípios e o modo
+de conferir uma mudança de tela (`just telas`) estão em
+[U00-ux-do-celular.md](U00-ux-do-celular.md) — quem executa um passo U lê
+também esse arquivo e a sugestão citada no passo.
 
 **N01 e N02 são 100%/quase 100% código do bridge** (fork C++ + spec, e
 `score_bridge/` — que também é pacote do bridge, não do zywny). Por isso os
@@ -212,6 +220,15 @@ zywny
 | D-WEB-SYNTH | Síntese na Web: SpessaSynth (JS) ou o crate Rust em wasm? | W04 | SpessaSynth (maduro, AudioWorklet pronto); mesmo `.sf2` nos dois lados | **aberta** |
 | D-TREINO | Tolerâncias e UX do treino (janela de acerto, o que conta como erro) | T03 | ±75 ms "certo", ±150 ms "quase", fora disso "errado/perdido"; ornamentos e apojaturas não cobrados na 1.0 | **aberta** |
 | D-RITMO | Treino de rítmica: janelas, cobrar duração, som do toque | T05 | ±60 ms "certo", ±130 ms "quase" (de parede); duração não cobrada; toque soa as notas esperadas do onset ("piano mágico") | **aberta** |
+| D-FAIXA | Onde mora a informação da trilha no celular: na barra do título, ou numa faixa própria que não cobre a pauta? (O J00 pede "uma faixa fina na partitura"; hoje ela cobre as cifras e o cabeçalho dos painéis) | U01 | (a) barra do título — a área da partitura não muda e não há re-render; (b) faixa própria sempre presente, que custa 34 dp de pauta | **aberta** |
+| D-OUVIR | Sem teclado conectado, o que o play da trilha faz? | U03 | "Ouvir o trecho" como ação própria e sempre disponível, **e** o play sem teclado ouve o trecho; alternativa: só trocar o aviso por um com o botão "Conectar" | **aberta** |
+| D-SOM | "Som do app" nasce ligado? | U04 | Sim, respeitando quem já gravou desligado; mais um alto-falante na barra do título | **aberta** |
+| D-SELO | O que o selo mostra durante o treino | U05 | A porcentagem corrente na conta do resultado, com a meta ("72% · meta 90%"); alternativa: os quatro contadores do resumo | **aberta** |
+| D-VIRADA | Desfoque da página revelada na virada | U06 | (a) manter, mas nítida no último quarto do último compasso e sempre nítida em pausa; (b) tirar o desfoque; (c) como está | **aberta** |
+| D-CONTAGEM | Onde fica o número da contagem inicial | U09 | (a) grande, na metade direita, sem crescer nem desfocar, opacidade até 50%; (b) pontos de pulso na barra do título; (c) como está | **aberta** |
+| D-SISTEMAS | Dois sistemas por página no celular (notação menor que 12)? | U10 (parte 3) | Decidir com a tabela que o U10 mede (compassos por página × altura do pentagrama); as partes 1 e 2 do passo não dependem disto | **aberta** |
+| D-MODOS | Um seletor só de quatro modos (Ouvir, Espera, Tempo real, Ritmo) no lugar do seletor de dois + dois interruptores? | U11 | Sim | **aberta** |
+| D-ORDEM | A seta da ordenação: direção real ("↑" crescente) ou a regra do artboard ("↓" = direção padrão da chave)? | U14 (só a seta) | Direção real | **aberta** |
 | D-SALTO | Trilha em músicas cujo caminho sem repetições tem salto (casas de 1ª/2ª vez, vários ritornelos): salto no agendador ou usar a última passagem? | J08 | **decidida (a)**: salto no agendador (generaliza o loop para vãos; sessões pré-filtradas sem os vãos) — a via (b) resgatava só 15/115 saltos (o resto é intro+casas e ritornelos seguidos); medição refeita: 0 hinos sem trilha — ver [J08](J08-saltos-no-caminho.md) | **decidida** |
 
 ## Riscos conhecidos
@@ -277,6 +294,25 @@ zywny
 | [L06](L06-tela-do-decorar.md) | Decorar: tela para entrar na trilha e executar etapas | J05, J06, L04, L05 | — | pendente |
 | [L07](L07-prova-as-cegas.md) | Decorar: prova às cegas e marca "de cor" | L06 | — | pendente |
 | [L08](L08-decorar-na-biblioteca.md) | Decorar: na biblioteca | J09, L04 | — | pendente |
+| [U01](U01-faixa-fora-da-pauta.md) | UX: a faixa da trilha sai de cima da pauta | — | D-FAIXA | pendente |
+| [U02](U02-a-pauta-mostra-o-trecho.md) | UX: a pauta mostra o trecho da etapa | — | — | pendente |
+| [U03](U03-ouvir-o-trecho.md) | UX: ouvir o trecho, e o que fazer sem teclado | U01 | D-OUVIR | pendente |
+| [U04](U04-som-ligado-e-indicador.md) | UX: som ligado por padrão e indicador | U01 | D-SOM | pendente |
+| [U05](U05-selo-na-regua-do-resultado.md) | UX: o selo e o resumo na mesma régua | U01 | D-SELO | pendente |
+| [U06](U06-virada-legivel.md) | UX: virada de página que deixa ler adiante | — | D-VIRADA | pendente |
+| [U07](U07-barra-lateral-da-trilha.md) | UX: barra lateral com os valores da etapa | U03 | — | pendente |
+| [U08](U08-cores-do-destaque.md) | UX: cores do destaque — primeira nota, mão do app, legenda | — | — | pendente |
+| [U09](U09-contagem-fora-do-primeiro-compasso.md) | UX: a contagem sai de cima do primeiro compasso | — | D-CONTAGEM | pendente |
+| [U10](U10-aproveitar-a-tela.md) | UX: aproveitar a tela — imersivo, centro, dois sistemas | U01 | D-SISTEMAS | pendente |
+| [U11](U11-gaveta-de-opcoes.md) | UX: gaveta de opções — um seletor de modo, e o que vale na trilha | — | D-MODOS | pendente |
+| [U12](U12-resumos-legiveis.md) | UX: resumos — erros na pauta e frases no lugar de milissegundos | U02, U05 | — | pendente |
+| [U13](U13-progresso-a-vista.md) | UX: progresso à vista — gaveta, linha do hino e pontuação | — | — | pendente |
+| [U14](U14-ordenar-e-buscar.md) | UX: biblioteca — ordenar e buscar | — | D-ORDEM | pendente |
+| [U15](U15-conectar-o-teclado.md) | UX: conectar o teclado — orientação e estado | — | — | pendente |
+| [U16](U16-primeiro-uso.md) | UX: primeiro uso — cartão de começo | U13, U15 | — | pendente |
+| [U17](U17-vocabulario.md) | UX: vocabulário das configurações | U15 | — | pendente |
+| [U18](U18-um-visual-so.md) | UX: um visual só — tema e superfícies | U12 | — | pendente |
+| [U19](U19-refazer-as-telas.md) | UX: refazer as telas e conferir os achados | todos os U | — | pendente |
 
 Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
 Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em
@@ -290,3 +326,7 @@ que os obrigue — é decisão de prioridade do usuário, não uma restrição d
 código: Windows não tem máquina de dev local (ver D-WIN e
 [windows-a-partir-do-linux.md](windows-a-partir-do-linux.md)), então convém
 deixá-lo para quando o resto já estiver estável.
+
+A fase **U** não depende das outras pendentes (K05, W, X02, L) e não as
+bloqueia: mexe só na tela do celular. Ordem dentro dela no
+[U00](U00-ux-do-celular.md).
