@@ -94,3 +94,27 @@ escrito, não só num ponto colorido. Achado C5 e parte do E3; sugestão C5.
 5. `grep -rn "Dispositivo MIDI" lib/` não acha nada.
 6. `just telas`: telas 06, 27 e 29 refeitas conferem; o roteiro passa.
 7. `just analyze` e `just test` limpos.
+
+## Notas de execução
+
+- `midiDeviceTypeLabel` e `midiHelpText` em `lib/midi/midi_labels.dart` /
+  `midi_device_picker.dart`. A orientação só fala de Bluetooth no Android
+  (`defaultTargetPlatform`): o M01 deixa o plugin BLE pendente.
+- Seletor: título "Teclado MIDI"; vazio com `piano_off`, "Nenhum teclado
+  encontrado", a orientação e "Procurar de novo" (chama `refresh()`, com
+  progresso); aparelhos com "Conectado · USB" / "Toque para conectar · USB";
+  no conectado, o botão "Desconectar" (o toque na linha deixou de
+  desconectar); erro com "Não deu para conectar." na frente.
+- `MidiStatusPill` (público, em `midi_device_picker.dart`) substitui o
+  `_MidiPill`: ícone + "Conectar" / "Teclado ✓", sem o ponto colorido; os
+  tooltips ficaram (`Conectar teclado MIDI`, `Teclado MIDI: <nome>`). No
+  cabeçalho da biblioteca ele fica num `FittedBox`: com a palavra o botão
+  ficou mais largo e a linha estourava nos testes (fonte Ahem, mais larga que
+  a real); no aparelho, em 360 dp, o contador "N hinos" é quem perde espaço.
+  O botão do layout largo (`MidiDevicePickerButton`) ganhou os mesmos
+  tooltips.
+- Configurações: linha "Teclado MIDI" / nome ou "nenhum conectado" /
+  "Conectar" ou "Trocar". O cabeçalho da seção e a linha se chamam igual
+  (o U17 revê o vocabulário).
+- Critérios 1–5 e 7 passam (`grep "Dispositivo MIDI" lib/` vazio). O 6
+  (`just telas`) não foi rodado.

@@ -301,18 +301,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
           icon: const Icon(Icons.settings_outlined),
         ),
         const SizedBox(width: 4),
-        ListenableBuilder(
-          listenable: _midi.connected,
-          builder: (context, _) {
-            final device = _midi.connected.value;
-            return _MidiPill(
-              tooltip: device == null
-                  ? 'Conectar teclado MIDI'
-                  : 'Teclado MIDI: ${device.name}',
-              connected: device != null,
-              onTap: () => unawaited(showMidiDevicePicker(context, _midi)),
-            );
-          },
+        // Com a palavra ao lado do ícone o botão ficou mais largo: em
+        // cabeçalho apertado ele encolhe em vez de estourar a linha.
+        Flexible(
+          flex: 3,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: MidiStatusPill(deviceManager: _midi),
+            ),
+          ),
         ),
       ],
     );
@@ -863,55 +862,6 @@ class _SortChip extends StatelessWidget {
               fontSize: 13.5,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               color: selected ? Colors.white : kInk,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Indicador do teclado MIDI do cabeçalho (`height:44px; padding:0 10px;
-/// border-radius:22px` no artboard): bolinha verde conectado, cinza não.
-class _MidiPill extends StatelessWidget {
-  const _MidiPill({
-    required this.tooltip,
-    required this.connected,
-    required this.onTap,
-  });
-
-  final String tooltip;
-  final bool connected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: kChipBg,
-        shape: const StadiumBorder(),
-        child: InkWell(
-          customBorder: const StadiumBorder(),
-          onTap: onTap,
-          child: Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            alignment: Alignment.center,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.piano, size: 20, color: kInk),
-                const SizedBox(width: 6),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: connected ? kGoodColor : kInkMuted,
-                  ),
-                ),
-              ],
             ),
           ),
         ),
