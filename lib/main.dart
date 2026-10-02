@@ -2060,9 +2060,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   Future<void> _openMeasureJump() async {
     final player = _player;
-    final total = _measureCount;
+    // Na trilha o compasso fala a numeração do caminho (a da gaveta e do
+    // resumo), não a das ocorrências da música expandida (U07).
+    final trail = _trailMode ? _trail : null;
+    final path = trail != null && trail.path.measureCount > 0
+        ? trail.path
+        : null;
+    final total = path?.measureCount ?? _measureCount;
     if (player == null || total == null) return;
-    var target = player.currentMeasureIndex.value + 1;
+    final current = player.currentMeasureIndex.value;
+    var target = path != null ? (path.numberOf(current) ?? 1) : current + 1;
     final result = await showModalBottomSheet<int>(
       context: context,
       backgroundColor: kSurface,
@@ -2100,7 +2107,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       ),
     );
     if (result == null || !mounted || !identical(player, _player)) return;
-    final ms = player.timeline.measures[result - 1].startMs;
+    final ms =
+        path?.startMsOfNumber(result) ??
+        player.timeline.measures[result - 1].startMs;
     player.seek(Duration(milliseconds: ms.round()));
     _scheduler?.seek(ms.toDouble());
   }
@@ -2398,11 +2407,24 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                               ? const Icon(Icons.play_arrow, size: 24)
                               : null),
                     onRestart: _canPlay ? () => unawaited(_restart()) : null,
-                    measure: _measureCount == null ? null : index + 1,
-                    totalMeasures: _measureCount,
+                    measure: _measureCount == null
+                        ? null
+                        : (trail?.path.numberOf(index) ?? index + 1),
+                    totalMeasures: trail != null && trail.path.measureCount > 0
+                        ? trail.path.measureCount
+                        : _measureCount,
                     onMeasureTap: _measureCount == null
                         ? null
                         : _openMeasureJump,
+                    stageTempo: trail == null
+                        ? null
+                        : switch (trail.selected?.speed) {
+                            final speed? => '${(speed * 100).round()}%',
+                            null => 'livre',
+                          },
+                    stageTempoCaption: trail?.selected?.speed == null
+                        ? 'sem tempo'
+                        : 'da etapa',
                     tempoPercent: (_speed * 100).round(),
                     handLabel: _hand.shortLabel,
                     onOptions: () => setState(() => _optionsOpen = true),

@@ -82,3 +82,14 @@ valor que a etapa ignora. Achado A7; sugestão A7.
 5. Treino livre (tela 21): barra idêntica à de hoje.
 6. Em 640×360 a barra não estoura (teste de widget com essa janela).
 7. `just analyze` e `just test` limpos; o roteiro das telas passa.
+
+## Notas de execução
+
+- `PhoneRail.stageTempo`/`stageTempoCaption` ligam o modo trilha: o
+  andamento da etapa é um `_RailReadout` (sem toque, sem dica de ação) e o
+  botão de mão some. Etapa do modo espera: "livre" / "sem tempo".
+- `TrailPath.numberOf(occurrence)` e `startMsOfNumber(number)` fazem a
+  conversão; a barra mostra "N de total" do caminho e "Ir para o compasso"
+  fala a mesma numeração (fora do caminho, cai na numeração de hoje).
+- Critérios 1, 2, 3, 6 e 7 (`flutter test`, `just analyze`) passam. 4 e 5
+  (`just telas`) não foram rodados.
