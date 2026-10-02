@@ -261,11 +261,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   set _metronomeOn(bool value) => _settings.metronomeOn = value;
   ({int a, int b})? _loop;
 
-  /// Contagem muda: sem som não há agendador para contar, então a tela
-  /// segura o player por 1 compasso e conta sozinha (só o número, sem
-  /// cliques). `null` fora dela.
+  /// Contagem do play com o som desligado: sem agendador para contar, a
+  /// tela segura o player e conta sozinha — o número e, com o sintetizador
+  /// do app aberto, os cliques (a música segue muda). `null` fora dela.
   Timer? _silentCountInTimer;
   CountInTick? Function()? _silentCountIn;
+  SoundEngine? _silentCountInEngine;
 
   /// Latência de entrada+saída calibrada para o teclado/saída correntes.
   double _inputLatencyMs = 0;
@@ -1029,19 +1030,21 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (player.position >= player.duration) player.seek(Duration.zero);
     if (_soundOn) {
       player.play();
+      _scheduler?.play(
+        player.position.inMicroseconds / 1000,
+        speed: _speed,
+        countIn: true,
+      );
     } else {
       _startSilentCountIn(player);
     }
-    _scheduler?.play(
-      player.position.inMicroseconds / 1000,
-      speed: _speed,
-      countIn: true,
-    );
     setState(() => _setPlaying(true));
   }
 
-  /// Play sem som: conta 1 compasso na tela e só então solta [player] (que,
-  /// mudo, anda pelo relógio próprio).
+  /// Play sem som: faz a contagem na tela e só então solta [player] (que,
+  /// mudo, anda pelo relógio próprio). Os cliques soam mesmo assim, pelo
+  /// sintetizador do app, se ele já estiver aberto — e aí o número segue o
+  /// relógio do áudio, para acender junto com o clique que se ouve.
   void _startSilentCountIn(ScorePlayer player) {
     final fromMs = player.position.inMicroseconds / 1000;
     final clicks = countInBeats(metronomeBeats(player.timeline), fromMs);
@@ -1051,30 +1054,57 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
     final firstMs = clicks.first.ms;
     final speed = _speed;
-    final watch = Stopwatch()..start();
-    _silentCountIn = () => countInTickAt(
-      clicks,
-      fromMs,
-      firstMs + watch.elapsedMicroseconds / 1000 * speed,
-    );
+    // Segundos desde o 1º clique (negativo enquanto ele não soa).
+    double Function() elapsed;
+    final engine = _appEngine;
+    if (engine != null) {
+      final t0 = engine.earliestScheduleSeconds;
+      engine.schedule([
+        for (final c in clicks) ...[
+          ScheduledMidi(
+            t0 + (c.ms - firstMs) / 1000 / speed,
+            0x90 | kMetronomeChannel,
+            c.accent ? kMetronomeAccentNote : kMetronomeNote,
+            100,
+          ),
+          ScheduledMidi(
+            t0 + (c.ms - firstMs) / 1000 / speed + 0.05,
+            0x80 | kMetronomeChannel,
+            c.accent ? kMetronomeAccentNote : kMetronomeNote,
+            0,
+          ),
+        ],
+      ]);
+      _silentCountInEngine = engine;
+      elapsed = () => engine.nowSeconds - t0;
+    } else {
+      final watch = Stopwatch()..start();
+      elapsed = () => watch.elapsedMicroseconds / 1e6;
+    }
+    _silentCountIn = () =>
+        countInTickAt(clicks, fromMs, firstMs + elapsed() * 1000 * speed);
+    final leftSeconds = (fromMs - firstMs) / 1000 / speed - elapsed();
     _silentCountInTimer = Timer(
-      Duration(microseconds: ((fromMs - firstMs) / speed * 1000).round()),
+      Duration(microseconds: (leftSeconds * 1e6).round()),
       () {
         _silentCountInTimer = null;
         _silentCountIn = null;
+        _silentCountInEngine = null;
         player.play();
       },
     );
   }
 
-  /// Desiste da contagem muda em curso; devolve se havia uma (o player
-  /// ainda não tinha sido solto).
+  /// Desiste da contagem sem som em curso (e dos cliques que ainda não
+  /// soaram); devolve se havia uma (o player ainda não tinha sido solto).
   bool _cancelSilentCountIn() {
     final timer = _silentCountInTimer;
     if (timer == null) return false;
     timer.cancel();
+    _silentCountInEngine?.clearScheduled();
     _silentCountInTimer = null;
     _silentCountIn = null;
+    _silentCountInEngine = null;
     return true;
   }
 

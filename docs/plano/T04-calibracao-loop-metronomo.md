@@ -101,7 +101,10 @@ Feito (código + testes); critérios 3 e 4 (manuais) **pendentes**.
   modo espera, em que o tempo espera o aluno, não). Por cima da partitura,
   `lib/practice/count_in_overlay.dart` mostra os tempos que faltam (4, 3,
   2, 1) em azul, esmaecendo a cada tempo; lê `ScoreAudioScheduler.countInTick`
-  ou, no play sem som, a contagem muda da tela (só o número, sem cliques).
+  ou, no play sem som, a contagem da própria tela (os cliques saem pelo
+  sintetizador do app, se aberto; a música segue muda). `countInBeats`
+  conta o compasso cheio, ou só os tempos que faltam numa anacruse, e nunca
+  menos de 3 (aí entra mais um compasso antes).
 - **Calibração** — `lib/audio/latency_calibration.dart` (8 cliques a 100
   bpm, mediana sem os 2 primeiros, aviso >80 ms) + diálogo em
   `practice_tools.dart`, aberto por "Calibrar latência" no seletor de
