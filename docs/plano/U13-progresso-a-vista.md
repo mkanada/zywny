@@ -94,3 +94,29 @@ C1 e C2.
    27 termina em "…" no progresso.
 7. **(manual, retrato, 360 dp)** A linha não quebra nem empurra o título.
 8. `just analyze` e `just test` limpos; o roteiro das telas passa.
+
+## Notas de execução
+
+- `TrailProgressBar` e `trailProgressText` em `lib/trail/trail_widgets.dart`.
+  A gaveta da trilha ganhou o cabeçalho "13 de 75 etapas · 1 pulada" com a
+  barra, acima de "Pular etapa atual".
+- Linha da biblioteca: a segunda linha é o compositor (cede, com
+  reticências) e o resto (" · nível N · quando · melhor 94%") sem
+  reticências; o progresso foi para uma coluna fixa de 84 dp à direita
+  (barra de 48 dp e "13/75 · 1 pul." embaixo, com `FittedBox` para nunca
+  cortar). Sem trilha iniciada a coluna fica vazia (some a bolinha e o "—");
+  concluída, barra cheia e o ✓. `scoreBandColor` saiu; a ordenação por
+  pontuação não mudou.
+- Cartão "Continuar": a etapa em que parou ganhou linha própria, "Hino N ·
+  quando · melhor X%" ficou menor, e a barra do hino fecha o cartão.
+- **Limite do 360 dp:** a linha tem ~188 dp para título + segunda linha
+  (328 de largura útil − número − coluna da direita). No pior caso (nível +
+  quando + melhor) o "resto" mede ~235 dp: nele o compositor some e é o
+  próprio resto que ganha reticências. O progresso (coluna da direita) nunca
+  é cortado. Se isso incomodar no aparelho, o caminho é tirar "melhor" da
+  segunda linha ou encurtar `whenStudied`.
+- Nos testes de widget o texto sai em Ahem (muito mais largo que a fonte
+  real), então o critério 1 foi testado numa janela de 760 dp conferindo a
+  regra (compositor cede; resto e progresso inteiros), não os 360 dp. Os
+  testes do J09 (`library_test.dart`) foram ajustados aos textos novos.
+- Critérios 1–5 e 8 passam; 6 e 7 não foram conferidos (emulador/aparelho).

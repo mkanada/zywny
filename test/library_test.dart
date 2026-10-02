@@ -309,9 +309,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('CONTINUAR'), findsOneWidget);
-      expect(find.text('Hino 12 · hoje · melhor 83'), findsOneWidget);
-      expect(find.text('George J. Elvey · hoje'), findsOneWidget);
-      expect(find.text('83'), findsOneWidget);
+      expect(find.text('Hino 12 · hoje · melhor 83%'), findsOneWidget);
+      // Na linha, o compositor e o resto são dois textos; sem a bolinha e o
+      // número à direita (U13): a pontuação está escrita "melhor 83%".
+      expect(find.text('George J. Elvey'), findsOneWidget);
+      expect(find.text(' · hoje · melhor 83%'), findsOneWidget);
+      expect(find.text('83'), findsNothing);
     });
   });
 
@@ -360,7 +363,7 @@ void main() {
       await tester.pumpWidget(await libraryWith(TrailProgressStore()));
       await tester.pump();
       expect(find.textContaining('12/51'), findsOneWidget);
-      expect(find.textContaining('2 puladas'), findsOneWidget);
+      expect(find.textContaining('2 pul.'), findsOneWidget);
       // O hino sem trilha não mostra nada dela (só compositor).
       expect(find.text('John B. Dykes'), findsOneWidget);
       expect(find.textContaining('12/51'), findsOneWidget);

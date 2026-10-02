@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../ui/theme.dart';
 import 'hymn.dart';
 import 'hymn_progress.dart';
 
@@ -121,12 +120,4 @@ String whenStudied(DateTime at, DateTime now) {
   if (days < 30) return 'há ${(days / 7).round()} semanas';
   if (days < 60) return 'há 1 mês';
   return 'há ${(days / 30).round()} meses';
-}
-
-/// Cor da bolinha de pontuação — as faixas do `band()` do artboard.
-Color scoreBandColor(int? score) {
-  if (score == null) return kScoreNeverColor;
-  if (score >= 85) return kGoodColor;
-  if (score >= 60) return kOkColor;
-  return kLowScoreColor;
 }

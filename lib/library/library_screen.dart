@@ -9,7 +9,7 @@ import '../settings/app_settings.dart';
 import '../settings/general_settings_panel.dart';
 import '../settings/hymn_settings.dart';
 import '../trail/trail_progress.dart';
-import '../trail/trail_widgets.dart' show trailResumeText;
+import '../trail/trail_widgets.dart' show TrailProgressBar, trailResumeText;
 import '../ui/theme.dart';
 import 'hymn.dart';
 import 'hymn_progress.dart';
@@ -342,11 +342,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget _continueCard(Hymn hymn) {
     final progress = _progress[hymn.number];
     final trail = _trail[hymn.number];
+    final started = trail.total > 0;
+    // A etapa em que parou, numa linha própria; o resto, menor, embaixo.
+    final resume = trail.resume;
+    final stage = resume == null ? null : trailResumeText(resume);
     final details = [
       'Hino ${hymn.number}',
       if (progress?.lastOpened case final at?) whenStudied(at, DateTime.now()),
-      if (progress?.bestScore case final score?) 'melhor $score',
-      if (trail.resume case final resume?) trailResumeText(resume),
+      if (progress?.bestScore case final score?) 'melhor $score%',
     ].join(' · ');
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
@@ -355,59 +358,86 @@ class _LibraryScreenState extends State<LibraryScreen> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: kBorderSoft),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'CONTINUAR',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.7,
-                    color: kAccent,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  hymn.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: kInk,
-                  ),
-                ),
-                Text(
-                  details,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, color: kInkCaption),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Tooltip(
-            message: 'Continuar estudo',
-            child: Material(
-              color: kAccent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: () => unawaited(_open(hymn)),
-                child: const SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Icon(Icons.play_arrow, color: Colors.white, size: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'CONTINUAR',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.7,
+                        color: kAccent,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hymn.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: kInk,
+                      ),
+                    ),
+                    if (stage != null)
+                      Text(
+                        stage,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, color: kInk),
+                      ),
+                    Text(
+                      details,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: kInkCaption),
+                    ),
+                  ],
                 ),
               ),
-            ),
+              const SizedBox(width: 16),
+              Tooltip(
+                message: 'Continuar estudo',
+                child: Material(
+                  color: kAccent,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => unawaited(_open(hymn)),
+                    child: const SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Icon(
+                        Icons.play_arrow,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
+          // O progresso do hino na base do cartão.
+          if (started) ...[
+            const SizedBox(height: 10),
+            TrailProgressBar(
+              done: trail.finalApproved ? trail.total : trail.done,
+              skipped: trail.finalApproved ? 0 : trail.skipped,
+              total: trail.total,
+              height: 5,
+            ),
+          ],
         ],
       ),
     );
@@ -502,14 +532,12 @@ class _HymnRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final score = progress?.bestScore;
     final started = trail.total > 0;
-    final subtitle = [
-      hymn.composer,
+    // O que vem depois do compositor, sem reticências: é ele quem cede.
+    final rest = [
       if (hymn.level case final level?) 'nível $level',
       if (progress?.lastOpened case final at?) whenStudied(at, now),
-      if (started)
-        '${trail.done}/${trail.total}'
-            '${trail.skipped > 0 ? ' · ${trail.skipped} ${trail.skipped == 1 ? 'pulada' : 'puladas'}' : ''}',
-    ].join(' · ');
+      if (score != null) 'melhor $score%',
+    ].map((part) => ' · $part').join();
     return InkWell(
       onTap: onTap,
       child: DecoratedBox(
@@ -549,47 +577,127 @@ class _HymnRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 1),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, color: kInkCaption),
-                  ),
+                  _SubtitleLine(composer: hymn.composer, rest: rest),
                 ],
               ),
             ),
             const SizedBox(width: 12),
-            if (trail.finalApproved)
-              const Padding(
-                padding: EdgeInsets.only(right: 7),
-                child: Tooltip(
-                  message: 'Trilha concluída',
-                  child: Icon(Icons.check_circle, size: 16, color: kGoodColor),
-                ),
-              ),
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: scoreBandColor(score),
-              ),
-            ),
-            const SizedBox(width: 7),
-            SizedBox(
-              width: 30,
-              child: Text(
-                score?.toString() ?? '—',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: score == null ? kInkMuted : kInk,
-                ),
-              ),
-            ),
+            // Só quem começou a trilha tem progresso à direita; sem ela, a
+            // coluna fica vazia (nada de "—" em 600 linhas).
+            if (started) _TrailCell(trail: trail),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Segunda linha da lista: o compositor cede (reticências) para que "nível",
+/// "quando" e "melhor" apareçam inteiros.
+class _SubtitleLine extends StatelessWidget {
+  const _SubtitleLine({required this.composer, required this.rest});
+
+  final String composer;
+  final String rest;
+
+  static const _style = TextStyle(fontSize: 13, color: kInkCaption);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final painter = TextPainter(
+          text: TextSpan(text: rest, style: _style),
+          maxLines: 1,
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final composerMax = (box.maxWidth - painter.width).clamp(
+          0.0,
+          box.maxWidth,
+        );
+        painter.dispose();
+        return Row(
+          children: [
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: composerMax),
+              child: Text(
+                composer,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _style,
+              ),
+            ),
+            if (rest.isNotEmpty)
+              Flexible(
+                child: Text(
+                  rest,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _style,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// A coluna da direita da linha: a barra do progresso da trilha e, embaixo,
+/// "13/75" (e as puladas). Concluída: a barra cheia e o ✓.
+class _TrailCell extends StatelessWidget {
+  const _TrailCell({required this.trail});
+
+  final TrailProgress trail;
+
+  @override
+  Widget build(BuildContext context) {
+    final concluded = trail.finalApproved;
+    return SizedBox(
+      width: 84,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TrailProgressBar(
+                done: concluded ? trail.total : trail.done,
+                skipped: concluded ? 0 : trail.skipped,
+                total: trail.total,
+                width: 48,
+              ),
+              if (concluded)
+                const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Tooltip(
+                    message: 'Trilha concluída',
+                    child: Icon(
+                      Icons.check_circle,
+                      size: 16,
+                      color: kGoodColor,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              '${trail.done}/${trail.total}'
+              '${trail.skipped > 0 ? ' · ${trail.skipped} pul.' : ''}',
+              maxLines: 1,
+              style: const TextStyle(
+                fontSize: 11,
+                color: kInkCaption,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
