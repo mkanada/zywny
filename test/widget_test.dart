@@ -207,6 +207,29 @@ void main() {
     await tester.pump();
     expect(find.text('Conecte o teclado MIDI'), findsOneWidget);
     expect(find.text('80%'), findsWidgets);
+    expect(find.text('Dir.'), findsOneWidget);
+
+    // Trocar entre os modos de treino não mexe em mão nem em andamento
+    // (U11); só o modo muda — e a explicação dele aparece.
+    await tester.tap(find.text('Ritmo'));
+    await tester.pump();
+    expect(
+      find.text('Qualquer tecla vale; só o tempo é avaliado.'),
+      findsOneWidget,
+    );
+    expect(find.text('80%'), findsWidgets);
+    expect(find.text('Dir.'), findsOneWidget);
+    await tester.tap(find.text('Tempo real'));
+    await tester.pump();
+    expect(find.text('80%'), findsWidgets);
+    expect(find.text('Dir.'), findsOneWidget);
+    expect(find.text('Tempo real (a música não espera)'), findsNothing);
+
+    // De volta a Ouvir: mão Ambas e andamento 100%, como antes.
+    await tester.tap(find.text('Ouvir'));
+    await tester.pump();
+    expect(find.text('Ambas'), findsWidgets);
+    expect(find.text('80%'), findsNothing);
 
     await tester.tap(find.byTooltip('Fechar'));
     await tester.pump();

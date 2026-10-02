@@ -272,13 +272,6 @@ Future<void> _settingsRow(WidgetTester tester, String label) async {
   await _wait(tester, 400);
 }
 
-Future<void> _toggle(WidgetTester tester, String label) async {
-  final row = find.widgetWithText(PhoneToggleRow, label);
-  await tester.ensureVisible(row.first);
-  await _wait(tester, 300);
-  await _tap(tester, find.descendant(of: row, matching: find.byType(Switch)));
-}
-
 void _popRoute(WidgetTester tester) =>
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
 
@@ -731,8 +724,7 @@ void main() {
     await _openOptions(tester);
     await _optionsItem(tester, 'Treino livre');
     await _openOptions(tester);
-    await _tap(tester, find.text('Espera'));
-    await _toggle(tester, 'Tempo real (a música não espera)');
+    await _tap(tester, find.text('Tempo real'));
     await _shot(tester, '40-opcoes-treino-em-tempo-real');
     await _tap(tester, find.byTooltip('Fechar'));
     await _tap(tester, find.byTooltip('Praticar'), ms: 300);

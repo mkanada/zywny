@@ -90,3 +90,22 @@ sugestão A11.
    andamento; trocar de Ouvir para Espera mexe como hoje.
 5. `just telas`: as telas 14 e 40 refeitas conferem com 3 e 2.
 6. `just analyze` e `just test` limpos; o roteiro das telas passa.
+
+## Notas de execução
+
+- D-MODOS decidida pelo usuário: **sim**, seletor único.
+- `StudyMode` em `lib/practice/study_mode.dart`; `PhoneOptionsDrawer` ganhou
+  `mode`/`onModeChanged`, `trailMode` e `top`. `_setStudyMode` em
+  `lib/main.dart`: entre os três modos de treino só troca o
+  `PracticeMode`; de e para Ouvir passa por `_setTrainingFromDrawer` (os
+  efeitos de carona de mão e andamento ficam como estavam).
+- Seletor desabilitado (opaco, sem toque) com o treino rodando, como os
+  interruptores antigos.
+- Na trilha a gaveta abre pela seção TRILHA e esconde Modo, Mão, Andamento
+  e a seção TREINO (inclusive o metrônomo, que a etapa decide). No treino
+  livre "Voltar à trilha" fica no topo. "Voltar à biblioteca" saiu da
+  gaveta (a seta da barra do título continua).
+- Roteiro: a foto 40 toca em "Tempo real" no segmento; `_toggle` saiu por
+  falta de uso.
+- Critérios 1–4 e 6 passam (`flutter test`, `just analyze`). 5 (`just
+  telas`) **não foi rodado**.

@@ -227,7 +227,7 @@ zywny
 | D-VIRADA | Desfoque da página revelada na virada | U06 | (a) manter, mas nítida no último quarto do último compasso e sempre nítida em pausa; (b) tirar o desfoque; (c) como está | **decidida (c)**: como está, sem mudança — o U06 foi dispensado |
 | D-CONTAGEM | Onde fica o número da contagem inicial | U09 | (a) grande, na metade direita, sem crescer nem desfocar, opacidade até 50%; (b) pontos de pulso na barra do título; (c) como está | **decidida (a)**: número grande na metade direita (U09) |
 | D-SISTEMAS | Dois sistemas por página no celular (notação menor que 12)? | U10 (parte 3) | Decidir com a tabela que o U10 mede (compassos por página × altura do pentagrama); as partes 1 e 2 do passo não dependem disto | **decidida**: não — `kPhoneUnit` fica em 12 (a medição do U10 mostra que dois sistemas só cabem com unit ≈ 6) |
-| D-MODOS | Um seletor só de quatro modos (Ouvir, Espera, Tempo real, Ritmo) no lugar do seletor de dois + dois interruptores? | U11 | Sim | **aberta** |
+| D-MODOS | Um seletor só de quatro modos (Ouvir, Espera, Tempo real, Ritmo) no lugar do seletor de dois + dois interruptores? | U11 | Sim | **decidida**: sim (U11) |
 | D-ORDEM | A seta da ordenação: direção real ("↑" crescente) ou a regra do artboard ("↓" = direção padrão da chave)? | U14 (só a seta) | Direção real | **aberta** |
 | D-SALTO | Trilha em músicas cujo caminho sem repetições tem salto (casas de 1ª/2ª vez, vários ritornelos): salto no agendador ou usar a última passagem? | J08 | **decidida (a)**: salto no agendador (generaliza o loop para vãos; sessões pré-filtradas sem os vãos) — a via (b) resgatava só 15/115 saltos (o resto é intro+casas e ritornelos seguidos); medição refeita: 0 hinos sem trilha — ver [J08](J08-saltos-no-caminho.md) | **decidida** |
 
@@ -304,7 +304,7 @@ zywny
 | [U08](U08-cores-do-destaque.md) | UX: cores do destaque — primeira nota, mão do app, legenda | — | — | concluído (sem o "×" da nota perdida, adiado; critérios 3–5, no emulador, aguardando verificação) |
 | [U09](U09-contagem-fora-do-primeiro-compasso.md) | UX: a contagem sai de cima do primeiro compasso | — | D-CONTAGEM | concluído (critérios 3–5, no emulador, aguardando verificação) |
 | [U10](U10-aproveitar-a-tela.md) | UX: aproveitar a tela — imersivo, centro, dois sistemas | U01 | D-SISTEMAS | concluído (parte 1 no emulador, aguardando verificação; partes 2 e 3 sem mudança, por decisão) |
-| [U11](U11-gaveta-de-opcoes.md) | UX: gaveta de opções — um seletor de modo, e o que vale na trilha | — | D-MODOS | pendente |
+| [U11](U11-gaveta-de-opcoes.md) | UX: gaveta de opções — um seletor de modo, e o que vale na trilha | — | D-MODOS | concluído (critério 5, no emulador, aguardando verificação) |
 | [U12](U12-resumos-legiveis.md) | UX: resumos — erros na pauta e frases no lugar de milissegundos | U02, U05 | — | pendente |
 | [U13](U13-progresso-a-vista.md) | UX: progresso à vista — gaveta, linha do hino e pontuação | — | — | pendente |
 | [U14](U14-ordenar-e-buscar.md) | UX: biblioteca — ordenar e buscar | — | D-ORDEM | pendente |

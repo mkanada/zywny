@@ -34,6 +34,7 @@ import 'practice/practice_colors.dart';
 import 'practice/practice_controller.dart';
 import 'practice/practice_report.dart';
 import 'practice/practice_tools.dart';
+import 'practice/study_mode.dart';
 import 'settings/app_settings.dart';
 import 'settings/general_settings_panel.dart';
 import 'settings/hymn_settings.dart';
@@ -2096,6 +2097,21 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _setSpeed(training ? 0.8 : 1.0);
   }
 
+  /// Escolha do seletor único de modos (U11). Entre os três modos de treino
+  /// só troca o modo; de e para Ouvir valem os efeitos de carona de
+  /// [_setTrainingFromDrawer] (mão e andamento).
+  void _setStudyMode(StudyMode next) {
+    final current = StudyMode.of(training: _trainingMode, mode: _practiceMode);
+    if (next == current) return;
+    final practiceMode = next.practiceMode;
+    if (practiceMode != null) _practiceMode = practiceMode;
+    if (next.isTraining == current.isTraining) {
+      setState(() {});
+    } else {
+      _setTrainingFromDrawer(next.isTraining);
+    }
+  }
+
   /// Compasso (base 1) e total para a barra lateral; `null` sem partitura.
   int? get _measureCount {
     final n = _player?.timeline.measureCount ?? 0;
@@ -2490,20 +2506,24 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   static final bool _isPhone = Platform.isAndroid || Platform.isIOS;
 
   Widget _buildOptionsDrawer() {
+    final trailActive = _trailMode;
     return PhoneOptionsDrawer(
-      training: _trainingMode,
-      onTrainingChanged: _setTrainingFromDrawer,
+      mode: StudyMode.of(training: _trainingMode, mode: _practiceMode),
+      onModeChanged: _practice != null ? null : _setStudyMode,
+      trailMode: trailActive,
       hand: _hand,
       onHandChanged: _setHand,
       tempoPercent: (_speed * 100).round(),
       onTempoChanged: (v) => _setSpeed(v / 100),
       onClose: () => setState(() => _optionsOpen = false),
-      children: [
+      // A trilha vem primeiro: na trilha a gaveta abre por ela, e no treino
+      // livre "Voltar à trilha" fica no topo, à vista (U11).
+      top: [
         if (_trail != null) ...[
           const PhoneSectionLabel('TRILHA'),
           PhoneActionRow(
-            icon: _trailMode ? Icons.school_outlined : Icons.route,
-            label: _trailMode ? 'Treino livre' : 'Voltar à trilha',
+            icon: trailActive ? Icons.school_outlined : Icons.route,
+            label: trailActive ? 'Treino livre' : 'Voltar à trilha',
             onTap: () {
               final trail = _trail;
               if (trail == null) return;
@@ -2514,46 +2534,29 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             },
           ),
         ],
-        const PhoneSectionLabel('TREINO'),
-        PhoneToggleRow(
-          label: 'Tempo real (a música não espera)',
-          value: _practiceMode == PracticeMode.realtime,
-          onChanged: _practice != null
-              ? null
-              : (v) => setState(
-                  () => _practiceMode = v
-                      ? PracticeMode.realtime
-                      : PracticeMode.wait,
-                ),
-        ),
-        PhoneToggleRow(
-          label: 'Ritmo (qualquer tecla, no tempo da partitura)',
-          value: _practiceMode == PracticeMode.rhythm,
-          onChanged: _practice != null
-              ? null
-              : (v) => setState(
-                  () => _practiceMode = v
-                      ? PracticeMode.rhythm
-                      : PracticeMode.wait,
-                ),
-        ),
-        PhoneToggleRow(
-          label: 'Metrônomo (com som do app)',
-          value: _metronomeOn,
-          onChanged: (_) => _toggleMetronome(),
-        ),
-        PhoneActionRow(
-          icon: Icons.repeat,
-          label: _loop == null
-              ? 'Repetir um trecho'
-              : 'Trecho: compassos ${_loop!.a + 1}–${_loop!.b + 1} — mudar',
-          onTap: _player == null
-              ? null
-              : () {
-                  setState(() => _optionsOpen = false);
-                  unawaited(_openLoopSheet());
-                },
-        ),
+      ],
+      children: [
+        // Na trilha a etapa manda no modo, no metrônomo e no trecho.
+        if (!trailActive) ...[
+          const PhoneSectionLabel('TREINO'),
+          PhoneToggleRow(
+            label: 'Metrônomo (com som do app)',
+            value: _metronomeOn,
+            onChanged: (_) => _toggleMetronome(),
+          ),
+          PhoneActionRow(
+            icon: Icons.repeat,
+            label: _loop == null
+                ? 'Repetir um trecho'
+                : 'Trecho: compassos ${_loop!.a + 1}–${_loop!.b + 1} — mudar',
+            onTap: _player == null
+                ? null
+                : () {
+                    setState(() => _optionsOpen = false);
+                    unawaited(_openLoopSheet());
+                  },
+          ),
+        ],
         // O que é só deste hino: cada um guarda o seu tamanho e layout.
         const PhoneSectionLabel('ESTE HINO'),
         if (widget.opened != null) ...[
@@ -2619,11 +2622,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             _panelOpen = false;
             _generalOpen = true;
           }),
-        ),
-        PhoneActionRow(
-          icon: Icons.arrow_back,
-          label: 'Voltar à biblioteca',
-          onTap: _backToLibrary,
         ),
       ],
     );
