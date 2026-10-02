@@ -774,11 +774,78 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       hymnNumber: hymnNumber,
     );
     trail.addListener(_onTrailChanged);
+    _armedStageId = null;
     setState(() => _trail = trail);
+    _armTrailStage();
   }
 
   void _onTrailChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    _armTrailStage();
+  }
+
+  /// Id da etapa para a qual a partitura já foi levada (U02).
+  String? _armedStageId;
+
+  /// Com a etapa parada, a partitura mostra o primeiro compasso do trecho:
+  /// ao abrir o hino e a cada troca de etapa. Não mexe com a etapa rodando,
+  /// com treino em curso nem com a música tocando.
+  void _armTrailStage() {
+    final trail = _trail;
+    final player = _player;
+    if (trail == null || trail.freeMode || player == null) return;
+    final stage = trail.selected;
+    if (stage == null || stage.id == _armedStageId) return;
+    if (trail.running || _practice != null || _playing || _busy) return;
+    _armedStageId = stage.id;
+    player.seek(Duration(microseconds: (stage.startMs * 1000).round()));
+    _scheduler?.seek(stage.startMs);
+  }
+
+  String? _markedStageId;
+  List<String> _markedIds = const [];
+  Set<String> _markedSet = const {};
+
+  /// Compassos do trecho da etapa selecionada, para marcar na pauta (U02).
+  /// Vazio no treino livre, sem trilha e na fase final.
+  List<String> _trailMarkedIds() {
+    final trail = _trail;
+    final player = _player;
+    final stage = trail?.selected;
+    if (trail == null || trail.freeMode || player == null || stage == null) {
+      return const [];
+    }
+    if (_markedStageId != stage.id) {
+      _markedStageId = stage.id;
+      _markedIds = trailStageMeasureIds(trail.path, stage, player.measures);
+      _markedSet = _markedIds.toSet();
+    }
+    return _markedIds;
+  }
+
+  /// Todos os compassos da música, para o véu dos que não são do trecho.
+  Iterable<String> _allMeasureIds(ScorePlayer player) => {
+    for (final m in player.measures) m.id,
+  };
+
+  Widget? _markMeasure(BuildContext context, String id, Rect rect) {
+    if (!_markedSet.contains(id)) {
+      return IgnorePointer(
+        child: ColoredBox(color: kSurface.withValues(alpha: 0.55)),
+      );
+    }
+    if (_trail?.running ?? false) return null;
+    return const IgnorePointer(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: SizedBox(
+          height: 3,
+          width: double.infinity,
+          child: ColoredBox(color: kAccent),
+        ),
+      ),
+    );
   }
 
   /// Começa (ou para, se já está rodando) a etapa selecionada da trilha. A
@@ -2342,6 +2409,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   onPageChanged: _onPageChanged,
                   onElementTap: _onScoreTap,
                   ghosts: _ghosts,
+                  overlayIds: _trailMarkedIds().isEmpty || _player == null
+                      ? const []
+                      : _allMeasureIds(_player!),
+                  overlayBuilder: _markMeasure,
                   haloSigmaScale: _haloWidth,
                   barColor: _barColor,
                   barWidth: _barWidthOf(document),

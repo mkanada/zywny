@@ -86,3 +86,17 @@ tocar. Achado A4; sugestão A4.
    etapa rodando, não.
 5. A marca não aparece no treino livre (tela 21).
 6. `just analyze`, `just test` e `cd score_bridge && flutter test` limpos.
+
+## Notas de execução
+
+- `trailStageMeasureIds` em `lib/trail/trail_plan.dart`; `_armTrailStage`,
+  `_trailMarkedIds` e `_markMeasure` em `lib/main.dart`. O overlay vale
+  também no layout largo (a `ScoreView` é a mesma).
+- Trechos vizinhos compartilham um compasso (J00), então o último compasso
+  do trecho 1 é também o primeiro do 2 e aparece nos dois.
+- Com a etapa rodando o véu fica e o traço some (decisão do passo, sem foto
+  para confirmar).
+- Critério 1 e 6 passam (`just test`, `just analyze`, `score_bridge`).
+  Critérios 2–5 pedem `just telas` / aparelho e **não foram rodados**. A
+  geometria do retângulo do compasso (uma pauta ou as duas) também não foi
+  medida.
