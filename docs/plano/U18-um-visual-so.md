@@ -120,3 +120,41 @@ lateral, deixando a pauta à vista. Achados E1 e E2; sugestões E1 e E2.
    botão principal tem a mesma cor nas telas 20, 27 e 34.
 6. O "voltar" do Android fecha o painel aberto antes de sair da partitura.
 7. `just analyze` e `just test` limpos; o roteiro das telas passa.
+
+## Notas de execução
+
+### Parte 1 — tema
+- `kAppColorScheme` (escrito à mão: `primary` = `kAccent`, superfícies e
+  contêineres nos beges da paleta, `error` = `kBadColor`) e temas de
+  componente em `lib/ui/theme.dart` (diálogo branco de raio 16, folha, botões
+  preenchido/texto/contornado, interruptor, controle deslizante, botão
+  segmentado, snackbar e progresso). Saíram todos os `activeColor: kAccent` /
+  `activeTrackColor: kAccent` e os `backgroundColor: kSurface` das folhas —
+  inclusive os de `lib/mockup/` (o `grep` do critério 2 olha `lib/` inteiro).
+- Efeito colateral a conferir no aparelho: `surfaceTint` virou transparente e
+  o `ColorScheme` deixou de vir da semente, então qualquer widget que lia
+  cores derivadas muda de tom.
+
+### Parte 2 — superfícies
+- `PhoneSidePanel` (casca: véu opcional, painel de até 400 dp — no máximo 60%
+  da largura —, título e fechar) em `lib/ui/side_panel.dart`; `PhoneOptionsDrawer`
+  e `TrailDrawer` passaram a usá-la.
+- `showPhoneSidePanel<T>`: rota modal (`showGeneralDialog`, entra pela
+  direita), **sem escurecer a pauta**: o toque na pauta e o "voltar" do
+  Android fecham. `showSheetOrSidePanel` escolhe entre ela e a folha inferior;
+  `sheetBody` dá a margem/rolagem só à folha.
+- No celular (`_phoneLayout` em `main.dart`) usam o painel lateral: "Ir para o
+  compasso", "Repetir um trecho" (`showLoopSheet`), o resumo da etapa, o
+  resumo do treino e a conclusão da trilha. No layout largo continuam folhas
+  (as funções ganharam `sidePanel`, padrão `false`).
+- Layout, configurações gerais e monitor MIDI (cartões flutuantes): no
+  celular entram pela direita numa casca igual (`_scorePanel`); o monitor,
+  que abria à esquerda, abre à direita. Seguem **não modais** (a pauta
+  continua à esquerda) e não ganharam o título da casca — cada um já traz o
+  seu. O "voltar" agora também fecha o monitor (antes só layout e
+  configurações).
+- Diálogos centrais (teclado, atraso, confirmações, cor) ficaram como
+  diálogos, como a regra do passo manda.
+- Critérios 1–4 e 6 (a parte do "voltar" dos painéis-rota) e 7 passam. O 5
+  (`just telas`: pauta à esquerda do painel; diálogos com fundo branco e botão
+  azul) **não foi rodado** — é a conferência que mais falta neste passo.

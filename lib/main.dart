@@ -48,6 +48,7 @@ import 'trail/trail_stage.dart' show TrailStage, kTrailMinMeasures;
 import 'trail/trail_widgets.dart';
 import 'ui/phone_chrome.dart';
 import 'ui/practice_legend.dart';
+import 'ui/side_panel.dart';
 import 'ui/theme.dart';
 import 'diag_log.dart';
 import 'verovio_render.dart';
@@ -1077,7 +1078,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       setState(() => _markErrors(result.badMeasures));
       // Aprovou a final.100: concluiu a trilha (tela própria, J07).
       if (result.passed && stage.id == 'final.100') {
-        final action = await showTrailConclusion(context);
+        final action = await showTrailConclusion(
+          context,
+          sidePanel: _phoneLayout,
+        );
         if (!mounted) return;
         switch (action) {
           case TrailConclusionAction.library:
@@ -1110,6 +1114,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         isLast: trail.progress.current(trail.plan) == null,
         showBackToCurrent: showBack,
         blockCount: blocks,
+        sidePanel: _phoneLayout,
       );
       if (!mounted) return;
       switch (action) {
@@ -1146,6 +1151,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       result: result,
       badLogical: _trailBadLogical(trail, result),
       isLast: false,
+      sidePanel: _phoneLayout,
     );
     if (!mounted) return;
     switch (action) {
@@ -1526,6 +1532,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     context,
     report,
     legend: _practiceLegend(),
+    sidePanel: _phoneLayout,
     onRepeatWorst: _repeatWorst,
   );
 
@@ -1654,6 +1661,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       total: player.measures.length,
       current: player.currentMeasureIndex.value,
       initial: _loop,
+      sidePanel: _phoneLayout,
       onClear: () {
         setState(() => _loop = null);
         _applyLoop();
@@ -2165,6 +2173,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     return n == 0 ? null : n;
   }
 
+  /// A tela da partitura está no layout de celular (`build`): resumos e
+  /// seletores entram pela lateral, não como folha inferior (U18).
+  bool get _phoneLayout =>
+      MediaQuery.sizeOf(context).width < kPhoneLayoutMaxWidth;
+
   Future<void> _openMeasureJump() async {
     final player = _player;
     // Na trilha o compasso fala a numeração do caminho (a da gaveta e do
@@ -2177,36 +2190,37 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (player == null || total == null) return;
     final current = player.currentMeasureIndex.value;
     var target = path != null ? (path.numberOf(current) ?? 1) : current + 1;
-    final result = await showModalBottomSheet<int>(
-      context: context,
+    final sidePanel = _phoneLayout;
+    final result = await showSheetOrSidePanel<int>(
+      context,
+      sidePanel: sidePanel,
+      title: 'Ir para o compasso',
       builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Ir para o compasso $target de $total',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
+        builder: (context, setSheetState) => sheetBody(
+          sidePanel: sidePanel,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Ir para o compasso $target de $total',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
                 ),
-                Slider(
-                  value: target.toDouble(),
-                  min: 1,
-                  max: total.toDouble(),
-                  divisions: total > 1 ? total - 1 : null,
-                  onChanged: (v) => setSheetState(() => target = v.round()),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, target),
-                  child: const Text('Ir'),
-                ),
-              ],
-            ),
+              ),
+              Slider(
+                value: target.toDouble(),
+                min: 1,
+                max: total.toDouble(),
+                divisions: total > 1 ? total - 1 : null,
+                onChanged: (v) => setSheetState(() => target = v.round()),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, target),
+                child: const Text('Ir'),
+              ),
+            ],
           ),
         ),
       ),
@@ -2672,6 +2686,39 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
+  /// Um cartão flutuante da partitura (layout, configurações gerais, monitor
+  /// MIDI). No celular ele entra pela direita, na mesma casca das gavetas —
+  /// o monitor também, que antes abria à esquerda (U18); no layout largo,
+  /// como sempre: um cartão solto, à esquerda ([left]) ou à direita.
+  Widget _scorePanel({
+    required bool phone,
+    required BoxConstraints constraints,
+    required Widget child,
+    bool left = false,
+  }) {
+    if (!phone) {
+      return Positioned(
+        top: 8,
+        left: left ? 8 : null,
+        right: left ? null : 8,
+        bottom: 8,
+        width: math.min(360, constraints.maxWidth - 16),
+        child: child,
+      );
+    }
+    return Positioned(
+      top: 0,
+      right: 0,
+      bottom: 0,
+      width: math.min(kPhoneSidePanelWidth, constraints.maxWidth * 0.6),
+      child: Material(
+        color: kSurface,
+        elevation: 8,
+        child: SafeArea(left: false, child: ClipRect(child: child)),
+      ),
+    );
+  }
+
   Widget _buildScoreArea({bool phone = false}) {
     // The page is engraved for this box, so its size has to be known before
     // the first render — hence measuring here rather than off the window.
@@ -2767,11 +2814,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 child: LinearProgressIndicator(),
               ),
             if (_midiPanelOpen)
-              Positioned(
-                top: 8,
-                left: 8,
-                bottom: 8,
-                width: math.min(360, constraints.maxWidth - 16),
+              _scorePanel(
+                phone: phone,
+                constraints: constraints,
+                left: true,
                 child: MidiMonitorPanel(
                   deviceManager: _midiDeviceManager,
                   input: _midiInput,
@@ -2790,11 +2836,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 ),
               ),
             if (_panelOpen)
-              Positioned(
-                top: 8,
-                right: 8,
-                bottom: 8,
-                width: math.min(360, constraints.maxWidth - 16),
+              _scorePanel(
+                phone: phone,
+                constraints: constraints,
                 child: LayoutPanel(
                   subtitle: _scoreName,
                   values: _layout,
@@ -2815,11 +2859,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 ),
               )
             else if (_generalOpen)
-              Positioned(
-                top: 8,
-                right: 8,
-                bottom: 8,
-                width: math.min(360, constraints.maxWidth - 16),
+              _scorePanel(
+                phone: phone,
+                constraints: constraints,
                 child: GeneralSettingsPanel(
                   settings: _settings,
                   midiDeviceManager: _midiDeviceManager,
@@ -2877,13 +2919,18 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       // ela fechada é que sai da partitura para a biblioteca.
       return PopScope(
         canPop:
-            !_optionsOpen && !_panelOpen && !_generalOpen && !_trailDrawerOpen,
+            !_optionsOpen &&
+            !_panelOpen &&
+            !_generalOpen &&
+            !_midiPanelOpen &&
+            !_trailDrawerOpen,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
           setState(() {
             _optionsOpen = false;
             _panelOpen = false;
             _generalOpen = false;
+            _midiPanelOpen = false;
             _trailDrawerOpen = false;
           });
         },
