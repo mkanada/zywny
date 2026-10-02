@@ -305,7 +305,7 @@ zywny
 | [U09](U09-contagem-fora-do-primeiro-compasso.md) | UX: a contagem sai de cima do primeiro compasso | — | D-CONTAGEM | concluído (critérios 3–5, no emulador, aguardando verificação) |
 | [U10](U10-aproveitar-a-tela.md) | UX: aproveitar a tela — imersivo, centro, dois sistemas | U01 | D-SISTEMAS | concluído (parte 1 no emulador, aguardando verificação; partes 2 e 3 sem mudança, por decisão) |
 | [U11](U11-gaveta-de-opcoes.md) | UX: gaveta de opções — um seletor de modo, e o que vale na trilha | — | D-MODOS | concluído (critério 5, no emulador, aguardando verificação) |
-| [U12](U12-resumos-legiveis.md) | UX: resumos — erros na pauta e frases no lugar de milissegundos | U02, U05 | — | pendente |
+| [U12](U12-resumos-legiveis.md) | UX: resumos — erros na pauta e frases no lugar de milissegundos | U02, U05 | — | concluído (critério 5, no emulador, aguardando verificação) |
 | [U13](U13-progresso-a-vista.md) | UX: progresso à vista — gaveta, linha do hino e pontuação | — | — | pendente |
 | [U14](U14-ordenar-e-buscar.md) | UX: biblioteca — ordenar e buscar | — | D-ORDEM | pendente |
 | [U15](U15-conectar-o-teclado.md) | UX: conectar o teclado — orientação e estado | — | — | pendente |

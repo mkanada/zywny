@@ -140,7 +140,7 @@ Os achados baixos do estudo (A12, A13, B5, D2–D4, E4) não têm passo.
 | [U09](U09-contagem-fora-do-primeiro-compasso.md) | A contagem sai de cima do primeiro compasso | — | D-CONTAGEM | concluído (critérios 3–5, no emulador, aguardando verificação) |
 | [U10](U10-aproveitar-a-tela.md) | Aproveitar a tela: imersivo, centro, dois sistemas | U01 | D-SISTEMAS | concluído (parte 1 no emulador, aguardando verificação; partes 2 e 3 sem mudança, por decisão) |
 | [U11](U11-gaveta-de-opcoes.md) | Gaveta de opções: um seletor de modo, e o que vale na trilha | — | D-MODOS | concluído (critério 5, no emulador, aguardando verificação) |
-| [U12](U12-resumos-legiveis.md) | Resumos: erros na pauta e frases no lugar de milissegundos | U02, U05 | — | pendente |
+| [U12](U12-resumos-legiveis.md) | Resumos: erros na pauta e frases no lugar de milissegundos | U02, U05 | — | concluído (critério 5, no emulador, aguardando verificação) |
 | [U13](U13-progresso-a-vista.md) | Progresso à vista: gaveta, linha do hino e pontuação | — | — | pendente |
 | [U14](U14-ordenar-e-buscar.md) | Biblioteca: ordenar e buscar | — | D-ORDEM | pendente |
 | [U15](U15-conectar-o-teclado.md) | Conectar o teclado: orientação e estado | — | — | pendente |

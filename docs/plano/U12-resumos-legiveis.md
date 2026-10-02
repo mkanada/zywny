@@ -92,3 +92,26 @@ sugestões B2 e B3.
 5. `just telas`: depois do resumo 39 fechado, os compassos com erro estão
    marcados; ao apertar play, a marca some.
 6. `just analyze` e `just test` limpos; o roteiro das telas passa.
+
+## Notas de execução
+
+- **Defeito do compasso fora do intervalo: reproduzido e corrigido.** Uma
+  tecla sem alvo (veredito `wrong`, sem `eventId`) apertada na folga depois
+  do fim do intervalo era carimbada com o compasso de `_lastPlayedMusicalMs`,
+  que já era o vizinho de fora (teste: `badMeasures` ganhava o compasso 3 num
+  trecho de 1–2). `PracticeController._measureAt` agora prende o instante ao
+  intervalo (último compasso do trecho; primeiro, se for antes do início).
+  Isto explica o "6" da tela 39 só como hipótese: o roteiro não foi refeito.
+- **Marcas na pauta:** `_errorMeasureIds`/`_errorStageId` em `lib/main.dart`,
+  um fundo `kBadColor` a 12% pelo overlay do U02. Aparecem depois da
+  passagem (etapa, bloco de reforço e treino livre avaliado) e somem no
+  próximo play/etapa/ouvir, ao trocar de etapa (inclusive "Próxima etapa" no
+  resumo) e ao abrir outro hino.
+- **Frases:** `lib/practice/measure_text.dart` (`joinMeasureNumbers`,
+  `practiceTimingPhrase`; limiares 30 ms e 60 ms, constantes nomeadas).
+  Resumo da etapa: "Erros nos compassos 1 a 3 e 6 — marcados na partitura."
+  / "Nenhum compasso com erro.". Resumo do treino livre: frase do tempo,
+  "Deram mais trabalho: compassos 4, 1 e 2." e os números atrás de
+  "Detalhes".
+- Critérios 1–4 e 6 passam (`flutter test`, `just analyze`); o 5 (`just
+  telas`) não foi rodado.

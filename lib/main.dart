@@ -750,6 +750,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _trail?.dispose();
     _trail = null;
     _trailUnavailable = null;
+    _clearErrorMarks();
     if (!mounted) return;
     if (document == null || track == null || player == null) return;
     final hymnNumber = widget.opened?.hymn.number;
@@ -796,8 +797,33 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   void _onTrailChanged() {
     if (!mounted) return;
+    // Trocou de etapa: as marcas de erro eram da anterior.
+    if (_errorMeasureIds.isNotEmpty && _trail?.selected?.id != _errorStageId) {
+      _clearErrorMarks();
+    }
     setState(() {});
     _armTrailStage();
+  }
+
+  /// Compassos (ids da cena) com erro na última passagem, marcados na pauta
+  /// até o próximo play, a troca de etapa ou a saída (U12).
+  Set<String> _errorMeasureIds = const {};
+  String? _errorStageId;
+
+  void _markErrors(Iterable<int> occurrences) {
+    final player = _player;
+    if (player == null) return;
+    _errorMeasureIds = {
+      for (final i in occurrences)
+        if (i >= 0 && i < player.measures.length) player.measures[i].id,
+    };
+    _errorStageId = _trail?.selected?.id;
+  }
+
+  void _clearErrorMarks() {
+    if (_errorMeasureIds.isEmpty) return;
+    _errorMeasureIds = const {};
+    _errorStageId = null;
   }
 
   /// Id da etapa para a qual a partitura já foi levada (U02).
@@ -845,6 +871,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   };
 
   Widget? _markMeasure(BuildContext context, String id, Rect rect) {
+    // Erros da última passagem: um fundo vermelho leve sobre o compasso.
+    if (_errorMeasureIds.contains(id)) {
+      return IgnorePointer(
+        child: ColoredBox(color: kBadColor.withValues(alpha: 0.12)),
+      );
+    }
+    if (_trailMarkedIds().isEmpty) return null;
     if (!_markedSet.contains(id)) {
       return IgnorePointer(
         child: ColoredBox(color: kSurface.withValues(alpha: 0.55)),
@@ -880,6 +913,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (stage == null) return;
     // Sem teclado quem chama é o ouvir (`_listenTrailStage`).
     if (_midiDeviceManager.connected.value == null) return;
+    _clearErrorMarks();
     _stopListening();
     final engine = await _ensureEngine();
     if (engine == null || !mounted) return;
@@ -963,6 +997,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final stage = trail.selected;
     if (stage == null) return;
     if (trail.running) _abandonTrailStage();
+    _clearErrorMarks();
     final engine = await _ensureEngine();
     if (engine == null || !mounted || _listening) return;
     if (_scheduler == null || !_soundOn) _attachAudio(engine, track);
@@ -1039,6 +1074,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           trail.selected?.id != trail.progress.current(trail.plan)?.id;
       await trail.recordDone(result);
       if (!mounted) return;
+      setState(() => _markErrors(result.badMeasures));
       // Aprovou a final.100: concluiu a trilha (tela própria, J07).
       if (result.passed && stage.id == 'final.100') {
         final action = await showTrailConclusion(context);
@@ -1103,6 +1139,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   ) async {
     trail.recordBlockDone(blockIndex, result);
     if (!mounted) return;
+    setState(() => _markErrors(result.badMeasures));
     final action = await showStageSummary(
       context,
       stageRef: stage.label,
@@ -1173,6 +1210,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void _togglePlay() {
     final player = _player;
     if (player == null) return;
+    _clearErrorMarks();
     if (_playing) {
       _cancelSilentCountIn();
       player.pause();
@@ -1383,6 +1421,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final track = _track;
     final player = _player;
     if (track == null || player == null) return;
+    _clearErrorMarks();
     final engine = await _ensureEngine();
     if (engine == null || !mounted) return;
     if (_scheduler == null || !_soundOn) {
@@ -1469,6 +1508,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       final r = report;
       // A biblioteca guarda a melhor precisão do hino ("Pontuação").
       widget.opened?.onPracticeScore((r.accuracy * 100).round());
+      if (mounted) {
+        setState(
+          () => _markErrors([
+            for (final m in r.measures)
+              if (m.errors + m.imprecise > 0) m.index,
+          ]),
+        );
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_showSummary(r));
       });
@@ -2656,7 +2703,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   onPageChanged: _onPageChanged,
                   onElementTap: _onScoreTap,
                   ghosts: _ghosts,
-                  overlayIds: _trailMarkedIds().isEmpty || _player == null
+                  overlayIds:
+                      (_trailMarkedIds().isEmpty && _errorMeasureIds.isEmpty) ||
+                          _player == null
                       ? const []
                       : _allMeasureIds(_player!),
                   overlayBuilder: _markMeasure,
