@@ -512,6 +512,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   @override
   void dispose() {
+    _listenTimer?.cancel();
     if (_playing) unawaited(WakelockPlus.disable());
     _resizeDebounce?.cancel();
     _flushHymnSettings();
@@ -863,13 +864,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
     final stage = trail.selected;
     if (stage == null) return;
-    if (_midiDeviceManager.connected.value == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('conecte um teclado MIDI primeiro')),
-      );
-      return;
-    }
+    // Sem teclado quem chama é o ouvir (`_listenTrailStage`).
+    if (_midiDeviceManager.connected.value == null) return;
+    _stopListening();
     final engine = await _ensureEngine();
     if (engine == null || !mounted) return;
     if (_scheduler == null || !_soundOn) {
@@ -929,6 +926,80 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _soundOn = true;
       _setPlaying(true);
     });
+  }
+
+  bool _listening = false;
+  Timer? _listenTimer;
+
+  /// Ouvir o trecho da etapa (U03): as duas mãos, com som, no andamento da
+  /// etapa (100% no modo espera), sem avaliar nada nem tocar no progresso.
+  /// Para sozinho no fim e volta ao início do trecho.
+  Future<void> _listenTrailStage() async {
+    final trail = _trail;
+    final track = _track;
+    final player = _player;
+    if (trail == null || track == null || player == null) return;
+    if (_listening) {
+      _stopListening();
+      return;
+    }
+    final stage = trail.selected;
+    if (stage == null) return;
+    if (trail.running) _abandonTrailStage();
+    final engine = await _ensureEngine();
+    if (engine == null || !mounted || _listening) return;
+    if (_scheduler == null || !_soundOn) _attachAudio(engine, track);
+    final scheduler = _scheduler;
+    if (scheduler == null || !mounted) return;
+    _cancelSilentCountIn();
+    _controller.clearAll();
+    scheduler.setStaves(null);
+    scheduler.setSpeed(stage.speed ?? 1.0);
+    scheduler.metronomeOn = false;
+    scheduler.setStopAt(stage.endMs);
+    scheduler.setJumps(trailStageGaps(trail.path, stage));
+    scheduler.onJump = (ms) =>
+        player.seek(Duration(microseconds: (ms * 1000).round()));
+    player.seek(Duration(microseconds: (stage.startMs * 1000).round()));
+    player.play();
+    scheduler.play(stage.startMs);
+    _listenTimer?.cancel();
+    _listenTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (player.position.inMicroseconds / 1000 >= stage.endMs) {
+        _stopListening();
+      }
+    });
+    setState(() {
+      _listening = true;
+      _soundOn = true;
+      _setPlaying(true);
+    });
+  }
+
+  /// Fecha o ouvir: devolve ao agendador o que era do aluno e volta ao
+  /// início do trecho. Sem efeito se não está ouvindo.
+  void _stopListening() {
+    if (!_listening) return;
+    _listenTimer?.cancel();
+    _listenTimer = null;
+    _listening = false;
+    final scheduler = _scheduler;
+    if (scheduler != null) {
+      scheduler.clearStopAt();
+      scheduler.clearJumps();
+      scheduler.onJump = null;
+      scheduler.setSpeed(_speed);
+      scheduler.metronomeOn = _settings.metronomeOn;
+      scheduler.pause();
+    }
+    _player?.pause();
+    _controller.releaseAll();
+    final start = _trail?.selected?.startMs;
+    if (start != null) {
+      _player?.seek(Duration(microseconds: (start * 1000).round()));
+      scheduler?.seek(start);
+    }
+    if (mounted) setState(() => _setPlaying(false));
   }
 
   /// O intervalo terminou por conta própria: grava, limpa e mostra o resumo
@@ -2038,6 +2109,17 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       onBack: _backToLibrary,
       center: _trailChip(),
       trailing: [
+        if (_trailMode)
+          ValueListenableBuilder(
+            valueListenable: _midiDeviceManager.connected,
+            builder: (context, device, _) => device != null
+                ? const SizedBox.shrink()
+                : PhoneKeyboardNotice(
+                    onTap: () => unawaited(
+                      showMidiDevicePicker(context, _midiDeviceManager),
+                    ),
+                  ),
+          ),
         if (_trainingMode) PhoneStatusPill(text: _trainingPillText),
         if (_practice case final practice?)
           ListenableBuilder(
@@ -2191,26 +2273,47 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   ),
                 ),
               ),
-              ValueListenableBuilder<int>(
-                valueListenable: player?.currentMeasureIndex ?? _noMeasure,
-                builder: (context, index, _) {
+              ListenableBuilder(
+                listenable: Listenable.merge([
+                  player?.currentMeasureIndex ?? _noMeasure,
+                  _midiDeviceManager.connected,
+                ]),
+                builder: (context, _) {
+                  final index =
+                      (player?.currentMeasureIndex ?? _noMeasure).value;
                   final trail = _trailMode ? _trail : null;
+                  final keyboard = _midiDeviceManager.connected.value != null;
                   return PhoneRail(
                     playing: _playing,
+                    onListen: trail != null && !trail.running
+                        ? () => unawaited(_listenTrailStage())
+                        : null,
+                    listening: _listening,
                     onPlayPause: trail != null
-                        ? () => unawaited(_startTrailStage())
+                        ? (keyboard
+                              ? () => unawaited(_startTrailStage())
+                              : () => unawaited(_listenTrailStage()))
                         : (_canTrain
                               ? () => unawaited(_togglePractice())
                               : (_canPlay ? _togglePlay : null)),
                     playTooltip: trail != null
-                        ? (trail.running ? 'Parar etapa' : 'Começar etapa')
+                        ? (trail.running
+                              ? 'Parar etapa'
+                              : (keyboard
+                                    ? 'Começar etapa'
+                                    : (_listening
+                                          ? 'Parar de ouvir'
+                                          : 'Ouvir o trecho')))
                         : (_canTrain
                               ? (_practice != null ? 'Pausar' : 'Praticar')
                               : null),
                     playIcon: trail != null
                         ? (trail.running
                               ? null
-                              : const Icon(Icons.play_arrow, size: 24))
+                              : Icon(
+                                  _listening ? Icons.stop : Icons.play_arrow,
+                                  size: 24,
+                                ))
                         : (_canTrain && _practice == null
                               ? const Icon(Icons.play_arrow, size: 24)
                               : null),

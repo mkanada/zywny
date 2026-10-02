@@ -282,10 +282,6 @@ Future<void> _toggle(WidgetTester tester, String label) async {
 void _popRoute(WidgetTester tester) =>
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
 
-void _clearSnackBars(WidgetTester tester) => tester
-    .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first)
-    .clearSnackBars();
-
 Future<void> _backToLibrary(WidgetTester tester) async {
   await _tap(tester, find.byTooltip('Voltar à biblioteca'));
   await _libraryReady(tester);
@@ -575,9 +571,18 @@ void main() {
     await _scoreReady(tester);
     await _shot(tester, '11-trilha-sem-teclado');
 
-    await _tap(tester, find.byTooltip('Começar etapa'));
-    await _shot(tester, '12-trilha-pede-teclado');
-    _clearSnackBars(tester);
+    // Sem teclado o play ouve o trecho (U03): o botão grande e o da barra
+    // lateral têm o mesmo tooltip.
+    await _tap(tester, find.byTooltip('Ouvir o trecho').first);
+    await _until(
+      tester,
+      () => _has(find.byTooltip('Parar de ouvir')),
+      what: 'ouvindo o trecho',
+      seconds: 30,
+    );
+    await _wait(tester, 800);
+    await _shot(tester, '12-ouvindo-o-trecho');
+    await _tap(tester, find.byTooltip('Parar de ouvir').first);
     await _wait(tester);
 
     await _openTrailDrawer(tester);

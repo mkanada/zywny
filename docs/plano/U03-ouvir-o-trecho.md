@@ -97,3 +97,20 @@ vez de reclamar. Achado A1; sugestão A1.
 6. Ouvir não altera `TrailProgress` (teste de controlador ou conferência
    pela gaveta).
 7. `just analyze` e `just test` limpos; o roteiro das telas passa.
+
+## Notas de execução
+
+- D-OUVIR decidida pelo usuário: ouvir como ação própria **e** o play sem
+  teclado ouve.
+- `_listenTrailStage`/`_stopListening` em `lib/main.dart` (fim do trecho
+  detectado por um `Timer` de 50 ms sobre `player.position`; o teto do
+  agendador só corta o áudio, o relógio segue). `PhoneRail.onListen` e
+  `PhoneKeyboardNotice` em `lib/ui/phone_chrome.dart`. A `SnackBar` de
+  "conecte um teclado" da trilha saiu.
+- Ouvir deixa `_soundOn` ligado (como a etapa já fazia); o U04 trata do
+  padrão do som.
+- O botão novo cabe na barra lateral em 844×390 e 640×360 (teste de widget);
+  o U07 redesenha a barra.
+- Critérios 1, 2 e 7 (parcial: `just test`/`just analyze` limpos) passam.
+  Critérios 3–6 (roteiro das telas e manuais com som) **não foram rodados**.
+  O roteiro foi atualizado: a foto 12 virou `12-ouvindo-o-trecho`.
