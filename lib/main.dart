@@ -2748,6 +2748,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                       ? const []
                       : _allMeasureIds(_player!),
                   overlayBuilder: _markMeasure,
+                  overlayUniformHeight: true,
                   haloSigmaScale: _haloWidth,
                   barColor: _barColor,
                   barWidth: _barWidthOf(document),
