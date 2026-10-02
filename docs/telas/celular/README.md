@@ -1,5 +1,7 @@
 # Telas no celular
 
+Índice visual com todas as fotos: [`../INDICE.md`](../INDICE.md).
+
 Fotos do app de verdade rodando num celular Android (emulador
 `Medium_Phone_2`, 1080×2400, 411×914 dp): a biblioteca em retrato e a
 partitura em paisagem. Servem de referência do que o aluno vê hoje — o
