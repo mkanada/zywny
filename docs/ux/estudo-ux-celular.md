@@ -364,3 +364,59 @@ ou cansa; se o desfoque da virada ajuda ou atrapalha; se quatro compassos
 por tela bastam; se os 90% são alcançáveis num teclado de verdade, com a
 latência de verdade. Cinco pessoas, um hino de nível 1, do primeiro toque ao
 fim do primeiro trecho, já diriam muito — as tarefas saem direto de A1–A6.
+
+
+## Depois da fase U
+
+Fotos refeitas em 2026-10-02, no emulador `Medium_Phone_2`, ao fim dos passos
+U01–U18 (`docs/plano/U00-ux-do-celular.md`). O estudo acima continua sendo o
+registro de como estava. Só conferi com os olhos as fotos citadas; "pelos
+testes" quer dizer que a foto não mostra o efeito, mas um teste de widget o
+trava.
+
+| Achado | Situação | Foto | O que mudou |
+| --- | --- | --- | --- |
+| A1 sem teclado é um beco | resolvido | 11, 12 | O play sem teclado ouve o trecho; botão "Ouvir o trecho" na barra; aviso "Conecte o teclado para praticar". |
+| A2 som nasce desligado | resolvido | 11, 32 | Som liga por padrão; alto-falante na barra do título mostra o estado. |
+| A3 faixa cobre a pauta | resolvido | 11, 19, 30 | A trilha mora na barra do título; as cifras e os painéis ficam livres. |
+| A4 pauta não mostra o trecho | resolvido em parte | 11, 30 | A página vai ao trecho e o resto fica esmaecido (30). O traço azul sob o trecho sai em alturas diferentes de compasso para compasso. |
+| A5 selo não prevê o resultado | resolvido | 32, 37, 39 | Selo "— · meta 90%" / porcentagem corrente; o resumo diz "Precisa de 90% para passar". |
+| A6 virada esconde o que vem | **aberto** | 32, 39, 42 | Decisão D-VIRADA = como está: o borrão da página revelada continua (aparece atrás dos painéis em 39 e 42). |
+| A7 barra mostra o que a etapa não usa | resolvido | 37, 38 | Andamento "50% da etapa" / "livre"; sem botão de mão; compasso "1 de 24" do caminho. |
+| A8 cores do destaque | resolvido em parte | 32, 37 | Com a etapa rodando a primeira nota é azul e a outra mão cinza (32); nada acende na contagem (37). **Parada**, a primeira nota ainda acende verde (11, 19, 30). |
+| A9 contagem cobre os compassos | resolvido | 37 | Número na metade direita, a 50% de opacidade. |
+| A10 sobra tela, falta música | resolvido em parte | 11 | Imersivo (sem a faixa do topo). Centralizar e dois sistemas ficaram de fora por decisão: um sistema por página e vazio embaixo. |
+| A11 modelo de modos | resolvido | 14, 40 | Seletor único de quatro modos; gaveta da trilha só com o que vale. |
+| B1 "Faltou 80%" | resolvido | 39 | "Precisa de 90% para passar". |
+| B2 compassos com erro só em números | resolvido em parte | 39, 42 | O resumo diz "Erros nos compassos 1 a 5 — marcados na partitura"; as marcas ficam na pauta (pelos testes), mas nas fotos a página está em virada e borrada, então não se veem. |
+| B3 resumo em milissegundos | resolvido | 42 | Frase do tempo, "Deram mais trabalho: compassos…", números atrás de "Detalhes". |
+| B4 trilha não mostra o todo | resolvido | 31 | Barra e "12 de 75 etapas · 1 pulada" no topo da gaveta. |
+| C1 linha do hino corta o progresso | resolvido em parte | 27 | O progresso saiu para uma coluna fixa. A segunda linha ainda corta (ver "O que apareceu"). |
+| C2 bolinha e número sem legenda | resolvido | 27 | Bolinha e número saíram; "melhor 78%" escrito. |
+| C3 seta da ordenação | resolvido | 02, 27 | "↑" crescente, "↓" decrescente. |
+| C4 busca não explica | resolvido | pelos testes | Título primeiro; "letra: …" / "original: …"; sem resultado com "Limpar a busca". Fotos 03/04 não examinadas. |
+| C5 conectar o teclado | resolvido | 06, 27 | Orientação, "Procurar de novo", botão "Conectar" / "Teclado ✓". |
+| C6 primeiro uso | resolvido | 02 | Cartão "COMECE POR AQUI"; "nível 1 de 5". |
+| D1 vocabulário | resolvido | 06, pelos testes | Tabela D1 aplicada. Fotos 07, 43, 44 não examinadas. |
+| E1 dois visuais | resolvido | 06, 14, 19, 34 | Diálogo branco, botão e interruptor azuis, no azul do app. |
+| E2 quatro superfícies | resolvido | 19, 31, 39, 42 | Painel lateral comum; diálogos só para respostas. |
+| E3 estado só por cor | resolvido em parte | 02, 27, 11 | Teclado ("Conectar" / "Teclado ✓"), progresso (barra + número) e legenda com palavra; a nota perdida ainda não ganha o "×". |
+
+### O que apareceu de novo nas fotos
+
+- **A linha do hino corta o "melhor"** (27): com nível "de 5", há "quando" e
+  "melhor" a segunda linha não cabe em 360 dp; o compositor some ("Joh…") e
+  ainda assim "melhor …" fica cortado. U13 e U16 disputam a mesma linha.
+- **Primeira nota verde com a etapa parada** (11, 19, 30): o seek ao armar a
+  etapa (U02) acende com a cor da reprodução; a de "esperada" só vale ao
+  começar.
+- **O traço azul do trecho** (11, 19) fica em alturas diferentes: segue o
+  retângulo de cada compasso, não uma linha só.
+- **Borrão da virada atrás dos painéis** (32, 39, 42): com o resumo ao lado a
+  pauta é o ponto, e ela está desfocada.
+- **Contador "600 hi…"** (02, 27): o botão do teclado, agora com palavra,
+  tirou espaço do "600 hinos".
+- **Legenda de cores aperta a gaveta da trilha** (31): a lista de etapas fica
+  com ~3 linhas à vista.
+- Bug achado pela conferência (já corrigido): a barra de progresso aparecia
+  sem preenchimento (fatias com altura 0).

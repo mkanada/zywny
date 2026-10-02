@@ -147,7 +147,7 @@ Os achados baixos do estudo (A12, A13, B5, D2–D4, E4) não têm passo.
 | [U16](U16-primeiro-uso.md) | Primeiro uso: cartão de começo | U13, U15 | — | concluído (critério 5, no emulador, aguardando verificação) |
 | [U17](U17-vocabulario.md) | Vocabulário das configurações | U15 | — | concluído (critério 4, no emulador, aguardando verificação) |
 | [U18](U18-um-visual-so.md) | Um visual só: tema e superfícies | U12 | — | concluído (critérios 5–6, no emulador e no aparelho, aguardando verificação) |
-| [U19](U19-refazer-as-telas.md) | Refazer as telas e conferir os achados | todos os U | — | pendente |
+| [U19](U19-refazer-as-telas.md) | Refazer as telas e conferir os achados | todos os U | — | concluído (fotos refeitas; achados conferidos na seção "Depois da fase U" do estudo) |
 
 Ordem sugerida: **U01 → U02 → U03 e U04 → U05** (os achados altos que não
 dependem de teste com aluno) → U08 e U07 → U06 → U09, U10, U11 → U12 → a

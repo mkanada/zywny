@@ -154,6 +154,37 @@ void main() {
     expect(bar.done, bar.total);
   });
 
+  testWidgets('a barra pinta as fatias com altura e proporção certas', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: TrailProgressBar(
+              done: 20,
+              skipped: 5,
+              total: 100,
+              width: 200,
+            ),
+          ),
+        ),
+      ),
+    );
+    final boxes = find.descendant(
+      of: find.byType(TrailProgressBar),
+      matching: find.byType(ColoredBox),
+    );
+    final accent = boxes
+        .evaluate()
+        .map((e) => e.widget as ColoredBox)
+        .where((w) => w.color == kAccent);
+    expect(accent, hasLength(1));
+    final size = tester.getSize(find.byWidget(accent.single));
+    expect(size.height, 4); // antes: 0 — a barra aparecia vazia
+    expect(size.width, closeTo(200 * 15 / 100, 0.5));
+  });
+
   testWidgets('gaveta da trilha: "13 de 75 etapas" e a barra', (tester) async {
     // Os testes do J09 já cobrem a gaveta com plano; aqui só o cabeçalho.
     await tester.pumpWidget(

@@ -610,6 +610,12 @@ void main() {
     _popRoute(tester);
     await _wait(tester);
 
+    // Treino livre (os modos de antes da trilha, num menu secundário). Na
+    // trilha a gaveta não oferece "Repetir um trecho" (U11): vem depois.
+    await _openOptions(tester);
+    await _optionsItem(tester, 'Treino livre');
+    await _wait(tester);
+
     await _openOptions(tester);
     await _optionsItem(tester, 'Repetir um trecho');
     await _until(
@@ -619,11 +625,6 @@ void main() {
     );
     await _shot(tester, '20-repetir-um-trecho');
     _popRoute(tester);
-    await _wait(tester);
-
-    // Treino livre (os modos de antes da trilha, num menu secundário).
-    await _openOptions(tester);
-    await _optionsItem(tester, 'Treino livre');
     await _wait(tester);
     await _shot(tester, '21-treino-livre');
 
@@ -676,7 +677,7 @@ void main() {
     await _tap(tester, find.byTooltip('Começar etapa'));
     await _until(
       tester,
-      () => _has(find.byType(PhoneCountersPill)),
+      () => _has(find.byType(PhoneScorePill)),
       what: 'etapa rodando',
     );
     await _wait(tester, 800);

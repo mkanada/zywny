@@ -65,3 +65,21 @@ resolvido em parte, ou ainda aberto.
 3. Nenhum achado **alto** está "aberto" sem uma linha explicando por quê
    (decisão sua pendente, ou passo não executado).
 4. `just analyze` e `just test` limpos.
+
+## Notas de execução
+
+- `just telas` rodou três vezes. A 1ª falhou nas duas passagens por causa do
+  próprio roteiro (a gaveta da trilha não oferece mais "Repetir um trecho",
+  U11; o selo virou `PhoneScorePill`, U05): o roteiro foi corrigido. A 2ª
+  passou e a conferência das fotos achou um defeito do U13 — a barra de
+  progresso aparecia vazia (fatias com altura 0) —, corrigido com teste; a 3ª
+  refez as fotos já com a barra certa.
+- Foto nova: `12-ouvindo-o-trecho`; a antiga `12-trilha-pede-teclado` foi
+  apagada. Nomes `08-…mudar-o-padrao` e `44-…calibrar-latencia` guardam o
+  rótulo antigo (não renumerei nem renomeei).
+- Conferência: seção "Depois da fase U" em `docs/ux/estudo-ux-celular.md`,
+  com os 25 achados e a lista do que apareceu de novo. Só examinei com os olhos
+  as fotos 02, 06, 11, 14, 19, 27, 30, 31, 32, 37, 39 e 42; as demais ficam
+  como "pelos testes" na tabela.
+- Achados altos ainda abertos: **A6** (decisão D-VIRADA = como está) e, em parte,
+  A8 (primeira nota verde com a etapa parada) e A4 (traço do trecho irregular).

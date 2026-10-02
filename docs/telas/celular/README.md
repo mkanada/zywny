@@ -17,7 +17,7 @@ O roteiro é `integration_test/telas_celular_test.dart`; quem grava os PNGs é
 O que as fotos **não** mostram:
 
 - a barra de status e a de navegação do Android (a foto é só da área do
-  Flutter — por isso a faixa em branco no topo das telas em paisagem);
+  Flutter; desde o U10 a partitura é imersiva, sem a faixa branca do topo);
 - o teclado virtual: nas telas de busca, o espaço vazio embaixo da lista é
   onde ele estaria;
 - um teclado MIDI de verdade: o da 2ª passagem é falso (toca as notas que a
@@ -34,14 +34,14 @@ O que as fotos **não** mostram:
 | `05-biblioteca-por-dificuldade` | Ordenada por dificuldade |
 | `06-teclado-midi-nenhum` | Seletor de teclado MIDI, vazio |
 | `07-configuracoes` | Configurações gerais (tela cheia) |
-| `08-configuracoes-mudar-o-padrao` | Confirmação ao mudar os compassos por trecho |
+| `08-configuracoes-mudar-o-padrao` | Confirmação "Mudar o tamanho dos trechos?" (o nome do arquivo guarda o rótulo antigo) |
 | `09-seletor-de-cor` | Seletor de cor |
 | `10-hino-abrindo` | Partitura sendo gravada |
-| `11-trilha-sem-teclado` | Partitura com a faixa da trilha |
-| `12-trilha-pede-teclado` | Play na trilha sem teclado conectado |
+| `11-trilha-sem-teclado` | Partitura na trilha: etapa na barra do título, aviso de teclado, alto-falante, trecho marcado |
+| `12-ouvindo-o-trecho` | Play na trilha sem teclado: ouve o trecho |
 | `13-gaveta-da-trilha` | Gaveta da trilha, nada feito |
 | `14`–`16-opcoes-de-estudo…` | Gaveta de opções (começo, meio e fim) |
-| `17-layout-do-hino` | Painel "Layout deste hino" |
+| `17-layout-do-hino` | Painel "Ajustes da partitura" |
 | `18-configuracoes-na-partitura` | Configurações gerais sobre a partitura |
 | `19-ir-para-compasso` | Ir para um compasso |
 | `20-repetir-um-trecho` | Repetir um trecho (loop) |
@@ -63,7 +63,7 @@ O que as fotos **não** mostram:
 | `31-gaveta-da-trilha-com-progresso` | Gaveta da trilha com um trecho feito |
 | `32-etapa-espera` | Etapa do modo espera, começando |
 | `33-etapa-nota-errada` | Etapa com uma tecla errada (nota fantasma) |
-| `34-resumo-da-etapa` | Resumo de etapa aprovada |
+| `34-resumo-da-etapa` | Resumo de etapa aprovada (painel lateral) |
 | `35-proxima-etapa` | Etapa seguinte selecionada |
 | `36-gaveta-etapas-concluidas` | Gaveta com as etapas do trecho concluído |
 | `37-etapa-contagem` | Contagem de uma etapa com tempo |
@@ -73,6 +73,14 @@ O que as fotos **não** mostram:
 | `41-treino-livre-tempo-real` | Treino livre em tempo real |
 | `42-resumo-do-treino` | Resumo de precisão do treino livre |
 | `43-configuracoes-com-teclado` | Configurações gerais com o teclado ligado |
-| `44-calibrar-latencia` | Calibrar a latência |
-| `45-monitor-midi` | Painel do monitor MIDI |
+| `44-calibrar-latencia` | "Ajustar o atraso" (o nome do arquivo guarda o rótulo antigo) |
+| `45-monitor-midi` | Painel "Teclas que chegam" |
 | `46-biblioteca-depois-do-estudo` | Biblioteca ao voltar do estudo |
+
+## O que mudou na fase U
+
+Fotos refeitas no fim da fase U (passos U01–U18). Mudaram de nome: `12` (era
+`12-trilha-pede-teclado`). Os resumos (19, 20, 34, 39, 42) e as gavetas (13–16,
+31) agora são painéis à direita; o seletor de teclado (06, 29) e as
+configurações (07, 43) usam o vocabulário e o tema novos. A conferência achado a
+achado está em `docs/ux/estudo-ux-celular.md`, seção "Depois da fase U".

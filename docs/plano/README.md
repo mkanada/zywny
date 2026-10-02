@@ -312,7 +312,7 @@ zywny
 | [U16](U16-primeiro-uso.md) | UX: primeiro uso — cartão de começo | U13, U15 | — | concluído (critério 5, no emulador, aguardando verificação) |
 | [U17](U17-vocabulario.md) | UX: vocabulário das configurações | U15 | — | concluído (critério 4, no emulador, aguardando verificação) |
 | [U18](U18-um-visual-so.md) | UX: um visual só — tema e superfícies | U12 | — | concluído (critérios 5–6, no emulador e no aparelho, aguardando verificação) |
-| [U19](U19-refazer-as-telas.md) | UX: refazer as telas e conferir os achados | todos os U | — | pendente |
+| [U19](U19-refazer-as-telas.md) | UX: refazer as telas e conferir os achados | todos os U | — | concluído (fotos refeitas; achados conferidos na seção "Depois da fase U" do estudo) |
 
 Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
 Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em
