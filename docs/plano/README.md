@@ -297,7 +297,7 @@ zywny
 | [U01](U01-faixa-fora-da-pauta.md) | UX: a faixa da trilha sai de cima da pauta | — | D-FAIXA (a) | concluído (critérios 3–5, no emulador, aguardando verificação) |
 | [U02](U02-a-pauta-mostra-o-trecho.md) | UX: a pauta mostra o trecho da etapa | — | — | concluído (critérios 2–5, no emulador, aguardando verificação) |
 | [U03](U03-ouvir-o-trecho.md) | UX: ouvir o trecho, e o que fazer sem teclado | U01 | D-OUVIR | concluído (critérios 3–5, no emulador e no aparelho, aguardando verificação) |
-| [U04](U04-som-ligado-e-indicador.md) | UX: som ligado por padrão e indicador | U01 | D-SOM | pendente |
+| [U04](U04-som-ligado-e-indicador.md) | UX: som ligado por padrão e indicador | U01 | D-SOM | concluído (critérios 3–5, no emulador e no aparelho, aguardando verificação) |
 | [U05](U05-selo-na-regua-do-resultado.md) | UX: o selo e o resumo na mesma régua | U01 | D-SELO | pendente |
 | [U06](U06-virada-legivel.md) | UX: virada de página que deixa ler adiante | — | D-VIRADA | pendente |
 | [U07](U07-barra-lateral-da-trilha.md) | UX: barra lateral com os valores da etapa | U03 | — | pendente |

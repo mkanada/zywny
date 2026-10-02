@@ -132,7 +132,7 @@ Os achados baixos do estudo (A12, A13, B5, D2–D4, E4) não têm passo.
 | [U01](U01-faixa-fora-da-pauta.md) | A faixa da trilha sai de cima da pauta | — | D-FAIXA | concluído (critérios 3–5, no emulador, aguardando verificação) |
 | [U02](U02-a-pauta-mostra-o-trecho.md) | A pauta mostra o trecho da etapa | — | — | concluído (critérios 2–5, no emulador, aguardando verificação) |
 | [U03](U03-ouvir-o-trecho.md) | Ouvir o trecho, e o que fazer sem teclado | U01 | D-OUVIR | concluído (critérios 3–5, no emulador e no aparelho, aguardando verificação) |
-| [U04](U04-som-ligado-e-indicador.md) | Som ligado por padrão e indicador | U01 | D-SOM | pendente |
+| [U04](U04-som-ligado-e-indicador.md) | Som ligado por padrão e indicador | U01 | D-SOM | concluído (critérios 3–5, no emulador e no aparelho, aguardando verificação) |
 | [U05](U05-selo-na-regua-do-resultado.md) | O selo e o resumo na mesma régua | U01 | D-SELO | pendente |
 | [U06](U06-virada-legivel.md) | Virada de página que deixa ler adiante | — | D-VIRADA | pendente |
 | [U07](U07-barra-lateral-da-trilha.md) | Barra lateral com os valores da etapa | U03 | — | pendente |

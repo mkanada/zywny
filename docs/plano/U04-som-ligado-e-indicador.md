@@ -84,3 +84,19 @@ vista na tela da partitura e muda com um toque. Achado A2; sugestão A2.
 5. **(manual)** Saída = Teclado MIDI, sem teclado: o ícone explica e leva
    ao seletor.
 6. `just analyze` e `just test` limpos.
+
+## Notas de execução
+
+- D-SOM decidida pelo usuário: nasce ligado, respeitando quem gravou
+  desligado (`AppSettings._soundOn = true`; `load` só troca se há chave).
+- `PhoneSoundButton` em `lib/ui/phone_chrome.dart`; `_phoneSoundButton()`
+  em `lib/main.dart`, o primeiro item de `trailing` da barra do título.
+- Dois testes existentes assumiam o padrão desligado e foram ajustados:
+  `first.soundOn` (agora `isTrue`) e o do painel da biblioteca, em que o
+  toque em "Som do app" agora **desliga**.
+- A suíte completa falhou uma vez em `trail_jumps_test.dart` (fixtures,
+  critério 4 parcial) e passou isolado e numa segunda rodada: lentidão por
+  carga, sem relação com este passo.
+- Critérios 1, 2 e 6 passam. 3–5 (roteiro das telas, manuais com som) não
+  foram rodados. Ligar o som por padrão faz `_restoreSound` abrir o motor ao
+  entrar no hino; o tempo disso no aparelho não foi medido.

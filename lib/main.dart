@@ -2109,6 +2109,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       onBack: _backToLibrary,
       center: _trailChip(),
       trailing: [
+        _phoneSoundButton(),
         if (_trailMode)
           ValueListenableBuilder(
             valueListenable: _midiDeviceManager.connected,
@@ -2135,6 +2136,33 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       ],
     );
   }
+
+  /// Alto-falante da barra do título (U04): mostra o som de agora; o toque
+  /// muda também a preferência. Saída no teclado MIDI sem teclado: explica e
+  /// leva ao seletor. Desabilitado com o treino rodando (desligar o som o
+  /// encerraria).
+  Widget _phoneSoundButton() => ValueListenableBuilder(
+    valueListenable: _midiDeviceManager.connected,
+    builder: (context, device, _) {
+      final noKeyboard = _output == SoundOutput.midiKeyboard && device == null;
+      if (noKeyboard) {
+        return PhoneSoundButton(
+          on: false,
+          tooltip: 'Som no teclado: nenhum conectado',
+          onPressed: () =>
+              unawaited(showMidiDevicePicker(context, _midiDeviceManager)),
+        );
+      }
+      return PhoneSoundButton(
+        on: _soundOn,
+        loading: _loadingSoundFont,
+        tooltip: _soundOn ? 'Som ligado' : 'Som desligado',
+        onPressed: _practice != null
+            ? null
+            : () => unawaited(_userToggleSound()),
+      );
+    },
+  );
 
   /// A trilha na barra do título do celular (U01): no lugar da faixa, que
   /// cobria o topo da pauta. No treino livre com trilha, "Treino livre" e um

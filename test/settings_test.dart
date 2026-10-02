@@ -59,7 +59,7 @@ void main() {
       final first = AppSettings();
       await first.load();
       expect(first.output, SoundOutput.appSynth);
-      expect(first.soundOn, isFalse);
+      expect(first.soundOn, isTrue); // padrão de instalação nova (U04)
 
       first
         ..output = SoundOutput.midiKeyboard
@@ -99,6 +99,13 @@ void main() {
       expect(settings.output, SoundOutput.midiKeyboard);
       expect(settings.practiceMode, PracticeMode.wait);
       expect(settings.haloWidth, 3.0);
+    });
+
+    test('quem gravou o som desligado continua desligado (U04)', () async {
+      await SharedPreferencesAsync().setBool('sound_on', false);
+      final settings = AppSettings();
+      await settings.load();
+      expect(settings.soundOn, isFalse);
     });
 
     test('avisa quem escuta só quando o valor muda', () {
@@ -337,7 +344,8 @@ void main() {
 
       await open('Primeiro');
       // O hino recebe as mesmas configurações gerais que a biblioteca editou.
-      expect(opened!.appSettings.soundOn, isTrue);
+      // (O som nasce ligado, U04: o toque em "Som do app" o desligou.)
+      expect(opened!.appSettings.soundOn, isFalse);
       expect(opened!.hymnSettings.isDefault, isTrue);
       opened!.onHymnSettingsChanged(
         const HymnSettings(layout: {'unit': 7.0}, speed: 0.6),
