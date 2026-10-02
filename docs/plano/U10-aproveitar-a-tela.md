@@ -102,3 +102,41 @@ sugestão A10.
    `score_bridge`).
 5. Tabela da parte 3 nas notas de execução, com a recomendação.
 6. `just analyze` e `just test` limpos; o roteiro das telas passa.
+
+## Notas de execução
+
+- **Parte 1 (imersivo):** feita. `SystemUiMode.immersiveSticky` no
+  `initState` da tela da partitura (só celular), `edgeToEdge` no `dispose`
+  e em `_lockPortrait` da biblioteca. O critério 2 (um `_renderAndShow` só
+  no log) e a foto sem a faixa branca **não foram conferidos** no emulador.
+- **Parte 3 (medição):** `test/layout_phone_manual_test.dart`
+  (`LAYOUT_PHONE=1 flutter test test/layout_phone_manual_test.dart`; com
+  `ADJUST=1` repete com `adjustPageHeight`). Hinos 1, 5, 100, 300 e 457;
+  pentagrama em dp = 8 × `StaffGeometry.unit` × `widthPx/viewBox.width` ÷ dpr
+  (2,625):
+
+  | página | unit | compassos/pág (mín) | compassos/pág (média) | pentagrama (dp) |
+  | --- | --- | --- | --- | --- |
+  | 2054×912 | 12 | 1 | 4,2 | 36,6 |
+  | 2054×912 | 11 | 3 | 4,7 | 33,5 |
+  | 2054×912 | 10 | 1 | 4,7 | 30,5 |
+  | 2054×912 | 9 | 1 | 5,1 | 27,4 |
+  | 2054×912 | 8 | 1 | 5,5 | 24,4 |
+  | 1775×780 | 12 | 2 | 3,8 | 36,6 |
+  | 1775×780 | 11 | 2 | 4,1 | 33,5 |
+  | 1775×780 | 10 | 1 | 4,1 | 30,5 |
+  | 1775×780 | 9 | 1 | 4,5 | 27,4 |
+  | 1775×780 | 8 | 1 | 4,7 | 24,4 |
+
+  Todo hino fica com **um** sistema por página em todos os `unit` medidos;
+  só uma página do hino 457 (unit 8) teve dois. Um sistema ocupa ~60 px por
+  unidade de `unit`: dois sistemas em 912 px pedem `unit` ≈ 6 (pentagrama
+  ~18 dp).
+- **D-SISTEMAS decidida pelo usuário: não.** `kPhoneUnit` continua 12.
+- **Parte 2 (centralizar): sem mudança, por decisão do usuário.** Com
+  `adjustPageHeight` a paginação não muda (mesmas páginas e compassos por
+  página), mas as páginas saem com alturas diferentes (hino 1, unit 12:
+  701–826 de 912 px) e o sistema subiria e desceria até ~24 dp a cada
+  virada. `ScenePage.contentHeight` não serve para um deslocamento fixo: sem
+  o ajuste ele vale a altura da página. A alternativa registrada: deslocar
+  pela altura do maior sistema do hino (medir o `bbox` do nó `system`).

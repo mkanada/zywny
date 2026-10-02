@@ -134,6 +134,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         DeviceOrientation.portraitUp,
       ]),
     );
+    // A biblioteca mostra a barra de status (a partitura a esconde, U10).
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
   }
 
   Future<void> _open(Hymn hymn) async {

@@ -407,6 +407,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           DeviceOrientation.landscapeRight,
         ]),
       );
+      // Modo imersivo (U10): a barra de status sai e a página é gravada,
+      // desde a primeira vez, para a caixa inteira (pedido aqui para não
+      // mudar a caixa e regravar o hino depois).
+      unawaited(
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky),
+      );
     }
   }
 
@@ -515,6 +521,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   @override
   void dispose() {
+    if (_isPhone) {
+      unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+    }
     _listenTimer?.cancel();
     _countInPlayTimer?.cancel();
     if (_playing) unawaited(WakelockPlus.disable());
