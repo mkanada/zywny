@@ -885,15 +885,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       );
     }
     if (_trail?.running ?? false) return null;
-    return const IgnorePointer(
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: SizedBox(
-          height: 3,
-          width: double.infinity,
-          child: ColoredBox(color: kAccent),
-        ),
-      ),
+    // Compassos do trecho: fundo azul leve, sem barra na base.
+    return IgnorePointer(
+      child: ColoredBox(color: kAccent.withValues(alpha: 0.10)),
     );
   }
 
