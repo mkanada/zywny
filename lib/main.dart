@@ -834,10 +834,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       passOf: (i) => player.measures[i].pass,
       range: (startMs: stage.startMs, endMs: stage.endMs),
       rangeJumps: gaps,
-      onRangeDone: () {
+      // No modo espera o aviso chega de dentro da notificação do passo
+      // (`WaitModeSession.current`), e encerrar a etapa descarta esse mesmo
+      // notificador: descartá-lo ali estoura (asserção no debug, RangeError
+      // fora dele). O encerramento espera a notificação acabar.
+      onRangeDone: () => scheduleMicrotask(() {
         final current = _practice;
         if (current != null) _onTrailStageDone(current, stage);
-      },
+      }),
       onRangeJump: (ms) =>
           player.seek(Duration(microseconds: (ms * 1000).round())),
       onWaitTarget: (ms) => player.waitTarget = ms,
