@@ -134,7 +134,7 @@ Os achados baixos do estudo (A12, A13, B5, D2–D4, E4) não têm passo.
 | [U03](U03-ouvir-o-trecho.md) | Ouvir o trecho, e o que fazer sem teclado | U01 | D-OUVIR | concluído (critérios 3–5, no emulador e no aparelho, aguardando verificação) |
 | [U04](U04-som-ligado-e-indicador.md) | Som ligado por padrão e indicador | U01 | D-SOM | concluído (critérios 3–5, no emulador e no aparelho, aguardando verificação) |
 | [U05](U05-selo-na-regua-do-resultado.md) | O selo e o resumo na mesma régua | U01 | D-SELO | concluído (critério 5, no emulador, aguardando verificação) |
-| [U06](U06-virada-legivel.md) | Virada de página que deixa ler adiante | — | D-VIRADA | pendente |
+| [U06](U06-virada-legivel.md) | Virada de página que deixa ler adiante | — | D-VIRADA | dispensado (D-VIRADA = c, como está) |
 | [U07](U07-barra-lateral-da-trilha.md) | Barra lateral com os valores da etapa | U03 | — | concluído (critérios 4–5, no emulador, aguardando verificação) |
 | [U08](U08-cores-do-destaque.md) | Cores do destaque: primeira nota, mão do app, legenda | — | — | concluído (sem o "×" da nota perdida, adiado; critérios 3–5, no emulador, aguardando verificação) |
 | [U09](U09-contagem-fora-do-primeiro-compasso.md) | A contagem sai de cima do primeiro compasso | — | D-CONTAGEM | pendente |

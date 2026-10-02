@@ -97,3 +97,9 @@ Achado A6; sugestão A6.
    de página seguidas lendo a página nova antes de ela "chegar". Anote se a
    primeira nota de cada página saiu no tempo.
 6. `cd score_bridge && flutter test`, `just analyze` e `just test` limpos.
+
+## Notas de execução
+
+- **Dispensado.** D-VIRADA decidida pelo usuário: **(c) como está**. Nenhum
+  código mudou; o desfoque da página revelada segue a regra antiga (A6
+  fica sem tratamento na fase U).
