@@ -840,6 +840,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       },
       onRangeJump: (ms) =>
           player.seek(Duration(microseconds: (ms * 1000).round())),
+      onWaitTarget: (ms) => player.waitTarget = ms,
       correctColor: _settings.highlightColor,
       wrongColor: _settings.practiceWrongColor,
     );
@@ -1218,6 +1219,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       passOf: (i) => player.measures[i].pass,
       onLoopRestart: (ms) =>
           player.seek(Duration(microseconds: (ms * 1000).round())),
+      onWaitTarget: (ms) => player.waitTarget = ms,
       correctColor: _settings.highlightColor,
       wrongColor: _settings.practiceWrongColor,
     );

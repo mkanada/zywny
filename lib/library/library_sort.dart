@@ -6,19 +6,24 @@ import 'hymn_progress.dart';
 
 /// Ordenações da biblioteca — as do artboard `CelularBiblioteca.dc.html`
 /// (recentes, pontuação, nome, compositor) mais o número do hinário, que é
-/// como um hino é procurado.
-enum SortKey { number, title, recent, score, composer }
+/// como um hino é procurado, e a dificuldade (do mais fácil ao mais
+/// difícil), para escolher o que estudar.
+enum SortKey { number, title, difficulty, recent, score, composer }
 
-/// Direção em que cada chave começa: número, nome e compositor crescentes;
-/// recentes e pontuação do maior (mais recente / melhor nota) para o menor.
+/// Direção em que cada chave começa: número, nome, compositor e dificuldade
+/// (do mais fácil) crescentes; recentes e pontuação do maior (mais recente / melhor nota) para o menor.
 bool defaultAscendingFor(SortKey key) => switch (key) {
-  SortKey.number || SortKey.title || SortKey.composer => true,
+  SortKey.number ||
+  SortKey.title ||
+  SortKey.composer ||
+  SortKey.difficulty => true,
   SortKey.recent || SortKey.score => false,
 };
 
 String labelFor(SortKey key) => switch (key) {
   SortKey.number => 'Número',
   SortKey.title => 'Nome',
+  SortKey.difficulty => 'Dificuldade',
   SortKey.recent => 'Recentes',
   SortKey.score => 'Pontuação',
   SortKey.composer => 'Compositor',
@@ -66,6 +71,11 @@ List<Hymn> sortedHymns(
       SortKey.number => sign * byNumber(a, b),
       SortKey.title => sign * a.titleKey.compareTo(b.titleKey),
       SortKey.composer => sign * a.composerKey.compareTo(b.composerKey),
+      SortKey.difficulty => _compareNullLast(
+        a.difficulty,
+        b.difficulty,
+        sort.ascending,
+      ),
       SortKey.recent => _compareNullLast(
         progress[a.number]?.lastOpened,
         progress[b.number]?.lastOpened,

@@ -502,6 +502,7 @@ class _HymnRow extends StatelessWidget {
     final started = trail.total > 0;
     final subtitle = [
       hymn.composer,
+      if (hymn.level case final level?) 'nível $level',
       if (progress?.lastOpened case final at?) whenStudied(at, now),
       if (started)
         '${trail.done}/${trail.total}'
@@ -561,11 +562,7 @@ class _HymnRow extends StatelessWidget {
                 padding: EdgeInsets.only(right: 7),
                 child: Tooltip(
                   message: 'Trilha concluída',
-                  child: Icon(
-                    Icons.check_circle,
-                    size: 16,
-                    color: kGoodColor,
-                  ),
+                  child: Icon(Icons.check_circle, size: 16, color: kGoodColor),
                 ),
               ),
             Container(

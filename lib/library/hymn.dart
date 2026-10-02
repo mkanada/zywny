@@ -15,6 +15,8 @@ class Hymn {
     required this.composer,
     this.lyricist,
     this.originalTitle,
+    this.level,
+    this.difficulty,
     required this.titleKey,
     required this.composerKey,
     required this.searchKey,
@@ -26,6 +28,8 @@ class Hymn {
     composer: json['c'] as String,
     lyricist: json['l'] as String?,
     originalTitle: json['o'] as String?,
+    level: json['nv'] as int?,
+    difficulty: (json['d'] as num?)?.toDouble(),
     titleKey: json['k'] as String,
     composerKey: json['ck'] as String,
     searchKey: json['q'] as String,
@@ -38,6 +42,12 @@ class Hymn {
   /// Autor da letra, só quando não é o próprio compositor.
   final String? lyricist;
   final String? originalTitle;
+
+  /// Nível de dificuldade, de 1 (mais fácil) a 5, e a nota contínua de onde
+  /// ele sai (`_dificuldade.csv` do Hymn_Grabber) — a nota é a chave de
+  /// ordem, o nível é o que se mostra. `null` num hino não classificado.
+  final int? level;
+  final double? difficulty;
 
   /// Chaves sem acento nem pontuação, prontas do índice: ordem por título,
   /// ordem por compositor e o texto onde a busca procura (número, títulos e

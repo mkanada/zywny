@@ -69,7 +69,8 @@ Os artefatos gerados pelos scripts não são versionados:
   porque o bundler de assets do Flutter não recursa em diretórios.
 
 - `assets/hinos/` — um `NNN.musicxml.gz` por hino e o `indice.json` (número,
-  título, autores) que a biblioteca lista, gerados a partir de
+  título, autores e dificuldade, esta de `musicxml/_dificuldade.csv`) que a
+  biblioteca lista, gerados a partir de
   `/home/mauricio/IdeaProjects/Hymn_Grabber` (`musicxml/` e
   `musicxml_special/`). Fora do git também porque as partituras têm direitos
   de terceiros. Sem eles o app compila, mas a biblioteca abre vazia.

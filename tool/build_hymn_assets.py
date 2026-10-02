@@ -6,7 +6,13 @@ Lê `musicxml/NNN.musicxml` e `musicxml_special/NNN.musicxml` (o especial
 vence se os dois existirem) e grava:
 
   assets/hinos/NNN.musicxml.gz   a partitura, gzip (61 MB viram ~2,5 MB)
-  assets/hinos/indice.json       número, título e autores de cada hino
+  assets/hinos/indice.json       número, título, autores e dificuldade de
+                                 cada hino
+
+A dificuldade vem de `musicxml/_dificuldade.csv` (o
+`scripts/classificar-dificuldade.py` de lá): o nível de 1 a 5 e a nota
+contínua, por onde a biblioteca ordena. Sem o arquivo, ou para um hino que
+não está nele, o índice sai sem esses campos.
 
 Não versionado (ver .gitignore): é derivado do Hymn_Grabber e as partituras
 têm direitos de terceiros. Rode de novo depois que o extrator mudar.
@@ -14,6 +20,7 @@ têm direitos de terceiros. Rode de novo depois que o extrator mudar.
   tool/build_hymn_assets.py [PASTA_DO_HYMN_GRABBER]
 """
 
+import csv
 import gzip
 import json
 import re
@@ -74,6 +81,19 @@ def read_header(path: Path) -> dict:
     return info
 
 
+def read_difficulty(src: Path) -> dict[int, tuple[int, float]]:
+    """número -> (nível 1–5, nota de dificuldade) de `_dificuldade.csv`."""
+    path = src / "musicxml" / "_dificuldade.csv"
+    if not path.exists():
+        print(f"AVISO: sem {path}; índice sem dificuldade", file=sys.stderr)
+        return {}
+    with open(path, encoding="utf-8", newline="") as f:
+        return {
+            int(row["hino"]): (int(row["nivel"]), float(row["dificuldade"]))
+            for row in csv.DictReader(f)
+        }
+
+
 def main() -> int:
     src = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SRC
     files: dict[int, Path] = {}
@@ -88,6 +108,7 @@ def main() -> int:
     for old in DST.glob("*.musicxml.gz"):
         old.unlink()
 
+    difficulty = read_difficulty(src)
     index = []
     total = 0
     for number, path in sorted(files.items()):
@@ -104,6 +125,12 @@ def main() -> int:
             # Letra só quando é de outra pessoa; título original se houver.
             **({"l": lyricist} if lyricist and lyricist != composer else {}),
             **({"o": original} if original else {}),
+            # Nível (1–5) e nota de dificuldade, quando classificado.
+            **(
+                {"nv": difficulty[number][0], "d": difficulty[number][1]}
+                if number in difficulty
+                else {}
+            ),
             "k": fold(title),
             "ck": fold(composer),
             "q": fold(f"{number} {title} {original} {composer} {lyricist}"),
@@ -123,7 +150,8 @@ def main() -> int:
         encoding="utf-8",
     )
     print(
-        f"Gerado {DST}: {len(index)} hinos, "
+        f"Gerado {DST}: {len(index)} hinos "
+        f"({sum('nv' in e for e in index)} com dificuldade), "
         f"{total / 1e6:.1f} MB compactados (de {src})"
     )
     return 0

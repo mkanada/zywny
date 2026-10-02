@@ -85,6 +85,53 @@ void main() {
   });
 
   group('ordenação', () {
+    test('dificuldade: do mais fácil ao mais difícil, pela nota (não pelo '
+        'nível); sem classificação vai para o fim nas duas direções', () {
+      Hymn h(int n, {int? level, double? difficulty}) => Hymn(
+        number: n,
+        title: 'Hino $n',
+        composer: '',
+        level: level,
+        difficulty: difficulty,
+        titleKey: 'hino $n',
+        composerKey: '',
+        searchKey: '$n',
+      );
+      final hymns = [
+        h(1, level: 3, difficulty: 40.5),
+        h(2),
+        h(3, level: 1, difficulty: 20),
+        h(4, level: 3, difficulty: 38.25),
+        h(5, level: 5, difficulty: 61),
+      ];
+      final progress = HymnProgressStore();
+      final easyFirst = const SortState().toggled(SortKey.difficulty);
+      expect(easyFirst.ascending, isTrue);
+      expect(_numbers(sortedHymns(hymns, easyFirst, progress)), [
+        3,
+        4,
+        1,
+        5,
+        2,
+      ]);
+      expect(
+        _numbers(
+          sortedHymns(hymns, easyFirst.toggled(SortKey.difficulty), progress),
+        ),
+        [5, 1, 4, 3, 2],
+      );
+    });
+
+    test('índice: nível e dificuldade são opcionais', () {
+      final base = {'n': 7, 't': 'T', 'c': 'C', 'k': 't', 'ck': 'c', 'q': '7'};
+      final plain = Hymn.fromJson(base);
+      expect(plain.level, isNull);
+      expect(plain.difficulty, isNull);
+      final rated = Hymn.fromJson({...base, 'nv': 2, 'd': 36});
+      expect(rated.level, 2);
+      expect(rated.difficulty, 36.0);
+    });
+
     test('número, nome e compositor', () {
       final progress = HymnProgressStore();
       expect(_numbers(sortedHymns(_hymns, const SortState(), progress)), [
@@ -301,14 +348,14 @@ void main() {
           loadCatalog: _loadCatalog,
           extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
           trailProgress: trail,
-          scoreBuilder: (context, o) =>
-              const Scaffold(body: Text('partitura')),
+          scoreBuilder: (context, o) => const Scaffold(body: Text('partitura')),
         ),
       );
     }
 
-    testWidgets('linha mostra feitas/total e puladas; sem trilha, como hoje',
-        (tester) async {
+    testWidgets('linha mostra feitas/total e puladas; sem trilha, como hoje', (
+      tester,
+    ) async {
       phonePortrait(tester);
       await tester.pumpWidget(await libraryWith(TrailProgressStore()));
       await tester.pump();
@@ -324,9 +371,13 @@ void main() {
       final trail = TrailProgressStore();
       await trail.save(
         12,
-        const TrailProgress(n: 5, total: 51, records: {
-          'final.100': StageRecord(state: StageState.aprovada, best: 95),
-        }),
+        const TrailProgress(
+          n: 5,
+          total: 51,
+          records: {
+            'final.100': StageRecord(state: StageState.aprovada, best: 95),
+          },
+        ),
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -420,9 +471,7 @@ void main() {
       // A primeira linha já sai do resumo, sem plano nenhum.
       expect(find.textContaining('12/51'), findsOneWidget);
       // A tela só lê resumos do store: nenhum plano entra aqui.
-      final source = File(
-        'lib/library/library_screen.dart',
-      ).readAsStringSync();
+      final source = File('lib/library/library_screen.dart').readAsStringSync();
       expect(source, isNot(contains('trail_plan')));
       expect(source, isNot(contains('TrailPlan')));
     });
