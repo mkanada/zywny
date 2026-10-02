@@ -538,7 +538,7 @@ void main() {
     await _tap(tester, find.byTooltip('Configurações gerais'));
     await _until(
       tester,
-      () => _has(find.text('Som do app')),
+      () => _has(find.text('o app toca a música')),
       what: 'configurações gerais',
     );
     await _shot(tester, '07-configuracoes');
@@ -546,7 +546,7 @@ void main() {
     await _tap(tester, find.byTooltip('Mais compassos por trecho'));
     await _shot(tester, '08-configuracoes-mudar-o-padrao');
     await _tap(tester, find.text('Cancelar'));
-    await _tap(tester, find.text('Nota destacada'));
+    await _tap(tester, find.text('Nota certa'));
     await _shot(tester, '09-seletor-de-cor');
     await _tap(tester, find.text('Cancelar'));
     await _tap(tester, find.byTooltip('Fechar'));
@@ -591,7 +591,7 @@ void main() {
     await _scrollOptions(tester, -600);
     await _shot(tester, '16-opcoes-de-estudo-fim');
 
-    await _optionsItem(tester, 'Layout deste hino (avançado)');
+    await _optionsItem(tester, 'Ajustes da partitura (avançado)');
     await _shot(tester, '17-layout-do-hino');
     await _tap(tester, find.byTooltip('Fechar'));
 
@@ -749,16 +749,16 @@ void main() {
     // O que só aparece nas configurações com o teclado ligado.
     await _openOptions(tester);
     await _optionsItem(tester, 'Configurações gerais');
-    await _settingsRow(tester, 'Latência do teclado');
+    await _settingsRow(tester, 'Atraso do teclado');
     await _shot(tester, '43-configuracoes-com-teclado');
-    await _tap(tester, find.text('Latência do teclado'));
+    await _tap(tester, find.text('Atraso do teclado'));
     await _shot(tester, '44-calibrar-latencia');
     await _tap(tester, find.text('Cancelar'));
 
     await _openOptions(tester);
     await _optionsItem(tester, 'Configurações gerais');
-    await _settingsRow(tester, 'Painel do monitor MIDI');
-    await _tap(tester, find.text('Painel do monitor MIDI'));
+    await _settingsRow(tester, 'Ver as teclas que chegam');
+    await _tap(tester, find.text('Ver as teclas que chegam'));
     for (final pitch in [60, 64, 67]) {
       _keyboard.noteOn(pitch);
     }

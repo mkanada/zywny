@@ -55,7 +55,7 @@ String _fittedPage(WidgetTester tester) =>
     tester.widget<Text>(find.textContaining(' mm)')).data!;
 
 Future<void> _openPanel(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('Layout deste hino'));
+  await tester.tap(find.byTooltip('Ajustes da partitura'));
   await tester.pump();
 }
 
@@ -91,8 +91,8 @@ void main() {
     expect(find.text('—'), findsOneWidget);
 
     // O painel de opções (que hospeda o zoom) começa fechado.
-    expect(find.byTooltip('Layout deste hino'), findsOneWidget);
-    expect(find.text('Layout deste hino'), findsNothing);
+    expect(find.byTooltip('Ajustes da partitura'), findsOneWidget);
+    expect(find.text('Ajustes da partitura'), findsNothing);
   });
 
   testWidgets('o painel mostra a página derivada da caixa da partitura', (
@@ -103,7 +103,7 @@ void main() {
     await tester.pump(); // primeiro layout: a caixa passa a ser conhecida
     await _openPanel(tester);
 
-    expect(find.text('Layout deste hino'), findsOneWidget);
+    expect(find.text('Ajustes da partitura'), findsOneWidget);
     expect(find.text('Página acompanha a área'), findsOneWidget);
     expect(_fittedPage(tester), matches(RegExp(r'^\d+×\d+ \(\d+×\d+ mm\)$')));
   });
@@ -150,7 +150,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Fechar'));
     await tester.pump();
-    expect(find.text('Layout deste hino'), findsNothing);
+    expect(find.text('Ajustes da partitura'), findsNothing);
     expect(_scoreBox(tester), box);
   });
 

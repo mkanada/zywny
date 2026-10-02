@@ -310,7 +310,7 @@ zywny
 | [U14](U14-ordenar-e-buscar.md) | UX: biblioteca — ordenar e buscar | — | D-ORDEM | concluído (critério 6, no emulador, aguardando verificação) |
 | [U15](U15-conectar-o-teclado.md) | UX: conectar o teclado — orientação e estado | — | — | concluído (critério 6, no emulador, aguardando verificação) |
 | [U16](U16-primeiro-uso.md) | UX: primeiro uso — cartão de começo | U13, U15 | — | concluído (critério 5, no emulador, aguardando verificação) |
-| [U17](U17-vocabulario.md) | UX: vocabulário das configurações | U15 | — | pendente |
+| [U17](U17-vocabulario.md) | UX: vocabulário das configurações | U15 | — | concluído (critério 4, no emulador, aguardando verificação) |
 | [U18](U18-um-visual-so.md) | UX: um visual só — tema e superfícies | U12 | — | pendente |
 | [U19](U19-refazer-as-telas.md) | UX: refazer as telas e conferir os achados | todos os U | — | pendente |
 

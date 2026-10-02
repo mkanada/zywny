@@ -88,3 +88,31 @@ Achado D1 (e o D2, de carona); sugestão D1.
 4. `just telas`: telas 07, 08, 18, 43 e 44 refeitas conferem; o roteiro
    passa.
 5. `just analyze` e `just test` limpos.
+
+## Notas de execução
+
+- A tabela D1 foi aplicada sem desvios de texto em
+  `general_settings_panel.dart`, `practice_tools.dart` (o diálogo agora é
+  "Ajustar o atraso"; o botão do seletor do teclado também), `trail_widgets.dart`
+  ("Compassos por trecho da trilha"), `main.dart` e `layout_panel.dart`.
+- `_RowAction` (em `general_settings_panel.dart`): "Trocar", "Conectar" /
+  "Trocar" e "Ajustar" em `kAccent`, peso 600. "O som sai por" ganhou rótulo
+  e os segmentos viraram "Celular" e "Teclado".
+- Além da tabela, para o critério 2 do passo (`grep` sem texto de tela):
+  o painel "Monitor MIDI" virou "Teclas que chegam"; no layout largo, o
+  tooltip "Monitor MIDI" virou "Ver as teclas que chegam", o do painel de
+  layout "Ajustes da partitura" e o do botão de instrumentos "Trocar o timbre
+  do teclado (usa o instrumento da partitura)" / "Voltar ao timbre do
+  teclado". "Metrônomo (com som do app)" virou "Metrônomo (com som)" (o
+  "som do app" deixou de existir). O subtítulo do timbre do piano diz só
+  "padrão" (sem o nome TimGM6mb), como a tabela.
+- A mensagem de erro "não consegui usar esse soundfont (…)" não mudou
+  (diagnóstico, fora de escopo). Os nomes das fotos do roteiro
+  (`08-configuracoes-mudar-o-padrao`, `44-calibrar-latencia`) também ficaram:
+  o U19 refaz o conjunto.
+- Testes e roteiro atualizados com os textos novos; o título "Som" aparece
+  duas vezes (cabeçalho e linha), então os testes identificam a linha pelo
+  subtítulo "o app toca a música".
+- O critério 3 foi testado numa janela de 360 dp com a fonte de quadrados
+  do teste (mais larga que a real): nenhum título passa de duas linhas.
+  Critérios 1, 2, 3 e 5 passam; o 4 (`just telas`) não foi rodado.

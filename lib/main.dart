@@ -2587,7 +2587,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         if (!trailActive) ...[
           const PhoneSectionLabel('TREINO'),
           PhoneToggleRow(
-            label: 'Metrônomo (com som do app)',
+            label: 'Metrônomo (com som)',
             value: _metronomeOn,
             onChanged: (_) => _toggleMetronome(),
           ),
@@ -2608,7 +2608,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         const PhoneSectionLabel('ESTE HINO'),
         if (widget.opened != null) ...[
           PhoneToggleRow(
-            label: 'Usar o padrão da trilha (${_settings.trailMeasures})',
+            label: 'Trechos de ${_settings.trailMeasures} compassos (padrão)',
             value: _trailHymnN == null,
             onChanged: (v) =>
                 unawaited(_setHymnTrailN(v ? null : _settings.trailMeasures)),
@@ -2632,7 +2632,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         ),
         PhoneActionRow(
           icon: Icons.tune,
-          label: 'Layout deste hino (avançado)',
+          label: 'Ajustes da partitura (avançado)',
           onTap: () => setState(() {
             _optionsOpen = false;
             _generalOpen = false;
@@ -2786,7 +2786,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 top: 8,
                 left: 8,
                 child: IconButton.filledTonal(
-                  tooltip: 'Monitor MIDI',
+                  tooltip: 'Ver as teclas que chegam',
                   onPressed: () => setState(() => _midiPanelOpen = true),
                   icon: const Icon(Icons.piano),
                 ),
@@ -2859,7 +2859,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     ),
                     const SizedBox(width: 8),
                     IconButton.filledTonal(
-                      tooltip: 'Layout deste hino',
+                      tooltip: 'Ajustes da partitura',
                       onPressed: () => setState(() => _panelOpen = true),
                       icon: const Icon(Icons.tune),
                     ),
@@ -3148,9 +3148,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     if (_output == SoundOutput.midiKeyboard)
                       IconButton.filledTonal(
                         tooltip: _useScoreInstruments
-                            ? 'Desligar instrumentos da partitura (usar o som '
-                                  'do teclado)'
-                            : 'Usar instrumentos da partitura (Program Change)',
+                            ? 'Voltar ao timbre do teclado'
+                            : 'Trocar o timbre do teclado (usa o instrumento '
+                                  'da partitura)',
                         onPressed: () =>
                             _setUseScoreInstruments(!_useScoreInstruments),
                         icon: Icon(

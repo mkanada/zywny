@@ -145,7 +145,7 @@ Os achados baixos do estudo (A12, A13, B5, D2–D4, E4) não têm passo.
 | [U14](U14-ordenar-e-buscar.md) | Biblioteca: ordenar e buscar | — | D-ORDEM | concluído (critério 6, no emulador, aguardando verificação) |
 | [U15](U15-conectar-o-teclado.md) | Conectar o teclado: orientação e estado | — | — | concluído (critério 6, no emulador, aguardando verificação) |
 | [U16](U16-primeiro-uso.md) | Primeiro uso: cartão de começo | U13, U15 | — | concluído (critério 5, no emulador, aguardando verificação) |
-| [U17](U17-vocabulario.md) | Vocabulário das configurações | U15 | — | pendente |
+| [U17](U17-vocabulario.md) | Vocabulário das configurações | U15 | — | concluído (critério 4, no emulador, aguardando verificação) |
 | [U18](U18-um-visual-so.md) | Um visual só: tema e superfícies | U12 | — | pendente |
 | [U19](U19-refazer-as-telas.md) | Refazer as telas e conferir os achados | todos os U | — | pendente |
 

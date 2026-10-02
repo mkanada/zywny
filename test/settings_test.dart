@@ -207,33 +207,33 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.byTooltip('Layout deste hino'));
+      await tester.tap(find.byTooltip('Ajustes da partitura'));
       await tester.pump();
-      expect(find.text('Layout deste hino'), findsOneWidget);
+      expect(find.text('Ajustes da partitura'), findsOneWidget);
       expect(find.text('Tamanho da notação (unit)'), findsOneWidget);
       // Nada do que é geral mora aqui.
-      expect(find.text('Nota destacada'), findsNothing);
-      expect(find.text('Som do app'), findsNothing);
+      expect(find.text('Nota certa'), findsNothing);
+      expect(find.text('o app toca a música'), findsNothing);
       await tester.tap(find.byTooltip('Fechar'));
       await tester.pump();
 
       await tester.tap(find.byTooltip('Configurações gerais'));
       await tester.pump();
       expect(find.text('Configurações gerais'), findsOneWidget);
-      expect(find.text('Som do app'), findsOneWidget);
+      expect(find.text('o app toca a música'), findsOneWidget);
       // Um nome só para o teclado, no cabeçalho e na linha (U15).
       expect(find.text('Teclado MIDI'), findsWidgets);
       expect(find.text('Dispositivo'), findsNothing);
       expect(find.text('Conectar'), findsOneWidget);
       await tester.scrollUntilVisible(
-        find.text('Nota destacada'),
+        find.text('Nota certa'),
         200,
         scrollable: find.descendant(
           of: find.byType(GeneralSettingsPanel),
           matching: find.byType(Scrollable),
         ),
       );
-      expect(find.text('Nota destacada'), findsOneWidget);
+      expect(find.text('Nota certa'), findsOneWidget);
       // E nada do que é de um hino.
       expect(find.text('Tamanho da notação (unit)'), findsNothing);
       expect(find.text('Página acompanha a área'), findsNothing);
@@ -248,10 +248,10 @@ void main() {
       await tester.tap(find.byTooltip('Configurações gerais'));
       await tester.pump();
 
-      await tester.tap(find.text('Teclado MIDI').first); // o segmento da saída
+      await tester.tap(find.text('Teclado').first); // o segmento da saída
       await tester.pump();
-      expect(find.text('Instrumentos da partitura'), findsOneWidget);
-      await tester.tap(find.text('Instrumentos da partitura'));
+      expect(find.text('Trocar o timbre do teclado'), findsOneWidget);
+      await tester.tap(find.text('Trocar o timbre do teclado'));
       await tester.pump();
 
       final reopened = AppSettings();
@@ -274,14 +274,14 @@ void main() {
 
       expect(find.text('ESTE HINO'), findsOneWidget);
       expect(find.text('TAMANHO DA NOTAÇÃO'), findsOneWidget);
-      expect(find.text('Layout deste hino (avançado)'), findsOneWidget);
+      expect(find.text('Ajustes da partitura (avançado)'), findsOneWidget);
       expect(find.text('GERAL'), findsOneWidget);
       // Som e MIDI saíram da gaveta de estudo: estão no painel geral.
-      expect(find.text('Som do app'), findsNothing);
+      expect(find.text('o app toca a música'), findsNothing);
       expect(find.text('SOM E TECLADO'), findsNothing);
 
       final metronome = find.descendant(
-        of: find.widgetWithText(PhoneToggleRow, 'Metrônomo (com som do app)'),
+        of: find.widgetWithText(PhoneToggleRow, 'Metrônomo (com som)'),
         matching: find.byType(Switch),
       );
       await tester.ensureVisible(metronome);
@@ -299,7 +299,7 @@ void main() {
       await tester.pump();
       expect(find.text('Opções de estudo'), findsNothing);
       expect(find.text('valem para todos os hinos'), findsOneWidget);
-      expect(find.text('Som do app'), findsOneWidget);
+      expect(find.text('o app toca a música'), findsOneWidget);
     });
 
     testWidgets('a biblioteca abre as configurações gerais e entrega a cada '
@@ -329,8 +329,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('valem para todos os hinos'), findsOneWidget);
       // Sem partitura aberta não há monitor nem calibração a oferecer.
-      expect(find.text('Monitor MIDI'), findsNothing);
-      await tester.tap(find.text('Som do app'));
+      expect(find.text('Ouvir o que eu toco pelo celular'), findsNothing);
+      await tester.tap(find.text('o app toca a música'));
       await tester.pump();
       await tester.tap(find.byTooltip('Fechar'));
       await tester.pumpAndSettle();
@@ -347,7 +347,7 @@ void main() {
 
       await open('Primeiro');
       // O hino recebe as mesmas configurações gerais que a biblioteca editou.
-      // (O som nasce ligado, U04: o toque em "Som do app" o desligou.)
+      // (O som nasce ligado, U04: o toque em "Som" o desligou.)
       expect(opened!.appSettings.soundOn, isFalse);
       expect(opened!.hymnSettings.isDefault, isTrue);
       opened!.onHymnSettingsChanged(

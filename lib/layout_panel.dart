@@ -72,7 +72,7 @@ class LayoutPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Layout deste hino',
+                        'Ajustes da partitura',
                         style: theme.textTheme.titleSmall,
                       ),
                       if (subtitle case final subtitle?)
