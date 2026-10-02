@@ -141,7 +141,6 @@ class _PracticeScreenState extends State<PracticeScreen> {
                       min: 1,
                       max: _totalMeasures.toDouble(),
                       divisions: _totalMeasures - 1,
-                      activeColor: kAccent,
                       onChanged: (v) => setSheetState(() => target = v.round()),
                     ),
                     FilledButton(

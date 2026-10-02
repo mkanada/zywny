@@ -2179,7 +2179,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     var target = path != null ? (path.numberOf(current) ?? 1) : current + 1;
     final result = await showModalBottomSheet<int>(
       context: context,
-      backgroundColor: kSurface,
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) => SafeArea(
           child: Padding(
@@ -2200,7 +2199,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   min: 1,
                   max: total.toDouble(),
                   divisions: total > 1 ? total - 1 : null,
-                  activeColor: kAccent,
                   onChanged: (v) => setSheetState(() => target = v.round()),
                 ),
                 FilledButton(

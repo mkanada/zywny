@@ -129,7 +129,6 @@ class OptionsPanel extends StatelessWidget {
                         value: tempoPercent.toDouble(),
                         min: 25,
                         max: 150,
-                        activeColor: kAccent,
                         onChanged: (v) => onTempoChanged(v.round()),
                       ),
                       const SizedBox(height: 4),
@@ -206,7 +205,7 @@ class _ToggleRow extends StatelessWidget {
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ),
-          Switch(value: value, onChanged: onChanged, activeTrackColor: kAccent),
+          Switch(value: value, onChanged: onChanged),
         ],
       ),
     );
