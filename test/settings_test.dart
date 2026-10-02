@@ -221,8 +221,9 @@ void main() {
       await tester.pump();
       expect(find.text('Configurações gerais'), findsOneWidget);
       expect(find.text('Som do app'), findsOneWidget);
-      // O cabeçalho e a linha se chamam igual: um nome só (U15).
-      expect(find.text('Teclado MIDI'), findsNWidgets(2));
+      // Um nome só para o teclado, no cabeçalho e na linha (U15).
+      expect(find.text('Teclado MIDI'), findsWidgets);
+      expect(find.text('Dispositivo'), findsNothing);
       expect(find.text('Conectar'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('Nota destacada'),
