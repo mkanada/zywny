@@ -111,6 +111,16 @@ native-audio-android:
 run-android *ARGS:
     flutter run -d android {{ARGS}}
 
+# Refotografa as telas do celular em docs/telas/celular/ — roda o app de
+# verdade num emulador ou aparelho Android já ligado (o mesmo preparo do
+# `build-apk`) e percorre o roteiro de integration_test/telas_celular_test.dart.
+# Em profile: sem a faixa "DEBUG" e com o desempenho de uma versão final.
+# Emulador sem janela e sem gravar nada no AVD:
+#   emulator -avd Medium_Phone_2 -read-only -no-window -no-audio
+telas *ARGS:
+    flutter drive --profile --driver=test_driver/telas_celular.dart \
+        --target=integration_test/telas_celular_test.dart -d android {{ARGS}}
+
 # Refaz .so e assets depois que o verovio_flutter_bridge mudar.
 rebuild-deps: native assets
 
