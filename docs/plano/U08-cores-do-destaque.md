@@ -99,3 +99,24 @@ parte do E3; sugestão A8.
 5. Fora do treino (tela 23, tocando) o destaque continua na cor da
    reprodução, nas duas mãos.
 6. `cd score_bridge && flutter test`, `just analyze` e `just test` limpos.
+
+## Notas de execução
+
+- **Primeira nota:** `_paintForPractice` (em `lib/main.dart`) põe a cor de
+  "esperada" **antes** do `seek`, na etapa e no treino livre.
+- **Mão do app:** `ScorePlayer.highlightColorOf` (score_bridge) recebe o id
+  **da cena** (o `-rend<N>` já resolvido por `sceneIdOf`, senão a segunda
+  passagem de um compasso repetido escaparia do cinza). `appHandNoteIds`
+  (`lib/practice/app_hand.dart`) devolve os ids das pautas do app com as
+  ligaduras; `kPracticeAppHandColor` é o cinza claro novo.
+- **Legenda:** `PracticeLegend` (`lib/ui/practice_legend.dart`) no rodapé da
+  gaveta da trilha (`TrailDrawer.footer`) e no resumo do treino livre
+  (`showPracticeSummary(legend:)`).
+- **"×" da nota perdida (item 4): não feito.** Exige overlay por id de
+  notas, com tempo de vida; o passo permitia adiar para o U12, e é lá que
+  ele entra.
+- O `score_player_test.dart` do bridge é pulado inteiro sem o corpus; o
+  teste novo (`score_bridge/test/highlight_color_of_test.dart`) usa só o
+  fixture do repositório e roda.
+- Critérios 1, 2 e 6 passam. 3–5 (`just telas`) não foram rodados; a
+  altura da legenda na gaveta em 411 dp não foi conferida.

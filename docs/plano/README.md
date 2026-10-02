@@ -301,7 +301,7 @@ zywny
 | [U05](U05-selo-na-regua-do-resultado.md) | UX: o selo e o resumo na mesma régua | U01 | D-SELO | concluído (critério 5, no emulador, aguardando verificação) |
 | [U06](U06-virada-legivel.md) | UX: virada de página que deixa ler adiante | — | D-VIRADA | pendente |
 | [U07](U07-barra-lateral-da-trilha.md) | UX: barra lateral com os valores da etapa | U03 | — | pendente |
-| [U08](U08-cores-do-destaque.md) | UX: cores do destaque — primeira nota, mão do app, legenda | — | — | pendente |
+| [U08](U08-cores-do-destaque.md) | UX: cores do destaque — primeira nota, mão do app, legenda | — | — | concluído (sem o "×" da nota perdida, adiado; critérios 3–5, no emulador, aguardando verificação) |
 | [U09](U09-contagem-fora-do-primeiro-compasso.md) | UX: a contagem sai de cima do primeiro compasso | — | D-CONTAGEM | pendente |
 | [U10](U10-aproveitar-a-tela.md) | UX: aproveitar a tela — imersivo, centro, dois sistemas | U01 | D-SISTEMAS | pendente |
 | [U11](U11-gaveta-de-opcoes.md) | UX: gaveta de opções — um seletor de modo, e o que vale na trilha | — | D-MODOS | pendente |

@@ -27,8 +27,10 @@ import 'midi/midi_monitor_panel.dart';
 import 'midi/midi_out_sound_engine.dart';
 import 'music/performance_track.dart';
 import 'native_paths.dart';
+import 'practice/app_hand.dart';
 import 'practice/count_in_overlay.dart';
 import 'practice/hand.dart';
+import 'practice/practice_colors.dart';
 import 'practice/practice_controller.dart';
 import 'practice/practice_report.dart';
 import 'practice/practice_tools.dart';
@@ -44,6 +46,7 @@ import 'trail/trail_progress.dart';
 import 'trail/trail_stage.dart' show TrailStage, kTrailMinMeasures;
 import 'trail/trail_widgets.dart';
 import 'ui/phone_chrome.dart';
+import 'ui/practice_legend.dart';
 import 'ui/theme.dart';
 import 'diag_log.dart';
 import 'verovio_render.dart';
@@ -879,6 +882,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       scheduler.setSpeed(stage.speed ?? _speed);
     }
     _controller.clearAll();
+    // O instante de partida já acende na cor de "esperada" (e a mão do app
+    // em cinza), não na da reprodução (U08).
+    _paintForPractice(player, track, stage.phase.hand);
     player.seek(Duration(microseconds: (stage.startMs * 1000).round()));
     await _loadInputLatency();
     if (!mounted) return;
@@ -1132,6 +1138,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (practice == null) return;
     _midiMonitor?.muted = false;
     _player?.highlightColor = _highlightColor;
+    _player?.highlightColorOf = null;
     practice.stop();
     practice.dispose();
     _practice = null;
@@ -1344,6 +1351,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _controller.clearAll();
     final range = _loopRangeMs;
     final fromMs = range?.startMs ?? 0;
+    _paintForPractice(player, track, _hand);
     player.seek(Duration(microseconds: (fromMs * 1000).round()));
     await _loadInputLatency();
     if (!mounted) return;
@@ -1379,6 +1387,21 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     });
   }
 
+  /// Cores do destaque durante o treino (U08), antes do `seek` que acende o
+  /// instante de partida: "esperada" para as notas do aluno e cinza para as
+  /// da mão que o app toca.
+  void _paintForPractice(
+    ScorePlayer player,
+    PerformanceTrack track,
+    Hand hand,
+  ) {
+    player.highlightColor = _settings.practicePendingColor;
+    final appNotes = appHandNoteIds(track, hand);
+    player.highlightColorOf = appNotes.isEmpty
+        ? null
+        : (id) => appNotes.contains(id) ? kPracticeAppHandColor : null;
+  }
+
   /// Encerra a sessão de treino: solta freio/filtro/destaques, descarta o
   /// controlador e — no tempo real, se algo foi avaliado — abre o resumo (T03).
   void _endPractice() {
@@ -1389,6 +1412,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // Devolve a cor de destaque configurada (o treino usa o azul de
     // "esperado agora", ver _togglePractice).
     _player?.highlightColor = _highlightColor;
+    _player?.highlightColorOf = null;
     if (practice.mode != PracticeMode.wait && practice.hasVerdicts) {
       practice.finish();
       report = practice.report;
@@ -1406,8 +1430,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
   }
 
-  Future<void> _showSummary(PracticeReport report) =>
-      showPracticeSummary(context, report, onRepeatWorst: _repeatWorst);
+  Future<void> _showSummary(PracticeReport report) => showPracticeSummary(
+    context,
+    report,
+    legend: _practiceLegend(),
+    onRepeatWorst: _repeatWorst,
+  );
 
   /// "Repetir os compassos com mais erros" (T03 + loop do T04): o intervalo
   /// que cobre os piores compassos se forem próximos (até 4 compassos);
@@ -2246,6 +2274,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
+  /// Legenda das cores do treino, com as do aluno (U08).
+  Widget _practiceLegend() => PracticeLegend(
+    pending: _settings.practicePendingColor,
+    correct: _settings.highlightColor,
+    offBeat: kPracticeOffBeatColor,
+    wrong: _settings.practiceWrongColor,
+    missed: kPracticeMissedColor,
+  );
+
   /// Gaveta da trilha (J06): lista de etapas, pular, refazer e reiniciar.
   /// Os retornos falam com o `_trail` corrente (não o da construção), pois
   /// reiniciar troca o controlador com a gaveta aberta.
@@ -2258,6 +2295,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       selectedId: trail.selected?.id,
       currentId: trail.progress.current(trail.plan)?.id,
       blocks: trail.blockViews,
+      footer: _practiceLegend(),
       onClose: () => setState(() => _trailDrawerOpen = false),
       onSelectStage: (id) {
         _trail?.select(id);
