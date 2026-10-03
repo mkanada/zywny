@@ -6,8 +6,8 @@ Lê `musicxml/NNN.musicxml` e `musicxml_special/NNN.musicxml` (o especial
 vence se os dois existirem) e grava:
 
   assets/hinos/NNN.musicxml.gz   a partitura, gzip (61 MB viram ~2,5 MB)
-  assets/hinos/indice.json       número, título, autores e dificuldade de
-                                 cada hino
+  assets/hinos/indice.json       número, título, autores, dificuldade e
+                                 armadura de cada hino
 
 A dificuldade vem de `musicxml/_dificuldade.csv` (o
 `scripts/classificar-dificuldade.py` de lá): o nível de 1 a 5 e a nota
@@ -81,6 +81,18 @@ def read_header(path: Path) -> dict:
     return info
 
 
+def read_fifths(path: Path) -> int | None:
+    """Armadura do início: `<fifths>` do primeiro compasso (positivo =
+    sustenidos, negativo = bemóis), ou None sem armadura."""
+    for _, el in ET.iterparse(path, events=("end",)):
+        if el.tag == "fifths":
+            try:
+                return int((el.text or "").strip())
+            except ValueError:
+                return None
+    return None
+
+
 def read_difficulty(src: Path) -> dict[int, tuple[int, float]]:
     """número -> (nível 1–5, nota de dificuldade) de `_dificuldade.csv`."""
     path = src / "musicxml" / "_dificuldade.csv"
@@ -118,6 +130,7 @@ def main() -> int:
         composer = creators.get("composer", "")
         lyricist = creators.get("lyricist", "")
         original = head["misc"].get("dcterms:alternative", "")
+        fifths = read_fifths(path)
         entry = {
             "n": number,
             "t": title,
@@ -131,6 +144,8 @@ def main() -> int:
                 if number in difficulty
                 else {}
             ),
+            # Armadura: sustenidos (+) ou bemóis (−) do início.
+            **({"a": fifths} if fifths is not None else {}),
             "k": fold(title),
             "ck": fold(composer),
             "q": fold(f"{number} {title} {original} {composer} {lyricist}"),

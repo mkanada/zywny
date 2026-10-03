@@ -4,17 +4,19 @@ import 'hymn.dart';
 import 'hymn_progress.dart';
 
 /// Ordenações da biblioteca — as do artboard `CelularBiblioteca.dc.html`
-/// (recentes, pontuação, nome, compositor) mais o número do hinário, que é
-/// como um hino é procurado, e a dificuldade (do mais fácil ao mais
-/// difícil), para escolher o que estudar.
-enum SortKey { number, title, difficulty, recent, score, composer }
+/// (recentes, pontuação, nome) mais o número do hinário, que é como um hino é
+/// procurado, a dificuldade (do mais fácil ao mais difícil), para escolher o
+/// que estudar, e os acidentes da armadura (de nenhum a muitos). O
+/// compositor saiu da lista e da ordenação a pedido de quem testa.
+enum SortKey { number, title, difficulty, accidentals, recent, score }
 
-/// Direção em que cada chave começa: número, nome, compositor e dificuldade
-/// (do mais fácil) crescentes; recentes e pontuação do maior (mais recente / melhor nota) para o menor.
+/// Direção em que cada chave começa: número, nome, acidentes e dificuldade
+/// (do mais fácil) crescentes; recentes e pontuação do maior (mais recente /
+/// melhor nota) para o menor.
 bool defaultAscendingFor(SortKey key) => switch (key) {
   SortKey.number ||
   SortKey.title ||
-  SortKey.composer ||
+  SortKey.accidentals ||
   SortKey.difficulty => true,
   SortKey.recent || SortKey.score => false,
 };
@@ -25,7 +27,7 @@ String labelFor(SortKey key) => switch (key) {
   SortKey.difficulty => 'Dificuldade',
   SortKey.recent => 'Recentes',
   SortKey.score => 'Pontuação',
-  SortKey.composer => 'Compositor',
+  SortKey.accidentals => 'Acidentes',
 };
 
 @immutable
@@ -70,7 +72,11 @@ List<Hymn> sortedHymns(
     final primary = switch (sort.key) {
       SortKey.number => sign * byNumber(a, b),
       SortKey.title => sign * a.titleKey.compareTo(b.titleKey),
-      SortKey.composer => sign * a.composerKey.compareTo(b.composerKey),
+      // Mesma quantidade: sustenidos antes de bemóis (pela armadura).
+      SortKey.accidentals =>
+        _compareNullLast(a.accidentals, b.accidentals, sort.ascending) != 0
+            ? _compareNullLast(a.accidentals, b.accidentals, sort.ascending)
+            : _compareNullLast(b.fifths, a.fifths, true),
       SortKey.difficulty => _compareNullLast(
         a.difficulty,
         b.difficulty,

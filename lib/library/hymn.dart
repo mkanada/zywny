@@ -17,6 +17,7 @@ class Hymn {
     this.originalTitle,
     this.level,
     this.difficulty,
+    this.fifths,
     required this.titleKey,
     required this.composerKey,
     required this.searchKey,
@@ -30,6 +31,7 @@ class Hymn {
     originalTitle: json['o'] as String?,
     level: json['nv'] as int?,
     difficulty: (json['d'] as num?)?.toDouble(),
+    fifths: json['a'] as int?,
     titleKey: json['k'] as String,
     composerKey: json['ck'] as String,
     searchKey: json['q'] as String,
@@ -48,6 +50,13 @@ class Hymn {
   /// ordem, o nível é o que se mostra. `null` num hino não classificado.
   final int? level;
   final double? difficulty;
+
+  /// Armadura do início: sustenidos (positivo) ou bemóis (negativo);
+  /// `null` num índice antigo, sem o campo.
+  final int? fifths;
+
+  /// Quantos acidentes a armadura tem (sem sinal), para ordenar.
+  int? get accidentals => fifths?.abs();
 
   /// Chaves sem acento nem pontuação, prontas do índice: ordem por título,
   /// ordem por compositor e o texto onde a busca procura (número, títulos e
@@ -111,4 +120,15 @@ String foldForSearch(String text) {
     out.write(i >= 0 ? to[i] : ch);
   }
   return out.toString().replaceAll(RegExp('[^a-z0-9]+'), ' ').trim();
+}
+
+/// Acidentes da armadura em português: "2 sustenidos", "1 bemol", "sem
+/// acidentes". `fifths` como no MusicXML (positivo = sustenidos).
+String keySignatureLabel(int fifths) {
+  final n = fifths.abs();
+  if (n == 0) return 'sem acidentes';
+  final what = fifths > 0
+      ? (n == 1 ? 'sustenido' : 'sustenidos')
+      : (n == 1 ? 'bemol' : 'bemóis');
+  return '$n $what';
 }

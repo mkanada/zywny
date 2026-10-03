@@ -25,11 +25,12 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Hymn _hymn(int n, String composer, {int? level}) => Hymn(
+Hymn _hymn(int n, String composer, {int? level, int? fifths}) => Hymn(
   number: n,
   title: 'Hino $n',
   composer: composer,
   level: level,
+  fifths: fifths,
   titleKey: 'hino $n',
   composerKey: foldForSearch(composer),
   searchKey: 'hino $n ${foldForSearch(composer)}',
@@ -87,12 +88,12 @@ void main() {
   }
 
   // Nos testes o texto sai na fonte de quadrados (Ahem, 1 em de largura por
-  // letra), muito mais larga que a real: por isso a janela (1000) é maior que os 360
-  // dp do critério — o que se confere é a regra (o compositor cede, o resto e
-  // o progresso ficam inteiros), não os pixels do aparelho.
-  testWidgets('o compositor cede; o resto da linha e o progresso aparecem '
-      'inteiros', (tester) async {
-    const longComposer = 'Compositor Com Um Nome Bem Longo X'; // 34 letras
+  // letra), muito mais larga que a real: por isso a janela (1000) é maior que
+  // os 360 dp do critério — o que se confere é a regra (armadura, resto e
+  // progresso inteiros; compositor fora da lista), não os pixels do aparelho.
+  testWidgets('a linha mostra a armadura, não o compositor; o resto e o '
+      'progresso aparecem inteiros', (tester) async {
+    const composer = 'Compositor Com Um Nome Bem Longo X';
     final store = HymnProgressStore();
     await store.markOpened(7);
     await store.recordScore(7, 78);
@@ -100,15 +101,15 @@ void main() {
     await trail.save(7, _progress(approved: 12, skipped: 1, total: 75));
     await pumpLibrary(
       tester,
-      hymns: [_hymn(7, longComposer, level: 3)],
+      hymns: [_hymn(7, composer, level: 3, fifths: -3)],
       progress: store,
       trail: trail,
       size: const Size(1000, 900),
     );
     expect(tester.takeException(), isNull);
-    // 13 feitas (12 aprovadas + 1 pulada) de 75, a pulada à parte.
     expect(find.text('13/75 · 1 pul.'), findsOneWidget);
-    // O resto da linha, inteiro: a largura é a do texto todo.
+    expect(find.text('3 bemóis'), findsOneWidget);
+    expect(find.textContaining('Compositor'), findsNothing);
     const restText = ' · nível 3 de 5 · hoje · melhor 78%';
     final rest = find.text(restText);
     expect(rest, findsOneWidget);
@@ -117,20 +118,13 @@ void main() {
       textDirection: TextDirection.ltr,
     )..layout()).width;
     expect(tester.getSize(rest).width, closeTo(natural, 1));
-    // O compositor é o que foi cortado.
-    final naturalComposer = (TextPainter(
-      text: const TextSpan(text: longComposer, style: TextStyle(fontSize: 13)),
-      textDirection: TextDirection.ltr,
-    )..layout()).width;
-    expect(
-      tester.getSize(find.text(longComposer)).width,
-      lessThan(naturalComposer),
-      reason: 'o compositor cedeu espaço',
-    );
-    expect(
-      tester.widget<Text>(find.text(longComposer)).overflow,
-      TextOverflow.ellipsis,
-    );
+  });
+
+  testWidgets('sem armadura no índice a linha não começa com separador', (
+    tester,
+  ) async {
+    await pumpLibrary(tester, hymns: [_hymn(9, 'Fulano', level: 2)]);
+    expect(find.text('nível 2 de 5'), findsOneWidget);
   });
 
   testWidgets('hino nunca aberto não tem nada na coluna da direita', (

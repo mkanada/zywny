@@ -33,21 +33,35 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Hymn _hymn(int n, String title, String composer, {String? original}) => Hymn(
+Hymn _hymn(
+  int n,
+  String title,
+  String composer, {
+  String? original,
+  int? fifths,
+}) => Hymn(
   number: n,
   title: title,
   composer: composer,
   originalTitle: original,
+  fifths: fifths,
   titleKey: foldForSearch(title),
   composerKey: foldForSearch(composer),
   searchKey: foldForSearch('$n $title ${original ?? ''} $composer'),
 );
 
 final _hymns = [
-  _hymn(1, 'Santo, Santo, Santo!', 'John B. Dykes', original: 'Holy, Holy'),
-  _hymn(12, 'Vinde, Povo do Senhor', 'George J. Elvey'),
+  _hymn(
+    1,
+    'Santo, Santo, Santo!',
+    'John B. Dykes',
+    original: 'Holy, Holy',
+    fifths: 2,
+  ),
+  _hymn(12, 'Vinde, Povo do Senhor', 'George J. Elvey', fifths: -1),
+  // Sem armadura no índice (antigo): vai para o fim na ordem de acidentes.
   _hymn(120, 'Ao Deus de Abraão Louvai', 'Melodia hebraica'),
-  _hymn(244, 'Ó Vem à Igreja Comigo', 'William S. Pitts'),
+  _hymn(244, 'Ó Vem à Igreja Comigo', 'William S. Pitts', fifths: 1),
 ];
 
 Future<HymnCatalog> _loadCatalog() async => HymnCatalog(_hymns);
@@ -147,15 +161,27 @@ void main() {
         // "Ó Vem…" entra no O, não depois do Z.
         [120, 244, 1, 12],
       );
+      // Acidentes: de poucos a muitos; empate de quantidade, sustenidos
+      // antes de bemóis; sem armadura no fim, nas duas direções.
       expect(
         _numbers(
           sortedHymns(
             _hymns,
-            const SortState(key: SortKey.composer, ascending: false),
+            const SortState(key: SortKey.accidentals),
             progress,
           ),
         ),
-        [244, 120, 1, 12],
+        [244, 12, 1, 120],
+      );
+      expect(
+        _numbers(
+          sortedHymns(
+            _hymns,
+            const SortState(key: SortKey.accidentals, ascending: false),
+            progress,
+          ),
+        ),
+        [1, 244, 12, 120],
       );
     });
 
@@ -238,7 +264,7 @@ void main() {
       expect(find.text('Hinário'), findsOneWidget);
       expect(find.text('4 hinos'), findsOneWidget);
       expect(find.text('Santo, Santo, Santo!'), findsOneWidget);
-      expect(find.text('John B. Dykes'), findsOneWidget);
+      expect(find.text('2 sustenidos'), findsOneWidget);
       expect(find.byTooltip('Conectar teclado MIDI'), findsOneWidget);
       // Nada estudado ainda: sem cartão "Continuar", e nenhuma forma de
       // abrir arquivo.
@@ -312,7 +338,7 @@ void main() {
       expect(find.text('Hino 12 · hoje · melhor 83%'), findsOneWidget);
       // Na linha, o compositor e o resto são dois textos; sem a bolinha e o
       // número à direita (U13): a pontuação está escrita "melhor 83%".
-      expect(find.text('George J. Elvey'), findsOneWidget);
+      expect(find.text('1 bemol'), findsOneWidget);
       expect(find.text(' · hoje · melhor 83%'), findsOneWidget);
       expect(find.text('83'), findsNothing);
     });
@@ -365,7 +391,7 @@ void main() {
       expect(find.textContaining('12/51'), findsOneWidget);
       expect(find.textContaining('2 pul.'), findsOneWidget);
       // O hino sem trilha não mostra nada dela (só compositor).
-      expect(find.text('John B. Dykes'), findsOneWidget);
+      expect(find.text('2 sustenidos'), findsOneWidget);
       expect(find.textContaining('12/51'), findsOneWidget);
     });
 

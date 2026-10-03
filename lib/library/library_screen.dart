@@ -585,7 +585,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 return false;
               },
               // Um esmaecido na borda direita enquanto houver pastilhas
-              // fora da tela: "Pontuação" e "Compositor" têm pista.
+              // fora da tela: "Recentes" e "Pontuação" têm pista.
               child: ShaderMask(
                 blendMode: BlendMode.dstIn,
                 shaderCallback: (rect) => LinearGradient(
@@ -687,15 +687,17 @@ class _HymnRow extends StatelessWidget {
   final DateTime now;
   final VoidCallback onTap;
 
-  /// O que a segunda linha diz de autoria. Com busca que casou só no
-  /// letrista ou só no título original, mostra esse campo (com o motivo) no
-  /// lugar do compositor; fora disso, o compositor, com o que casou em
-  /// negrito.
-  TextSpan _matchedAuthor() {
+  /// O começo da segunda linha: a armadura ("2 sustenidos"). A autoria só
+  /// aparece quando a busca casou nela (letrista, compositor ou título
+  /// original), para mostrar por que o hino entrou no resultado.
+  TextSpan _lead() {
     const style = TextStyle(fontSize: 13, color: kInkCaption);
     final m = match;
-    if (m != null && m.composer.isEmpty) {
+    if (m != null && m.title.isEmpty) {
       final lyricist = hymn.lyricist;
+      if (m.composer.isNotEmpty) {
+        return _highlighted(hymn.composer, m.composer, style);
+      }
       if (lyricist != null && m.lyricist.isNotEmpty) {
         return TextSpan(
           style: style,
@@ -706,7 +708,7 @@ class _HymnRow extends StatelessWidget {
         );
       }
       final original = hymn.originalTitle;
-      if (original != null && m.title.isEmpty && m.originalTitle.isNotEmpty) {
+      if (original != null && m.originalTitle.isNotEmpty) {
         return TextSpan(
           style: style,
           children: [
@@ -716,19 +718,30 @@ class _HymnRow extends StatelessWidget {
         );
       }
     }
-    return _highlighted(hymn.composer, m?.composer ?? const [], style);
+    return TextSpan(
+      text: switch (hymn.fifths) {
+        final f? => keySignatureLabel(f),
+        null => '',
+      },
+      style: style,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final score = progress?.bestScore;
     final started = trail.total > 0;
-    // O que vem depois do compositor, sem reticências: é ele quem cede.
-    final rest = [
+    // O que vem depois da armadura (ou da autoria que casou na busca), sem
+    // reticências: é o começo quem cede.
+    final lead = _lead();
+    final parts = [
       if (hymn.level case final level?) 'nível $level de 5',
       if (progress?.lastOpened case final at?) whenStudied(at, now),
       if (score != null) 'melhor $score%',
-    ].map((part) => ' · $part').join();
+    ];
+    final rest = lead.toPlainText().isEmpty
+        ? parts.join(' · ')
+        : parts.map((part) => ' · $part').join();
     return InkWell(
       onTap: onTap,
       child: DecoratedBox(
@@ -771,7 +784,7 @@ class _HymnRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 1),
-                  _SubtitleLine(composer: _matchedAuthor(), rest: rest),
+                  _SubtitleLine(lead: lead, rest: rest),
                 ],
               ),
             ),
@@ -809,13 +822,14 @@ TextSpan _highlighted(
   return TextSpan(style: style, children: spans);
 }
 
-/// Segunda linha da lista: o compositor cede (reticências) para que "nível",
-/// "quando" e "melhor" apareçam inteiros.
+/// Segunda linha da lista: o começo (armadura, ou a autoria que casou na
+/// busca) cede (reticências) para que "nível", "quando" e "melhor" apareçam
+/// inteiros.
 class _SubtitleLine extends StatelessWidget {
-  const _SubtitleLine({required this.composer, required this.rest});
+  const _SubtitleLine({required this.lead, required this.rest});
 
-  /// O compositor (ou o campo que casou na busca), já com os negritos.
-  final TextSpan composer;
+  /// A armadura (ou o campo que casou na busca), já com os negritos.
+  final TextSpan lead;
   final String rest;
 
   static const _style = TextStyle(fontSize: 13, color: kInkCaption);
@@ -829,17 +843,14 @@ class _SubtitleLine extends StatelessWidget {
           maxLines: 1,
           textDirection: TextDirection.ltr,
         )..layout();
-        final composerMax = (box.maxWidth - painter.width).clamp(
-          0.0,
-          box.maxWidth,
-        );
+        final leadMax = (box.maxWidth - painter.width).clamp(0.0, box.maxWidth);
         painter.dispose();
         return Row(
           children: [
             ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: composerMax),
+              constraints: BoxConstraints(maxWidth: leadMax),
               child: Text.rich(
-                composer,
+                lead,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),

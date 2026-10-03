@@ -2254,34 +2254,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// direita; o resto (andamento, mão, modo, tamanho, som…) fica na gaveta ⋯.
   /// Faixa do topo no celular: voltar, número e título do hino e, no
   /// treino, os selos de modo/mão e de acertos e erros.
-  int? _keyFifths;
-  bool _keyRead = false;
-
-  /// Armadura da partitura (`<fifths>` do primeiro compasso do MusicXML).
-  Future<void> _readKeySignature() async {
-    final path = _inputPath;
-    if (_keyRead || path == null) return;
-    _keyRead = true;
-    try {
-      final text = await File(path).readAsString();
-      final m = RegExp(r'<fifths>\s*(-?\d+)\s*</fifths>').firstMatch(text);
-      if (m != null && mounted) {
-        setState(() => _keyFifths = int.parse(m.group(1)!));
-      }
-    } on Object {
-      // Sem armadura na barra; o resto da tela não depende dela.
-    }
-  }
-
   Widget _buildPhoneTitleBar() {
-    unawaited(_readKeySignature());
     final hymn = widget.opened?.hymn;
     return PhoneTitleBar(
       number: hymn?.number,
       title: hymn?.title ?? '',
       onBack: _backToLibrary,
       center: _trailChip(),
-      keyLabel: _keyFifths == null ? null : keySignatureLabel(_keyFifths!),
       trailing: [
         _phoneSoundButton(),
         if (_trailMode)
