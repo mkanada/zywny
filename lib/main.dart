@@ -1006,7 +1006,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     scheduler.setStaves(null);
     scheduler.setSpeed(stage.speed ?? 1.0);
     scheduler.metronomeOn = false;
-    scheduler.setStopAt(stage.endMs);
+    scheduler.setStopAt(stage.endMs - kRangeBoundaryToleranceMs);
     scheduler.setJumps(trailStageGaps(trail.path, stage));
     scheduler.onJump = (ms) =>
         player.seek(Duration(microseconds: (ms * 1000).round()));

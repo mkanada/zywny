@@ -6,6 +6,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:score_bridge/score_bridge.dart';
 
+/// Os limites de compasso do timemap saem arredondados para ms inteiros
+/// (9231) enquanto a nota na barra tem a fração (9230,77): sem folga, a
+/// primeira nota do compasso seguinte cairia no trecho anterior e a última
+/// do trecho, no seguinte. Um intervalo `[start, end)` vale, para as notas,
+/// como `[start - tol, end - tol)`.
+const double kRangeBoundaryToleranceMs = 1;
+
 /// Uma tecla apertada, pronta para tocar: `onMs`/`offMs` já são o relógio
 /// final (ligadura fundida, ornamento expandido, em ms musicais).
 @immutable
@@ -188,7 +195,10 @@ class PerformanceTrack {
 
     final filtered = [
       for (final e in events)
-        if (e.onMs >= startMs && e.onMs < endMs && !inGap(e.onMs)) e,
+        if (e.onMs >= startMs - kRangeBoundaryToleranceMs &&
+            e.onMs < endMs - kRangeBoundaryToleranceMs &&
+            !inGap(e.onMs))
+          e,
     ];
     return PerformanceTrack._(
       events: filtered,
