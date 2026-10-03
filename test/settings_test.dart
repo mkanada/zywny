@@ -23,6 +23,7 @@ import 'package:zywny/practice/practice_controller.dart';
 import 'package:zywny/settings/app_settings.dart';
 import 'package:zywny/settings/general_settings_panel.dart';
 import 'package:zywny/settings/hymn_settings.dart';
+import 'package:zywny/trail/trail_stage.dart';
 import 'package:zywny/ui/phone_chrome.dart';
 import 'package:zywny/ui/theme.dart';
 
@@ -66,7 +67,7 @@ void main() {
         ..useScoreInstruments = true
         ..soundOn = true
         ..metronomeOn = true
-        ..practiceMode = PracticeMode.rhythm
+        ..practiceMode = PracticeMode.realtime
         ..highlightColor = const Color(0xFF00838F)
         ..practicePendingColor = const Color(0xFFF57C00)
         ..practiceWrongColor = const Color(0xFFAD1457)
@@ -80,7 +81,7 @@ void main() {
       expect(second.useScoreInstruments, isTrue);
       expect(second.soundOn, isTrue);
       expect(second.metronomeOn, isTrue);
-      expect(second.practiceMode, PracticeMode.rhythm);
+      expect(second.practiceMode, PracticeMode.realtime);
       expect(second.highlightColor, const Color(0xFF00838F));
       expect(second.practicePendingColor, const Color(0xFFF57C00));
       expect(second.practiceWrongColor, const Color(0xFFAD1457));
@@ -99,6 +100,47 @@ void main() {
       expect(settings.output, SoundOutput.midiKeyboard);
       expect(settings.practiceMode, PracticeMode.wait);
       expect(settings.haloWidth, 3.0);
+    });
+
+    test('etapas e andamentos da trilha: gravam, voltam e nunca ficam '
+        'vazios', () async {
+      final first = AppSettings();
+      await first.load();
+      expect(first.trailPhases, TrailPhase.values.toSet());
+      expect(first.trailSpeeds, kTrailSpeeds.toSet());
+      first
+        ..trailPhases = {TrailPhase.notasJ, TrailPhase.junto}
+        ..trailSpeeds = {0.75, 1.0}
+        ..trailPhases = {}
+        ..trailSpeeds = {};
+      await pumpEventQueue();
+
+      final second = AppSettings();
+      await second.load();
+      expect(second.trailPhases, {TrailPhase.notasJ, TrailPhase.junto});
+      expect(second.trailSpeeds, {0.75, 1.0});
+
+      // Ordem: a junto primeiro; as que não vieram completam no fim.
+      second.trailPhaseOrder = [TrailPhase.junto, TrailPhase.notasD];
+      await pumpEventQueue();
+      final third = AppSettings();
+      await third.load();
+      expect(third.trailPhaseOrder.first, TrailPhase.junto);
+      expect(third.trailPhaseOrder.toSet(), TrailPhase.values.toSet());
+      expect(third.trailPlanPhases, [TrailPhase.junto, TrailPhase.notasJ]);
+    });
+
+    test('margem do tempo: grava, volta e fica entre os limites', () async {
+      final first = AppSettings();
+      await first.load();
+      expect(first.rhythmToleranceMs, 75);
+      first.rhythmToleranceMs = 120;
+      await pumpEventQueue();
+      final second = AppSettings();
+      await second.load();
+      expect(second.rhythmToleranceMs, 120);
+      second.rhythmToleranceMs = 5000;
+      expect(second.rhythmToleranceMs, kMaxRhythmToleranceMs);
     });
 
     test('quem gravou o som desligado continua desligado (U04)', () async {
@@ -228,10 +270,12 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('Nota certa'),
         200,
-        scrollable: find.descendant(
-          of: find.byType(GeneralSettingsPanel),
-          matching: find.byType(Scrollable),
-        ),
+        scrollable: find
+            .descendant(
+              of: find.byType(GeneralSettingsPanel),
+              matching: find.byType(Scrollable),
+            )
+            .first,
       );
       expect(find.text('Nota certa'), findsOneWidget);
       // E nada do que é de um hino.

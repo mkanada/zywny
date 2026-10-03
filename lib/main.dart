@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
@@ -44,7 +45,7 @@ import 'trail/trail_controller.dart';
 import 'trail/trail_path.dart';
 import 'trail/trail_plan.dart';
 import 'trail/trail_progress.dart';
-import 'trail/trail_stage.dart' show TrailStage, kTrailMinMeasures;
+import 'trail/trail_stage.dart' show TrailPhase, TrailStage, kTrailMinMeasures;
 import 'trail/trail_widgets.dart';
 import 'ui/phone_chrome.dart';
 import 'ui/practice_legend.dart';
@@ -228,7 +229,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   late Hand _hand = _stored.hand ?? _kDefaultHand;
   static const _kDefaultHand = Hand.direita;
 
-  /// Espera (o tempo para até o aluno tocar), tempo real (T03) ou ritmo —
+  /// Espera (o tempo para até o aluno tocar), ou tempo real (T03) —
   /// configuração geral.
   PracticeMode get _practiceMode => _settings.practiceMode;
   set _practiceMode(PracticeMode value) => _settings.practiceMode = value;
@@ -260,7 +261,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// (índices em `ScorePlayer.measures`, ordem de execução); metrônomo e
   /// contagem só soam com o som do app ligado (o agendador é quem clica).
   /// O metrônomo é configuração geral ([_settings]); a contagem não é
-  /// escolha: tudo o que anda no tempo (play, tempo real, ritmo) começa com
+  /// escolha: tudo o que anda no tempo (play, tempo real) começa com
   /// 1 compasso dela, e o modo espera — em que o tempo espera o aluno — não.
   bool get _metronomeOn => _settings.metronomeOn;
   set _metronomeOn(bool value) => _settings.metronomeOn = value;
@@ -434,7 +435,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         general: _settings.trailMeasures,
         hymn: _trailHymnN,
       );
-      if (effective != trail.plan.n) unawaited(_setupTrail());
+      if (effective != trail.plan.n ||
+          !listEquals(_planPhases, _settings.trailPlanPhases) ||
+          !setEquals(_planSpeeds, _settings.trailSpeeds)) {
+        unawaited(_setupTrail());
+      }
     }
     // No treino o player destaca na cor de "esperado agora"; a cor da
     // reprodução volta em [_endPractice].
@@ -768,7 +773,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       hymn: _trailHymnN,
     );
     final path = TrailPath.fromTimeline(player.timeline);
-    final plan = TrailPlan.build(path, track, n: n, includeFinal: true);
+    _planPhases = _settings.trailPlanPhases;
+    _planSpeeds = _settings.trailSpeeds;
+    final plan = TrailPlan.build(
+      path,
+      track,
+      n: n,
+      includeFinal: true,
+      phases: _planPhases,
+      speeds: _planSpeeds,
+    );
     if (plan.isEmpty) {
       setState(
         () =>
@@ -783,6 +797,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (progress.total > 0 && progress.n != n) {
       await _trailStore.reset(hymnNumber);
       progress = TrailProgress(n: n, total: plan.stages.length);
+    } else if (progress.total > 0 && progress.total != plan.stages.length) {
+      // Outras etapas escolhidas nas configurações: o mesmo progresso, com
+      // o total do plano de agora (para a biblioteca).
+      progress = TrailProgress(
+        n: progress.n,
+        total: plan.stages.length,
+        records: progress.records,
+        resume: progress.resume,
+      );
     }
     final trail = TrailController(
       path: path,
@@ -796,6 +819,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     setState(() => _trail = trail);
     _armTrailStage();
   }
+
+  /// Etapas e andamentos com que o plano da trilha foi montado: mudou nas
+  /// configurações, a trilha é remontada.
+  List<TrailPhase> _planPhases = const [];
+  Set<double> _planSpeeds = const {};
 
   void _onTrailChanged() {
     if (!mounted) return;
@@ -943,7 +971,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       ghosts: _ghosts,
       inputLatencyMs: _inputLatencyMs,
       mode: stage.phase.mode,
-      magicEngine: stage.phase.mode == PracticeMode.rhythm ? engine : null,
       measureIndexAt: player.timeline.measureIndexAt,
       passOf: (i) => player.measures[i].pass,
       range: (startMs: stage.startMs, endMs: stage.endMs),
@@ -962,8 +989,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       correctColor: _settings.highlightColor,
       wrongColor: _settings.practiceWrongColor,
       pendingColor: _settings.practicePendingColor,
+      rhythmToleranceMs: _settings.rhythmToleranceMs,
     );
-    _midiMonitor?.muted = stage.phase.mode == PracticeMode.rhythm;
     if (timed) scheduler.metronomeOn = true;
     practice.start(countIn: timed);
     _playPlayerAfterCount(player, stage.startMs);
@@ -1069,9 +1096,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         await _onTrailBlockDone(trail, blockIndex, stage, result);
         return;
       }
-      // Refez uma antiga (J06): o resumo oferece voltar à atual.
-      final showBack =
-          trail.selected?.id != trail.progress.current(trail.plan)?.id;
       await trail.recordDone(result);
       if (!mounted) return;
       setState(() => _markErrors(result.badMeasures));
@@ -1111,16 +1135,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         result: result,
         badLogical: numbers,
         isLast: trail.progress.current(trail.plan) == null,
-        showBackToCurrent: showBack,
         blockCount: blocks,
         sidePanel: _phoneLayout,
       );
       if (!mounted) return;
       switch (action) {
         case StageSummaryAction.next:
-        case StageSummaryAction.backToCurrent:
           trail.next();
         case StageSummaryAction.retry:
+          trail.repeat(stage);
           unawaited(_startTrailStage());
         case StageSummaryAction.skip:
           await trail.skipSelected();
@@ -1155,10 +1178,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (!mounted) return;
     switch (action) {
       case StageSummaryAction.next:
-      case StageSummaryAction.backToCurrent:
       case StageSummaryAction.train:
         break;
       case StageSummaryAction.retry:
+        trail.repeat(stage);
         unawaited(_startTrailStage());
       case StageSummaryAction.skip:
         trail.skipBlock(blockIndex);
@@ -1189,7 +1212,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void _endTrailRun() {
     final practice = _practice;
     if (practice == null) return;
-    _midiMonitor?.muted = false;
     _player?.highlightColor = _highlightColor;
     _player?.highlightColorOf = null;
     _player?.skipHighlight = null;
@@ -1452,7 +1474,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       ghosts: _ghosts,
       inputLatencyMs: _inputLatencyMs,
       mode: _practiceMode,
-      magicEngine: _practiceMode == PracticeMode.rhythm ? engine : null,
       measureIndexAt: player.timeline.measureIndexAt,
       passOf: (i) => player.measures[i].pass,
       onLoopRestart: (ms) =>
@@ -1461,8 +1482,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       correctColor: _settings.highlightColor,
       wrongColor: _settings.practiceWrongColor,
       pendingColor: _settings.practicePendingColor,
+      rhythmToleranceMs: _settings.rhythmToleranceMs,
     );
-    _midiMonitor?.muted = _practiceMode == PracticeMode.rhythm;
     practice.start(fromMs: fromMs, countIn: _practiceMode != PracticeMode.wait);
     if (range != null) practice.setLoop(range.startMs, range.endMs);
     _playPlayerAfterCount(player, fromMs);
@@ -1511,7 +1532,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final practice = _practice;
     if (practice == null) return;
     PracticeReport? report;
-    _midiMonitor?.muted = false;
     // Devolve a cor de destaque configurada (o treino usa o azul de
     // "esperado agora", ver _togglePractice).
     _player?.highlightColor = _highlightColor;
@@ -2253,12 +2273,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   String get _trainingPillText {
     final hand = _hand.shortLabel.toLowerCase();
     final realtime = _practiceMode == PracticeMode.realtime;
-    if (_practiceMode == PracticeMode.rhythm) {
-      if (_practice == null && _midiDeviceManager.connected.value == null) {
-        return 'Conecte o teclado MIDI';
-      }
-      return 'Ritmo · mão $hand';
-    }
     if (_practice != null) {
       return realtime ? 'Tempo real · mão $hand' : 'Esperando · mão $hand';
     }
@@ -2307,7 +2321,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     mistakes: practice.wrongCount.value,
                   ),
                 )
-              // Com resultado (trilha ou tempo real/ritmo livre): a
+              // Com resultado (trilha ou tempo real livre): a
               // porcentagem do resumo, com a meta na trilha (U05).
               : ValueListenableBuilder(
                   valueListenable: practice.liveScore,
@@ -2442,16 +2456,28 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       footer: _practiceLegend(),
       onClose: () => setState(() => _trailDrawerOpen = false),
       onSelectStage: (id) {
+        // Etapa rodando: escolher outra encerra a que roda (sem registro),
+        // senão a faixa mostraria a nova com o treino ainda na antiga.
+        if (_trail?.running ?? false) _abandonTrailStage();
         _trail?.select(id);
         setState(() => _trailDrawerOpen = false);
       },
+      onRepeatStage: trail.running
+          ? null
+          : (id) {
+              _trail?.select(id);
+              setState(() => _trailDrawerOpen = false);
+              unawaited(_startTrailStage());
+            },
       onSkipCurrent: () async {
         final current = _trail;
         if (current == null) return;
+        if (current.running) _abandonTrailStage();
         await current.skipSelected();
         current.next();
       },
       onRestartTrail: () async {
+        if (_trail?.running ?? false) _abandonTrailStage();
         final number = _trail?.hymnNumber;
         if (number != null) await _trailStore.reset(number);
         unawaited(_setupTrail());
@@ -2739,6 +2765,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
+  /// Treino com a música andando (tempo real, livre ou na trilha).
+  bool get _timedPractice => _practice?.mode == PracticeMode.realtime;
+
   Widget _buildScoreArea({bool phone = false}) {
     // The page is engraved for this box, so its size has to be known before
     // the first render — hence measuring here rather than off the window.
@@ -2779,8 +2808,19 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   barColor: _barColor,
                   barWidth: _barWidthOf(document),
                   // A página nova fica ilegível até a haste começar a sair:
-                  // o foco é o fim da página que ainda toca.
-                  revealBlurSigma: _barWidthOf(document) * 4,
+                  // o foco é o fim da página que ainda toca. No treino com
+                  // tempo não: o aluno precisa ler o que vem antes de tocar,
+                  // e a virada é curta (300 ms de parede, em qualquer
+                  // andamento — o teto é em ms musicais).
+                  revealBlurSigma: _timedPractice
+                      ? 0
+                      : _barWidthOf(document) * 4,
+                  maxSweepDuration: _timedPractice
+                      ? Duration(
+                          milliseconds: (300 * (_scheduler?.speed ?? 1))
+                              .round(),
+                        )
+                      : kDefaultMaxSweepDuration,
                 ),
               )
             : phone
@@ -3132,21 +3172,17 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                           PracticeMode.wait =>
                             'Modo espera — trocar para tempo real',
                           PracticeMode.realtime =>
-                            'Tempo real — trocar para ritmo (qualquer tecla)',
-                          PracticeMode.rhythm =>
-                            'Ritmo — trocar para modo espera',
+                            'Tempo real — trocar para modo espera',
                         },
                         onPressed: () => setState(
                           () => _practiceMode = switch (_practiceMode) {
                             PracticeMode.wait => PracticeMode.realtime,
-                            PracticeMode.realtime => PracticeMode.rhythm,
-                            PracticeMode.rhythm => PracticeMode.wait,
+                            PracticeMode.realtime => PracticeMode.wait,
                           },
                         ),
                         icon: Icon(switch (_practiceMode) {
                           PracticeMode.wait => Icons.hourglass_bottom,
                           PracticeMode.realtime => Icons.speed,
-                          PracticeMode.rhythm => Icons.music_note,
                         }),
                       ),
                     if (_trainingMode && _practice == null)

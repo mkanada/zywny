@@ -314,19 +314,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
           color: kIconQuiet,
           icon: const Icon(Icons.settings_outlined),
         ),
-        const SizedBox(width: 4),
-        // Com a palavra ao lado do ícone o botão ficou mais largo: em
-        // cabeçalho apertado ele encolhe em vez de estourar a linha.
-        Flexible(
-          flex: 3,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: MidiStatusPill(deviceManager: _midi),
-            ),
-          ),
-        ),
+        // Engrenagem e teclado juntos, no canto.
+        MidiStatusPill(deviceManager: _midi),
       ],
     );
   }

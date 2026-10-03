@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// O que o app sabe do estudo de um hino: quando foi aberto pela última vez
-/// e a melhor precisão de um treino avaliado (tempo real ou ritmo).
+/// e a melhor precisão de um treino avaliado (tempo real).
 @immutable
 class HymnProgress {
   const HymnProgress({this.lastOpened, this.bestScore});

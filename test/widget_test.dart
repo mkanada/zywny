@@ -211,16 +211,12 @@ void main() {
 
     // Trocar entre os modos de treino não mexe em mão nem em andamento
     // (U11); só o modo muda — e a explicação dele aparece.
-    await tester.tap(find.text('Ritmo'));
-    await tester.pump();
-    expect(
-      find.text('Qualquer tecla vale; só o tempo é avaliado.'),
-      findsOneWidget,
-    );
-    expect(find.text('80%'), findsWidgets);
-    expect(find.text('Dir.'), findsOneWidget);
     await tester.tap(find.text('Tempo real'));
     await tester.pump();
+    expect(
+      find.text('A música não espera; cada nota é avaliada.'),
+      findsOneWidget,
+    );
     expect(find.text('80%'), findsWidgets);
     expect(find.text('Dir.'), findsOneWidget);
     expect(find.text('Tempo real (a música não espera)'), findsNothing);
