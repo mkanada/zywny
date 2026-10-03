@@ -842,6 +842,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (trail.running || _practice != null || _playing || _busy) return;
     _armedStageId = stage.id;
     player.seek(Duration(microseconds: (stage.startMs * 1000).round()));
+    // Parado: o seek acende a nota da partida na cor de reprodução (verde),
+    // como se já tivesse sido tocada. Só a etapa em curso destaca notas.
+    _controller.clearHighlights();
     _scheduler?.seek(stage.startMs);
   }
 
@@ -2251,13 +2254,34 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// direita; o resto (andamento, mão, modo, tamanho, som…) fica na gaveta ⋯.
   /// Faixa do topo no celular: voltar, número e título do hino e, no
   /// treino, os selos de modo/mão e de acertos e erros.
+  int? _keyFifths;
+  bool _keyRead = false;
+
+  /// Armadura da partitura (`<fifths>` do primeiro compasso do MusicXML).
+  Future<void> _readKeySignature() async {
+    final path = _inputPath;
+    if (_keyRead || path == null) return;
+    _keyRead = true;
+    try {
+      final text = await File(path).readAsString();
+      final m = RegExp(r'<fifths>\s*(-?\d+)\s*</fifths>').firstMatch(text);
+      if (m != null && mounted) {
+        setState(() => _keyFifths = int.parse(m.group(1)!));
+      }
+    } on Object {
+      // Sem armadura na barra; o resto da tela não depende dela.
+    }
+  }
+
   Widget _buildPhoneTitleBar() {
+    unawaited(_readKeySignature());
     final hymn = widget.opened?.hymn;
     return PhoneTitleBar(
       number: hymn?.number,
       title: hymn?.title ?? '',
       onBack: _backToLibrary,
       center: _trailChip(),
+      keyLabel: _keyFifths == null ? null : keySignatureLabel(_keyFifths!),
       trailing: [
         _phoneSoundButton(),
         if (_trailMode)
@@ -2538,6 +2562,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     stageTempoCaption: trail?.selected?.speed == null
                         ? 'sem tempo'
                         : 'da etapa',
+                    stageHand: trail?.selected?.phase.hand.shortLabel,
+                    onStageTap: trail == null
+                        ? null
+                        : () => setState(() => _trailDrawerOpen = true),
                     tempoPercent: (_speed * 100).round(),
                     handLabel: _hand.shortLabel,
                     onOptions: () => setState(() => _optionsOpen = true),
