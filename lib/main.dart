@@ -443,7 +443,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         : _settings.practicePendingColor;
     _practice
       ?..correctColor = _settings.highlightColor
-      ..wrongColor = _settings.practiceWrongColor;
+      ..wrongColor = _settings.practiceWrongColor
+      ..pendingColor = _settings.practicePendingColor;
     if (_settings.soundOn != _soundSetting) {
       _soundSetting = _settings.soundOn;
       if (_soundSetting != _soundOn && !_loadingSoundFont) {
@@ -927,7 +928,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _controller.clearAll();
     // O instante de partida já acende na cor de "esperada" (e a mão do app
     // em cinza), não na da reprodução (U08).
-    _paintForPractice(player, track, stage.phase.hand);
+    _paintForPractice(player, track, stage.phase.hand, stage.phase.mode);
     player.seek(Duration(microseconds: (stage.startMs * 1000).round()));
     await _loadInputLatency();
     if (!mounted) return;
@@ -960,6 +961,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       onWaitTarget: (ms) => player.waitTarget = ms,
       correctColor: _settings.highlightColor,
       wrongColor: _settings.practiceWrongColor,
+      pendingColor: _settings.practicePendingColor,
     );
     _midiMonitor?.muted = stage.phase.mode == PracticeMode.rhythm;
     if (timed) scheduler.metronomeOn = true;
@@ -1190,6 +1192,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _midiMonitor?.muted = false;
     _player?.highlightColor = _highlightColor;
     _player?.highlightColorOf = null;
+    _player?.skipHighlight = null;
     _countInPlayTimer?.cancel();
     _countInPlayTimer = null;
     practice.stop();
@@ -1436,7 +1439,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _controller.clearAll();
     final range = _loopRangeMs;
     final fromMs = range?.startMs ?? 0;
-    _paintForPractice(player, track, _hand);
+    _paintForPractice(player, track, _hand, _practiceMode);
     player.seek(Duration(microseconds: (fromMs * 1000).round()));
     await _loadInputLatency();
     if (!mounted) return;
@@ -1457,6 +1460,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       onWaitTarget: (ms) => player.waitTarget = ms,
       correctColor: _settings.highlightColor,
       wrongColor: _settings.practiceWrongColor,
+      pendingColor: _settings.practicePendingColor,
     );
     _midiMonitor?.muted = _practiceMode == PracticeMode.rhythm;
     practice.start(fromMs: fromMs, countIn: _practiceMode != PracticeMode.wait);
@@ -1474,17 +1478,31 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Cores do destaque durante o treino (U08), antes do `seek` que acende o
   /// instante de partida: "esperada" para as notas do aluno e cinza para as
-  /// da mão que o app toca.
+  /// da mão que o app toca. No modo espera as notas do aluno são do
+  /// `PracticeController` (esperada/certa em camadas): o player não as acende.
   void _paintForPractice(
     ScorePlayer player,
     PerformanceTrack track,
     Hand hand,
+    PracticeMode mode,
   ) {
     player.highlightColor = _settings.practicePendingColor;
     final appNotes = appHandNoteIds(track, hand);
     player.highlightColorOf = appNotes.isEmpty
         ? null
         : (id) => appNotes.contains(id) ? kPracticeAppHandColor : null;
+    if (mode == PracticeMode.wait) {
+      final doc = player.document;
+      final studentNotes = {
+        for (final id in studentHandNoteIds(track, hand)) ...[
+          id,
+          doc.sceneIdOf(id) ?? id,
+        ],
+      };
+      player.skipHighlight = studentNotes.contains;
+    } else {
+      player.skipHighlight = null;
+    }
   }
 
   /// Encerra a sessão de treino: solta freio/filtro/destaques, descarta o
@@ -1498,6 +1516,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // "esperado agora", ver _togglePractice).
     _player?.highlightColor = _highlightColor;
     _player?.highlightColorOf = null;
+    _player?.skipHighlight = null;
     _countInPlayTimer?.cancel();
     _countInPlayTimer = null;
     if (practice.mode != PracticeMode.wait && practice.hasVerdicts) {
