@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'hymn.dart';
-import 'hymn_progress.dart';
+import 'piece.dart';
+import 'piece_progress.dart';
 
 /// Ordenações da biblioteca — as do artboard `CelularBiblioteca.dc.html`
 /// (recentes, pontuação, nome) mais o número do hinário, que é como um hino é
@@ -61,14 +61,33 @@ int _compareNullLast<T extends Comparable<Object>>(T? a, T? b, bool ascending) {
   return ascending ? a.compareTo(b) : b.compareTo(a);
 }
 
-List<Hymn> sortedHymns(
-  Iterable<Hymn> hymns,
+/// Compara textos com números dentro por valor: "2" < "10", "a2" < "a10".
+int _naturalCompare(String a, String b) {
+  final ra = RegExp(r'\d+|\D+').allMatches(a).map((m) => m[0]!).toList();
+  final rb = RegExp(r'\d+|\D+').allMatches(b).map((m) => m[0]!).toList();
+  for (var i = 0; i < ra.length && i < rb.length; i++) {
+    final x = ra[i];
+    final y = rb[i];
+    final nx = int.tryParse(x);
+    final ny = int.tryParse(y);
+    final c = nx != null && ny != null ? nx.compareTo(ny) : x.compareTo(y);
+    if (c != 0) return c;
+  }
+  return ra.length.compareTo(rb.length);
+}
+
+List<Piece> sortedPieces(
+  Iterable<Piece> pieces,
   SortState sort,
-  HymnProgressStore progress,
+  PieceProgressStore progress,
 ) {
   final sign = sort.ascending ? 1 : -1;
-  int byNumber(Hymn a, Hymn b) => a.number.compareTo(b.number);
-  int cmp(Hymn a, Hymn b) {
+  // Sem número (biblioteca não numerada): o id desempata, em ordem natural
+  // ("2" antes de "10").
+  int byNumber(Piece a, Piece b) => a.number != null && b.number != null
+      ? a.number!.compareTo(b.number!)
+      : _naturalCompare(a.id, b.id);
+  int cmp(Piece a, Piece b) {
     final primary = switch (sort.key) {
       SortKey.number => sign * byNumber(a, b),
       SortKey.title => sign * a.titleKey.compareTo(b.titleKey),
@@ -83,20 +102,20 @@ List<Hymn> sortedHymns(
         sort.ascending,
       ),
       SortKey.recent => _compareNullLast(
-        progress[a.number]?.lastOpened,
-        progress[b.number]?.lastOpened,
+        progress[a.id]?.lastOpened,
+        progress[b.id]?.lastOpened,
         sort.ascending,
       ),
       SortKey.score => _compareNullLast(
-        progress[a.number]?.bestScore,
-        progress[b.number]?.bestScore,
+        progress[a.id]?.bestScore,
+        progress[b.id]?.bestScore,
         sort.ascending,
       ),
     };
     return primary != 0 ? primary : byNumber(a, b);
   }
 
-  return hymns.toList()..sort(cmp);
+  return pieces.toList()..sort(cmp);
 }
 
 /// Filtra pelo que foi digitado: todas as palavras têm de aparecer no número,
@@ -105,19 +124,21 @@ List<Hymn> sortedHymns(
 ///
 /// Ordem dos resultados (U14): primeiro os que têm todas as palavras no
 /// **título**, depois os demais; em cada grupo, a ordem da lista dada.
-List<Hymn> filterHymns(List<Hymn> hymns, String query) {
+List<Piece> filterPieces(List<Piece> pieces, String query) {
   final words = foldForSearch(query).split(' ').where((w) => w.isNotEmpty);
-  if (words.isEmpty) return hymns;
+  if (words.isEmpty) return pieces;
   if (words.length == 1 && int.tryParse(words.first) != null) {
     final digits = int.parse(words.first).toString();
-    return hymns.where((h) => '${h.number}'.startsWith(digits)).toList()
-      ..sort((a, b) => a.number.compareTo(b.number));
+    return pieces
+        .where((h) => h.number != null && '${h.number}'.startsWith(digits))
+        .toList()
+      ..sort((a, b) => a.number!.compareTo(b.number!));
   }
-  final found = hymns
+  final found = pieces
       .where((h) => words.every((w) => h.searchKey.contains(w)))
       .toList();
-  final inTitle = <Hymn>[];
-  final elsewhere = <Hymn>[];
+  final inTitle = <Piece>[];
+  final elsewhere = <Piece>[];
   for (final h in found) {
     (words.every((w) => h.titleKey.contains(w)) ? inTitle : elsewhere).add(h);
   }
@@ -143,8 +164,8 @@ typedef TextSpanRange = ({int start, int end});
 
 /// Por que um hino apareceu na busca: onde cada palavra casou, em índices do
 /// texto **original** (com acento e pontuação).
-class HymnMatch {
-  const HymnMatch({
+class PieceMatch {
+  const PieceMatch({
     this.title = const [],
     this.originalTitle = const [],
     this.composer = const [],
@@ -200,19 +221,19 @@ List<TextSpanRange> _rangesIn(String? text, List<String> words) {
   return merged;
 }
 
-/// Onde a busca [query] casou em [hymn]; `null` sem busca ou na busca só por
+/// Onde a busca [query] casou em [piece]; `null` sem busca ou na busca só por
 /// número (que não tem o que negritar).
-HymnMatch? hymnMatch(Hymn hymn, String query) {
+PieceMatch? pieceMatch(Piece piece, String query) {
   final words = foldForSearch(query)
       .split(' ')
       .where((w) => w.isNotEmpty)
       .toList();
   if (words.isEmpty) return null;
   if (words.length == 1 && int.tryParse(words.first) != null) return null;
-  return HymnMatch(
-    title: _rangesIn(hymn.title, words),
-    originalTitle: _rangesIn(hymn.originalTitle, words),
-    composer: _rangesIn(hymn.composer, words),
-    lyricist: _rangesIn(hymn.lyricist, words),
+  return PieceMatch(
+    title: _rangesIn(piece.title, words),
+    originalTitle: _rangesIn(piece.originalTitle, words),
+    composer: _rangesIn(piece.composer, words),
+    lyricist: _rangesIn(piece.lyricist, words),
   );
 }

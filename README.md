@@ -1,8 +1,9 @@
 # zywny
 
-App Flutter de e-learning musical: abre na biblioteca dos hinos que já traz
-embutidos (`lib/library/`; o app não importa partitura), gera a cena do hino
-escolhido no formato `.vsb` (*Verovio Score Bridge*) em runtime via FFI e a
+App Flutter de e-learning musical: não traz música nenhuma — as músicas
+chegam em **bibliotecas** (`.zywny`, cifradas e assinadas) que se instalam por
+arquivo (`lib/library/`) e uma delas fica em uso. Gera a cena da música
+escolhida no formato `.vsb` (*Verovio Score Bridge*) em runtime via FFI e a
 desenha com `CustomPaint`.
 
 Os dois pacotes que fazem isso vivem no projeto
@@ -23,9 +24,10 @@ sobrevive a fechar o app e a instalar uma versão nova por cima:
   metrônomo, tipo de treino e cores. Valem para todos os hinos; o
   painel abre pela engrenagem da biblioteca ou por "Configurações gerais" na
   partitura. Soundfont, monitor MIDI e latência já eram guardados à parte.
-- **De cada hino** (`lib/settings/hymn_settings.dart`, painel `LayoutPanel`
-  e a seção "Este hino" da gaveta): tamanho da notação e demais opções de
-  layout, andamento e mão, numa chave `hymn_settings_<número>`. Só o que
+- **De cada música** (`lib/settings/piece_settings.dart`, painel
+  `LayoutPanel` e a seção "Este hino"/"Esta peça" da gaveta): tamanho da notação e demais
+  opções de layout, andamento e mão, numa chave
+  `piece_settings_<biblioteca>_<id>`. Só o que
   saiu do padrão é gravado, e a leitura descarta opção desconhecida ou valor
   fora da faixa — um JSON de outra versão do app nunca chega torto ao
   Verovio.
@@ -35,7 +37,9 @@ sobrevive a fechar o app e a instalar uma versão nova por cima:
 Com [`just`](https://just.systems) (`just` sozinho lista as receitas):
 
 ```sh
-just setup   # libverovio.so + assets/verovio_data.zip + assets/hinos/ + pub get
+just setup   # libverovio.so + assets/verovio_data.zip + pub get
+just chaves  # par de chaves das bibliotecas em keys/ (uma vez; fora do git)
+just pacote-hinos   # dist/hinos.zywny, do Hymn_Grabber (uso privado)
 just run     # flutter run -d linux --no-enable-impeller
 ```
 
@@ -44,7 +48,8 @@ Ou na mão:
 ```sh
 tool/build_verovio_linux.sh               # compila e strippa a libverovio.so
 tool/build_verovio_assets.sh              # gera assets/verovio_data.zip
-tool/build_hymn_assets.py                 # gera assets/hinos/ (os hinos embutidos)
+tool/library_crypto.py gen                # keys/: o par de chaves das bibliotecas
+tool/build_hymn_assets.py                 # gera dist/hinos.zywny (cifrado e assinado)
 flutter pub get
 flutter run -d linux --no-enable-impeller
 ```
@@ -68,12 +73,17 @@ Os artefatos gerados pelos scripts não são versionados:
   único, extraído na primeira execução por `lib/verovio_resources.dart`. Zip
   porque o bundler de assets do Flutter não recursa em diretórios.
 
-- `assets/hinos/` — um `NNN.musicxml.gz` por hino e o `indice.json` (número,
-  título, autores e dificuldade, esta de `musicxml/_dificuldade.csv`) que a
-  biblioteca lista, gerados a partir de
-  `/home/mauricio/IdeaProjects/Hymn_Grabber` (`musicxml/` e
-  `musicxml_special/`). Fora do git também porque as partituras têm direitos
-  de terceiros. Sem eles o app compila, mas a biblioteca abre vazia.
+- `keys/` — o par de chaves das bibliotecas (Ed25519). A **privada** gera
+  (assina e cifra) os pacotes e só existe com quem os gera; a **pública** é
+  embutida no app (`--dart-define=ZYWNY_LIBRARY_KEY`, que as receitas do
+  `justfile` leem daqui). Fora do git e **nunca vão ao repositório remoto**;
+  guarde cópia da privada — sem ela nenhum app instalado aceita pacote novo.
+  Sem a pública o app compila, mas recusa instalar biblioteca.
+- `dist/hinos.zywny` — a biblioteca de hinos (`just pacote-hinos`), gerada a
+  partir de `/home/mauricio/IdeaProjects/Hymn_Grabber` (`musicxml/` e
+  `musicxml_special/`, mais a dificuldade de `musicxml/_dificuldade.csv`). Fora
+  do git porque as partituras têm direitos de terceiros: o arquivo passa de mão
+  em mão e o app nunca diz de onde baixar.
 
-Rode os dois primeiros scripts de novo sempre que o submódulo andar, e o dos
-hinos quando o extrator do Hymn_Grabber mudar.
+Rode os dois primeiros scripts de novo sempre que o submódulo andar, e
+`just pacote-hinos` quando o extrator do Hymn_Grabber mudar.

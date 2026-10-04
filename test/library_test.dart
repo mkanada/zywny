@@ -13,8 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:zywny/library/hymn.dart';
-import 'package:zywny/library/hymn_progress.dart';
+import 'package:zywny/library/piece.dart';
+import 'package:zywny/library/piece_progress.dart';
 import 'package:zywny/library/library_screen.dart';
 import 'package:zywny/library/library_sort.dart';
 import 'package:zywny/main.dart';
@@ -34,13 +34,13 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Hymn _hymn(
+Piece _piece(
   int n,
   String title,
   String composer, {
   String? original,
   int? fifths,
-}) => Hymn(
+}) => Piece(
   number: n,
   title: title,
   composer: composer,
@@ -51,23 +51,25 @@ Hymn _hymn(
   searchKey: foldForSearch('$n $title ${original ?? ''} $composer'),
 );
 
-final _hymns = [
-  _hymn(
+final _pieces = [
+  _piece(
     1,
     'Santo, Santo, Santo!',
     'John B. Dykes',
     original: 'Holy, Holy',
     fifths: 2,
   ),
-  _hymn(12, 'Vinde, Povo do Senhor', 'George J. Elvey', fifths: -1),
+  _piece(12, 'Vinde, Povo do Senhor', 'George J. Elvey', fifths: -1),
   // Sem armadura no índice (antigo): vai para o fim na ordem de acidentes.
-  _hymn(120, 'Ao Deus de Abraão Louvai', 'Melodia hebraica'),
-  _hymn(244, 'Ó Vem à Igreja Comigo', 'William S. Pitts', fifths: 1),
+  _piece(120, 'Ao Deus de Abraão Louvai', 'Melodia hebraica'),
+  _piece(244, 'Ó Vem à Igreja Comigo', 'William S. Pitts', fifths: 1),
 ];
 
-Future<HymnCatalog> _loadCatalog() async => HymnCatalog(_hymns);
+Future<PieceCatalog> _loadCatalog() async => PieceCatalog(_pieces);
 
-List<int> _numbers(Iterable<Hymn> hymns) => [for (final h in hymns) h.number];
+List<int> _numbers(Iterable<Piece> pieces) => [
+  for (final h in pieces) h.number!,
+];
 
 void main() {
   setUp(() {
@@ -78,31 +80,31 @@ void main() {
 
   group('busca', () {
     test('ignora acento, caixa e pontuação', () {
-      expect(_numbers(filterHymns(_hymns, 'abraao')), [120]);
-      expect(_numbers(filterHymns(_hymns, 'O VEM A IGREJA')), [244]);
-      expect(_numbers(filterHymns(_hymns, 'santo santo')), [1]);
+      expect(_numbers(filterPieces(_pieces, 'abraao')), [120]);
+      expect(_numbers(filterPieces(_pieces, 'O VEM A IGREJA')), [244]);
+      expect(_numbers(filterPieces(_pieces, 'santo santo')), [1]);
     });
 
     test('acha por compositor e por título original', () {
-      expect(_numbers(filterHymns(_hymns, 'elvey')), [12]);
-      expect(_numbers(filterHymns(_hymns, 'holy')), [1]);
+      expect(_numbers(filterPieces(_pieces, 'elvey')), [12]);
+      expect(_numbers(filterPieces(_pieces, 'holy')), [1]);
     });
 
     test('só dígitos é o número do hino, pelo começo', () {
-      expect(_numbers(filterHymns(_hymns, '12')), [12, 120]);
-      expect(_numbers(filterHymns(_hymns, '012')), [12, 120]);
-      expect(_numbers(filterHymns(_hymns, '2')), [244]);
+      expect(_numbers(filterPieces(_pieces, '12')), [12, 120]);
+      expect(_numbers(filterPieces(_pieces, '012')), [12, 120]);
+      expect(_numbers(filterPieces(_pieces, '2')), [244]);
     });
 
     test('vazia devolve tudo', () {
-      expect(filterHymns(_hymns, '  ').length, _hymns.length);
+      expect(filterPieces(_pieces, '  ').length, _pieces.length);
     });
   });
 
   group('ordenação', () {
     test('dificuldade: do mais fácil ao mais difícil, pela nota (não pelo '
         'nível); sem classificação vai para o fim nas duas direções', () {
-      Hymn h(int n, {int? level, double? difficulty}) => Hymn(
+      Piece h(int n, {int? level, double? difficulty}) => Piece(
         number: n,
         title: 'Hino $n',
         composer: '',
@@ -112,17 +114,17 @@ void main() {
         composerKey: '',
         searchKey: '$n',
       );
-      final hymns = [
+      final pieces = [
         h(1, level: 3, difficulty: 40.5),
         h(2),
         h(3, level: 1, difficulty: 20),
         h(4, level: 3, difficulty: 38.25),
         h(5, level: 5, difficulty: 61),
       ];
-      final progress = HymnProgressStore();
+      final progress = PieceProgressStore();
       final easyFirst = const SortState().toggled(SortKey.difficulty);
       expect(easyFirst.ascending, isTrue);
-      expect(_numbers(sortedHymns(hymns, easyFirst, progress)), [
+      expect(_numbers(sortedPieces(pieces, easyFirst, progress)), [
         3,
         4,
         1,
@@ -131,7 +133,7 @@ void main() {
       ]);
       expect(
         _numbers(
-          sortedHymns(hymns, easyFirst.toggled(SortKey.difficulty), progress),
+          sortedPieces(pieces, easyFirst.toggled(SortKey.difficulty), progress),
         ),
         [5, 1, 4, 3, 2],
       );
@@ -139,17 +141,17 @@ void main() {
 
     test('índice: nível e dificuldade são opcionais', () {
       final base = {'n': 7, 't': 'T', 'c': 'C', 'k': 't', 'ck': 'c', 'q': '7'};
-      final plain = Hymn.fromJson(base);
+      final plain = Piece.fromJson(base);
       expect(plain.level, isNull);
       expect(plain.difficulty, isNull);
-      final rated = Hymn.fromJson({...base, 'nv': 2, 'd': 36});
+      final rated = Piece.fromJson({...base, 'nv': 2, 'd': 36});
       expect(rated.level, 2);
       expect(rated.difficulty, 36.0);
     });
 
     test('número, nome e compositor', () {
-      final progress = HymnProgressStore();
-      expect(_numbers(sortedHymns(_hymns, const SortState(), progress)), [
+      final progress = PieceProgressStore();
+      expect(_numbers(sortedPieces(_pieces, const SortState(), progress)), [
         1,
         12,
         120,
@@ -157,7 +159,7 @@ void main() {
       ]);
       expect(
         _numbers(
-          sortedHymns(_hymns, const SortState(key: SortKey.title), progress),
+          sortedPieces(_pieces, const SortState(key: SortKey.title), progress),
         ),
         // "Ó Vem…" entra no O, não depois do Z.
         [120, 244, 1, 12],
@@ -166,8 +168,8 @@ void main() {
       // antes de bemóis; sem armadura no fim, nas duas direções.
       expect(
         _numbers(
-          sortedHymns(
-            _hymns,
+          sortedPieces(
+            _pieces,
             const SortState(key: SortKey.accidentals),
             progress,
           ),
@@ -176,8 +178,8 @@ void main() {
       );
       expect(
         _numbers(
-          sortedHymns(
-            _hymns,
+          sortedPieces(
+            _pieces,
             const SortState(key: SortKey.accidentals, ascending: false),
             progress,
           ),
@@ -190,16 +192,16 @@ void main() {
       'recentes e pontuação: quem nunca foi estudado vai para o fim',
       () async {
         var now = DateTime(2026, 10, 1, 9);
-        final progress = HymnProgressStore(now: () => now);
-        await progress.markOpened(120);
+        final progress = PieceProgressStore(now: () => now);
+        await progress.markOpened('120');
         now = DateTime(2026, 10, 1, 10);
-        await progress.markOpened(12);
-        await progress.recordScore(12, 70);
-        await progress.recordScore(120, 90);
-        await progress.recordScore(120, 40); // pior que a melhor: não troca
+        await progress.markOpened('012');
+        await progress.recordScore('012', 70);
+        await progress.recordScore('120', 90);
+        await progress.recordScore('120', 40); // pior que a melhor: não troca
 
         const recent = SortState(key: SortKey.recent, ascending: false);
-        expect(_numbers(sortedHymns(_hymns, recent, progress)), [
+        expect(_numbers(sortedPieces(_pieces, recent, progress)), [
           12,
           120,
           1,
@@ -207,35 +209,35 @@ void main() {
         ]);
         expect(
           _numbers(
-            sortedHymns(_hymns, recent.toggled(SortKey.recent), progress),
+            sortedPieces(_pieces, recent.toggled(SortKey.recent), progress),
           ),
           [120, 12, 1, 244],
         );
         expect(
           _numbers(
-            sortedHymns(
-              _hymns,
+            sortedPieces(
+              _pieces,
               const SortState().toggled(SortKey.score),
               progress,
             ),
           ),
           [120, 12, 1, 244],
         );
-        expect(progress[120]!.bestScore, 90);
-        expect(progress.lastOpenedNumber, 12);
+        expect(progress['120']!.bestScore, 90);
+        expect(progress.lastOpenedId, '012');
       },
     );
 
     test('o progresso sobrevive a fechar o app', () async {
       final prefs = SharedPreferencesAsync();
-      final first = HymnProgressStore(prefs: prefs);
-      await first.markOpened(244);
-      await first.recordScore(244, 81);
+      final first = PieceProgressStore(prefs: prefs);
+      await first.markOpened('244');
+      await first.recordScore('244', 81);
 
-      final second = HymnProgressStore(prefs: prefs);
+      final second = PieceProgressStore(prefs: prefs);
       await second.load();
-      expect(second.lastOpenedNumber, 244);
-      expect(second[244]!.bestScore, 81);
+      expect(second.lastOpenedId, '244');
+      expect(second['244']!.bestScore, 81);
     });
   });
 
@@ -262,8 +264,15 @@ void main() {
       await tester.pumpWidget(const MyApp(loadCatalog: _loadCatalog));
       await tester.pump();
 
-      expect(find.text('Hinário'), findsOneWidget);
-      expect(find.text('4 hinos'), findsOneWidget);
+      // Nome e contagem formam uma linha só (um nome comprido não estoura).
+      expect(
+        find.textContaining('Hinário', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('4 hinos', findRichText: true),
+        findsOneWidget,
+      );
       expect(find.text('Santo, Santo, Santo!'), findsOneWidget);
       expect(find.text('2 sustenidos'), findsOneWidget);
       expect(find.byTooltip('Conectar teclado MIDI'), findsOneWidget);
@@ -308,13 +317,13 @@ void main() {
       tester,
     ) async {
       phonePortrait(tester);
-      OpenedHymn? opened;
+      OpenedPiece? opened;
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
           home: LibraryScreen(
             loadCatalog: _loadCatalog,
-            loadScore: (hymn) async => Uint8List(0),
+            loadScore: (piece) async => Uint8List(0),
             scoreBuilder: (context, o) {
               opened = o;
               return const Scaffold(body: Text('partitura'));
@@ -327,7 +336,7 @@ void main() {
       await tester.tap(find.text('Vinde, Povo do Senhor'));
       await tester.pumpAndSettle();
       expect(find.text('partitura'), findsOneWidget);
-      expect(opened!.hymn.number, 12);
+      expect(opened!.piece.number, 12);
       expect(opened!.scoreXml, isEmpty);
 
       // Um treino avaliado terminou com 83% de precisão.
@@ -371,12 +380,12 @@ void main() {
     );
 
     Future<Widget> libraryWith(TrailProgressStore trail) async {
-      await trail.save(12, progress12of51());
+      await trail.save('012', progress12of51());
       return MaterialApp(
         theme: buildAppTheme(),
         home: LibraryScreen(
           loadCatalog: _loadCatalog,
-          loadScore: (hymn) async => Uint8List(0),
+          loadScore: (piece) async => Uint8List(0),
           trailProgress: trail,
           scoreBuilder: (context, o) => const Scaffold(body: Text('partitura')),
         ),
@@ -400,7 +409,7 @@ void main() {
       phonePortrait(tester);
       final trail = TrailProgressStore();
       await trail.save(
-        12,
+        '012',
         const TrailProgress(
           n: 5,
           total: 51,
@@ -414,7 +423,7 @@ void main() {
           theme: buildAppTheme(),
           home: LibraryScreen(
             loadCatalog: _loadCatalog,
-            loadScore: (hymn) async => Uint8List(0),
+            loadScore: (piece) async => Uint8List(0),
             trailProgress: trail,
             scoreBuilder: (context, o) =>
                 const Scaffold(body: Text('partitura')),
@@ -438,7 +447,7 @@ void main() {
         's12',
         const StageResult(hits: 9, total: 10, badMeasures: {}),
       );
-      await trail.save(12, updated);
+      await trail.save('012', updated);
       await tester.pump();
       expect(find.textContaining('13/51'), findsOneWidget);
     });
@@ -446,14 +455,14 @@ void main() {
     testWidgets('continuar diz em que etapa parou', (tester) async {
       phonePortrait(tester);
       final trail = TrailProgressStore();
-      final progress = HymnProgressStore();
-      await progress.markOpened(12);
+      final progress = PieceProgressStore();
+      await progress.markOpened('012');
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
           home: LibraryScreen(
             loadCatalog: _loadCatalog,
-            loadScore: (hymn) async => Uint8List(0),
+            loadScore: (piece) async => Uint8List(0),
             progress: progress,
             trailProgress: trail,
             scoreBuilder: (context, o) =>
@@ -461,7 +470,7 @@ void main() {
           ),
         ),
       );
-      await trail.save(12, progress12of51());
+      await trail.save('012', progress12of51());
       await tester.pump();
       expect(find.text('CONTINUAR'), findsOneWidget);
       expect(
@@ -473,14 +482,14 @@ void main() {
     testWidgets('600 hinos abrem sem montar nenhum plano', (tester) async {
       phonePortrait(tester);
       final trail = TrailProgressStore();
-      await trail.save(1, progress12of51());
+      await trail.save('001', progress12of51());
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
           home: LibraryScreen(
-            loadCatalog: () async => HymnCatalog([
+            loadCatalog: () async => PieceCatalog([
               for (var n = 1; n <= 600; n++)
-                Hymn(
+                Piece(
                   number: n,
                   title: 'Hino $n',
                   composer: 'Autor',
@@ -489,7 +498,7 @@ void main() {
                   searchKey: 'hino $n',
                 ),
             ]),
-            loadScore: (hymn) async => Uint8List(0),
+            loadScore: (piece) async => Uint8List(0),
             trailProgress: trail,
             scoreBuilder: (context, o) =>
                 const Scaffold(body: Text('partitura')),

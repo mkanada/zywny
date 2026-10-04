@@ -18,8 +18,10 @@ import 'audio/sound_engine_factory.dart';
 import 'audio/soundfont_store.dart';
 import 'layout_options.dart';
 import 'layout_panel.dart';
-import 'library/hymn.dart';
+import 'library/piece.dart';
+import 'library/library_package.dart' show LibraryTerm;
 import 'library/library_screen.dart';
+import 'library/library_term_scope.dart';
 import 'midi/midi_device_manager.dart';
 import 'midi/midi_device_picker.dart';
 import 'midi/midi_input_service.dart';
@@ -37,7 +39,7 @@ import 'practice/practice_tools.dart';
 import 'practice/study_mode.dart';
 import 'settings/app_settings.dart';
 import 'settings/general_settings_panel.dart';
-import 'settings/hymn_settings.dart';
+import 'settings/piece_settings.dart';
 import 'splash_screen.dart';
 import 'trail/stage_result.dart' show StageResult, kTrailPassAccuracy;
 import 'trail/trail_controller.dart';
@@ -68,7 +70,7 @@ class MyApp extends StatelessWidget {
     super.key,
     this.debugMode = false,
     this.splash = false,
-    this.loadCatalog = HymnCatalog.load,
+    this.loadCatalog,
   });
 
   final bool debugMode;
@@ -76,9 +78,9 @@ class MyApp extends StatelessWidget {
   /// Splash de abertura (`lib/splash_screen.dart`); os testes ficam sem ela.
   final bool splash;
 
-  /// De onde vêm os hinos da biblioteca; os testes trocam por uma lista
-  /// própria (`assets/hinos/` não é versionado).
-  final Future<HymnCatalog> Function() loadCatalog;
+  /// De onde vêm as músicas da biblioteca; sem isto, a biblioteca instalada
+  /// e em uso. Os testes trocam por uma lista própria.
+  final Future<PieceCatalog> Function()? loadCatalog;
 
   @override
   Widget build(BuildContext context) {
@@ -91,8 +93,11 @@ class MyApp extends StatelessWidget {
         enabled: splash,
         child: LibraryScreen(
           loadCatalog: loadCatalog,
-          scoreBuilder: (context, opened) =>
-              ScoreHomePage(debugMode: debugMode, opened: opened),
+          scoreBuilder: (context, opened) => LibraryTermScope(
+            term: opened.term,
+            numbered: opened.numbered,
+            child: ScoreHomePage(debugMode: debugMode, opened: opened),
+          ),
         ),
       ),
     );
@@ -104,7 +109,7 @@ class ScoreHomePage extends StatefulWidget {
 
   /// O hino que a biblioteca abriu. `null` só nos testes de widget, que
   /// exercitam a tela sem partitura (nada nativo é tocado).
-  final OpenedHymn? opened;
+  final OpenedPiece? opened;
 
   /// `--debug` on the command line: asks Verovio to also embed the
   /// effective options and source document inside the rendered `.vsb`
@@ -122,8 +127,12 @@ const double kZoomMin = 0.5;
 const double kZoomMax = 8.0;
 
 class _ScoreHomePageState extends State<ScoreHomePage> {
-  late final String? _scoreName = switch (widget.opened?.hymn) {
-    final hymn? => '${hymn.number} · ${hymn.title}',
+  /// Como a biblioteca chama a música (o hinário, sem partitura aberta).
+  LibraryTerm get _term => widget.opened?.term ?? LibraryTerm.hymn;
+
+  late final String? _scoreName = switch (widget.opened?.piece) {
+    final piece? =>
+      piece.number == null ? piece.title : '${piece.number} · ${piece.title}',
     null => null,
   };
   late final Uint8List? _scoreXml = widget.opened?.scoreXml;
@@ -154,14 +163,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       widget.opened?.appSettings ?? AppSettings();
 
   /// O que este hino tinha guardado ao abrir (layout, andamento, mão).
-  late final HymnSettings _stored =
-      widget.opened?.hymnSettings ?? const HymnSettings();
+  late final PieceSettings _stored =
+      widget.opened?.pieceSettings ?? const PieceSettings();
 
   /// O layout de um hino em que nada foi mexido.
   static Map<String, Object> get _layoutDefaults =>
       initialLayoutValues(phone: _isPhone);
 
-  /// Verovio options of this hymn, by name (see `layout_options.dart`):
+  /// Verovio options of this piece, by name (see `layout_options.dart`):
   /// the app's defaults with whatever was changed for it.
   late Map<String, Object> _layout = _stored.layoutOver(_layoutDefaults);
 
@@ -251,7 +260,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// N da trilha deste hino (`null` = o geral); começa no guardado e muda
   /// pela gaveta de opções (J06).
-  int? _trailHymnN;
+  int? _trailPieceN;
 
   /// Gaveta da trilha aberta (J06).
   bool _trailDrawerOpen = false;
@@ -391,7 +400,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // eles que [_onSettingsChanged] compara para saber o que mudou.
     _output = _settings.output;
     _soundSetting = _settings.soundOn;
-    _trailHymnN = _stored.trailMeasures;
+    _trailPieceN = _stored.trailMeasures;
     _settings.addListener(_onSettingsChanged);
     if (widget.opened == null) unawaited(_settings.load());
     unawaited(
@@ -432,7 +441,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (trail != null && !trail.running) {
       final effective = effectiveTrailMeasures(
         general: _settings.trailMeasures,
-        hymn: _trailHymnN,
+        piece: _trailPieceN,
       );
       if (effective != trail.plan.n ||
           !listEquals(_planPhases, _settings.trailPlanPhases) ||
@@ -460,30 +469,30 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Guarda o que é deste hino (layout, andamento, mão). Com um respiro: um
   /// slider arrastado chama isto a cada passo.
-  void _saveHymnSettings() {
+  void _savePieceSettings() {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(
       const Duration(milliseconds: 400),
-      _flushHymnSettings,
+      _flushPieceSettings,
     );
   }
 
   Timer? _saveDebounce;
 
-  HymnSettings _hymnSettingsWith({int? trailMeasures}) => HymnSettings(
-    layout: HymnSettings.layoutOverrides(_layout, _layoutDefaults),
+  PieceSettings _pieceSettingsWith({int? trailMeasures}) => PieceSettings(
+    layout: PieceSettings.layoutOverrides(_layout, _layoutDefaults),
     pageFitsBox: _pageFitsBox,
     speed: _speed == 1.0 ? null : _speed,
     hand: _hand == _kDefaultHand ? null : _hand,
     trailMeasures: trailMeasures,
   );
 
-  void _flushHymnSettings() {
+  void _flushPieceSettings() {
     if (_saveDebounce == null) return;
     _saveDebounce?.cancel();
     _saveDebounce = null;
-    widget.opened?.onHymnSettingsChanged(
-      _hymnSettingsWith(trailMeasures: _trailHymnN),
+    widget.opened?.onPieceSettingsChanged(
+      _pieceSettingsWith(trailMeasures: _trailPieceN),
     );
   }
 
@@ -496,16 +505,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Troca o N do hino (`null` = padrão geral). Mudar o N efetivo com
   /// progresso pede confirmação e zera a trilha do hino (J06).
-  Future<void> _setHymnTrailN(int? value) async {
+  Future<void> _setPieceTrailN(int? value) async {
     final opened = widget.opened;
     if (opened == null) return;
     final oldEffective = effectiveTrailMeasures(
       general: _settings.trailMeasures,
-      hymn: _trailHymnN,
+      piece: _trailPieceN,
     );
     final newEffective = effectiveTrailMeasures(
       general: _settings.trailMeasures,
-      hymn: value,
+      piece: value,
     );
     if (newEffective != oldEffective &&
         _trail != null &&
@@ -514,15 +523,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       final ok = await confirmTrailReset(
         context,
         title: 'Trocar o corte?',
-        message: 'Isto reinicia a trilha deste hino.',
+        message: 'Isto reinicia a trilha ${_term.deste} ${_term.singular}.',
         confirmLabel: 'Trocar',
       );
       if (!ok) return;
-      await _trailStore.reset(opened.hymn.number);
+      await _trailStore.reset(opened.piece.id);
     }
-    opened.onHymnSettingsChanged(_hymnSettingsWith(trailMeasures: value));
+    opened.onPieceSettingsChanged(_pieceSettingsWith(trailMeasures: value));
     if (!mounted) return;
-    setState(() => _trailHymnN = value);
+    setState(() => _trailPieceN = value);
     if (newEffective != oldEffective) unawaited(_setupTrail());
   }
 
@@ -535,7 +544,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _countInPlayTimer?.cancel();
     if (_playing) unawaited(WakelockPlus.disable());
     _resizeDebounce?.cancel();
-    _flushHymnSettings();
+    _flushPieceSettings();
     _settings.removeListener(_onSettingsChanged);
     if (widget.opened == null) _settings.dispose();
     _silentCountInTimer?.cancel();
@@ -581,7 +590,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // fora (a caixa em paisagem chega logo depois).
     if (_isPhone && devicePx.height > devicePx.width) return;
     if (_document == null && !_busy) {
-      // Nothing engraved yet: the hymn the library opened gets its first
+      // Nothing engraved yet: the piece the library opened gets its first
       // render as soon as there is a box to engrave it for.
       _resizeDebounce?.cancel();
       _resizeDebounce = Timer(Duration.zero, _renderAndShow);
@@ -648,7 +657,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       final rendered = await _renderer.render(
         ScoreRenderRequest(
           source: scoreXml,
-          fileName: '${widget.opened?.hymn.paddedNumber ?? 'score'}.musicxml',
+          fileName: '${widget.opened?.piece.id ?? 'score'}.musicxml',
           pageWidth: pageWidth,
           pageHeight: pageHeight,
           options: options,
@@ -739,17 +748,17 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _clearErrorMarks();
     if (!mounted) return;
     if (document == null || track == null || player == null) return;
-    final hymnNumber = widget.opened?.hymn.number;
-    if (hymnNumber == null) {
+    final pieceId = widget.opened?.piece.id;
+    if (pieceId == null) {
       setState(
         () => _trailUnavailable =
-            'Trilha indisponível sem número de hino — treino livre',
+            'Trilha indisponível sem uma música aberta — treino livre',
       );
       return;
     }
     final n = effectiveTrailMeasures(
       general: _settings.trailMeasures,
-      hymn: _trailHymnN,
+      piece: _trailPieceN,
     );
     final path = TrailPath.fromTimeline(player.timeline);
     _planPhases = _settings.trailPlanPhases;
@@ -764,17 +773,18 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
     if (plan.isEmpty) {
       setState(
-        () =>
-            _trailUnavailable = 'Trilha indisponível neste hino — treino livre',
+        () => _trailUnavailable =
+            'Trilha indisponível ${_term.neste} ${_term.singular} — treino '
+            'livre',
       );
       return;
     }
-    var progress = await _trailStore.ensureLoaded(hymnNumber);
+    var progress = await _trailStore.ensureLoaded(pieceId);
     if (!mounted || !identical(_document, document)) return;
     // O N efetivo mudou desde o guardado (pelo geral): a trilha antiga é
     // de outro corte e é descartada ao abrir (J06).
     if (progress.total > 0 && progress.n != n) {
-      await _trailStore.reset(hymnNumber);
+      await _trailStore.reset(pieceId);
       progress = TrailProgress(n: n, total: plan.stages.length);
     } else if (progress.total > 0 && progress.total != plan.stages.length) {
       // Outras etapas escolhidas nas configurações: o mesmo progresso, com
@@ -791,7 +801,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       plan: plan,
       progress: progress,
       store: _trailStore,
-      hymnNumber: hymnNumber,
+      pieceId: pieceId,
     );
     trail.addListener(_onTrailChanged);
     _armedStageId = null;
@@ -1413,7 +1423,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// em andamento ([_practice] existindo esconde o seletor).
   void _setHand(Hand hand) {
     setState(() => _hand = hand);
-    _saveHymnSettings();
+    _savePieceSettings();
   }
 
   /// "Praticar" (T02): modo espera com o app tocando a outra mão. Precisa
@@ -1599,7 +1609,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// agendador de áudio com som ligado, ou `ScorePlayer.speed` mudo.
   void _setSpeed(double value) {
     setState(() => _speed = value);
-    _saveHymnSettings();
+    _savePieceSettings();
     if (_soundOn) {
       _scheduler?.setSpeed(value);
     } else {
@@ -2050,14 +2060,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void _setLayoutValue(String key, Object value) =>
       setState(() => _layout = {..._layout, key: value});
 
-  /// A layout option of this hymn settled (slider released, toggle
-  /// flipped): keep it for the hymn and re-engrave.
+  /// A layout option of this piece settled (slider released, toggle
+  /// flipped): keep it for the piece and re-engrave.
   void _commitLayout() {
-    _saveHymnSettings();
+    _savePieceSettings();
     _renderAndShow();
   }
 
-  /// Back to the app's default layout — for this hymn only.
+  /// Back to the app's default layout — for this piece only.
   void _resetLayout() {
     setState(() {
       _layout = _layoutDefaults;
@@ -2267,10 +2277,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Faixa do topo no celular: voltar, número e título do hino e, no
   /// treino, os selos de modo/mão e de acertos e erros.
   Widget _buildPhoneTitleBar() {
-    final hymn = widget.opened?.hymn;
+    final piece = widget.opened?.piece;
     return PhoneTitleBar(
-      number: hymn?.number,
-      title: hymn?.title ?? '',
+      number: piece?.number,
+      title: piece?.title ?? '',
       onBack: _backToLibrary,
       center: _trailChip(),
       trailing: [
@@ -2457,8 +2467,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       },
       onRestartTrail: () async {
         if (_trail?.running ?? false) _abandonTrailStage();
-        final number = _trail?.hymnNumber;
-        if (number != null) await _trailStore.reset(number);
+        final id = _trail?.pieceId;
+        if (id != null) await _trailStore.reset(id);
         unawaited(_setupTrail());
       },
     );
@@ -2644,19 +2654,19 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           ),
         ],
         // O que é só deste hino: cada um guarda o seu tamanho e layout.
-        const PhoneSectionLabel('ESTE HINO'),
+        PhoneSectionLabel('${_term.este} ${_term.singular}'.toUpperCase()),
         if (widget.opened != null) ...[
           PhoneToggleRow(
             label: 'Trechos de ${_settings.trailMeasures} compassos (padrão)',
-            value: _trailHymnN == null,
+            value: _trailPieceN == null,
             onChanged: (v) =>
-                unawaited(_setHymnTrailN(v ? null : _settings.trailMeasures)),
+                unawaited(_setPieceTrailN(v ? null : _settings.trailMeasures)),
           ),
-          if (_trailHymnN case final hymnN?)
+          if (_trailPieceN case final pieceN?)
             TrailNSelector(
-              value: hymnN,
+              value: pieceN,
               max: _trailMaxN,
-              onChanged: (v) => unawaited(_setHymnTrailN(v)),
+              onChanged: (v) => unawaited(_setPieceTrailN(v)),
             ),
         ],
         PhoneSliderRow(
@@ -2812,7 +2822,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   padding: const EdgeInsets.symmetric(horizontal: 64),
                   child: Text(
                     switch (_renderError) {
-                      final error? => 'Não deu para abrir o hino: $error',
+                      final error? =>
+                        'Não deu para abrir ${_term.o} ${_term.singular}: $error',
                       null => _scoreName ?? '',
                     },
                     textAlign: TextAlign.center,
@@ -3005,10 +3016,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           ),
         ),
         centerTitle: true,
-        title: switch (widget.opened?.hymn) {
-          final hymn? => ScoreTitle(
-            title: hymn.title,
-            caption: 'Hino ${hymn.number} · ${hymn.composer}',
+        title: switch (widget.opened?.piece) {
+          final piece? => ScoreTitle(
+            title: piece.title,
+            caption: piece.number == null
+                ? piece.composer
+                : '${_term.singularCapitalized} ${piece.number} · ${piece.composer}',
           ),
           null => const ScoreTitle(title: 'nenhuma partitura'),
         },

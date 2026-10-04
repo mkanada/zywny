@@ -14,6 +14,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -27,6 +28,8 @@ import 'package:integration_test/integration_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zywny/library/library_keys.dart';
+import 'package:zywny/library/library_store.dart';
 import 'package:zywny/main.dart';
 import 'package:zywny/music/performance_track.dart';
 import 'package:zywny/practice/count_in_overlay.dart';
@@ -39,7 +42,7 @@ import 'package:zywny/ui/phone_chrome.dart';
 
 /// O hino do roteiro: música de Beethoven (domínio público), nível 1 e
 /// logo no começo da lista.
-const _kHymnNumber = 5;
+const _kHymnId = '005';
 const _kHymnTitle = 'Jubilosos Te Adoramos';
 
 /// Teclado MIDI de mentira: um dispositivo com fio que aparece quando
@@ -199,7 +202,7 @@ Future<void> _sortBy(WidgetTester tester, String label) async {
   await _tap(tester, chip);
 }
 
-Future<void> _openHymnFromList(WidgetTester tester) async {
+Future<void> _openPieceFromList(WidgetTester tester) async {
   await tester.tap(find.text(_kHymnTitle).last, warnIfMissed: false);
 }
 
@@ -404,6 +407,21 @@ Future<void> _playAlong(
   }
 }
 
+/// O app não traz música nenhuma (fase B): o roteiro instala a biblioteca de
+/// hinos que `just telas` recebe em `--dart-define=ZYWNY_TEST_LIBRARY=<caminho
+/// no aparelho>` (um `dist/hinos.zywny` posto lá com `adb push`, de preferência
+/// em `/sdcard/Android/data/<id do app>/files/`, que o app lê sem permissão).
+/// O histórico (`_seedHistory`) já usa as chaves da biblioteca `hinos`.
+Future<void> _installTestLibrary() async {
+  const path = String.fromEnvironment('ZYWNY_TEST_LIBRARY');
+  if (path.isEmpty) {
+    throw StateError(
+      'Passe --dart-define=ZYWNY_TEST_LIBRARY=<dist/hinos.zywny no aparelho>',
+    );
+  }
+  await LibraryStore().install(await File(path).readAsBytes());
+}
+
 /// Histórico de quem já estuda há umas semanas: hinos abertos, pontuações
 /// e trilhas em vários pontos — a do hino do roteiro com o 1º trecho feito.
 Future<void> _seedHistory() async {
@@ -414,14 +432,14 @@ Future<void> _seedHistory() async {
       now.subtract(Duration(days: days)).millisecondsSinceEpoch;
 
   await prefs.setString(
-    'hymn_progress',
+    progressKeyFor('hinos'),
     jsonEncode({
-      '$_kHymnNumber': {'t': daysAgo(0), 's': 78},
-      '1': {'t': daysAgo(1), 's': 94},
-      '4': {'t': daysAgo(3), 's': 88},
-      '12': {'t': daysAgo(9), 's': 61},
-      '2': {'t': daysAgo(20), 's': 43},
-      '23': {'t': daysAgo(45)},
+      _kHymnId: {'t': daysAgo(0), 's': 78},
+      '001': {'t': daysAgo(1), 's': 94},
+      '004': {'t': daysAgo(3), 's': 88},
+      '012': {'t': daysAgo(9), 's': 61},
+      '002': {'t': daysAgo(20), 's': 43},
+      '023': {'t': daysAgo(45)},
     }),
   );
 
@@ -432,7 +450,7 @@ Future<void> _seedHistory() async {
 
   // Hino 1: trilha concluída. Hino 4: no meio, com duas etapas puladas.
   await prefs.setString(
-    'trail_1',
+    trailKeyFor('hinos', '001'),
     jsonEncode({
       'v': 1,
       'n': 5,
@@ -446,7 +464,7 @@ Future<void> _seedHistory() async {
     }),
   );
   await prefs.setString(
-    'trail_4',
+    trailKeyFor('hinos', '004'),
     jsonEncode({
       'v': 1,
       'n': 5,
@@ -477,7 +495,7 @@ Future<void> _seedHistory() async {
   ];
   const bests = [100, 96, 93, 100, 95, 91, 97, 94, 82, 98, 92, 90];
   await prefs.setString(
-    'trail_$_kHymnNumber',
+    trailKeyFor('hinos', _kHymnId),
     jsonEncode({
       'v': 1,
       'n': plan?.n ?? kTrailDefaultMeasures,
@@ -494,6 +512,7 @@ Future<void> _seedHistory() async {
       },
     }),
   );
+  await _installTestLibrary();
 }
 
 void main() {
@@ -553,7 +572,7 @@ void main() {
 
     // Abre o hino: a tela vira para paisagem e o Verovio grava a página.
     await _until(tester, () => _has(find.text(_kHymnTitle)), what: 'o hino');
-    await _openHymnFromList(tester);
+    await _openPieceFromList(tester);
     await _until(
       tester,
       () => _landscape(tester) && _has(find.byType(PhoneTitleBar)),

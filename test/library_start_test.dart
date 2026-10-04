@@ -1,13 +1,14 @@
 // U16 — cartão de primeiro uso da biblioteca.
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
-import 'package:zywny/library/hymn.dart';
-import 'package:zywny/library/hymn_progress.dart';
+import 'package:zywny/library/piece.dart';
+import 'package:zywny/library/piece_progress.dart';
 import 'package:zywny/library/library_screen.dart';
 import 'package:zywny/ui/theme.dart';
 
@@ -23,7 +24,7 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Hymn _hymn(int n, String title, {double? difficulty, int? level}) => Hymn(
+Piece _piece(int n, String title, {double? difficulty, int? level}) => Piece(
   number: n,
   title: title,
   composer: 'Autor',
@@ -36,10 +37,10 @@ Hymn _hymn(int n, String title, {double? difficulty, int? level}) => Hymn(
 
 // Na ordem do número, o mais difícil vem primeiro: ordenar por dificuldade
 // muda o hino do topo.
-final _hymns = [
-  _hymn(1, 'Hino Difícil', difficulty: 60, level: 5),
-  _hymn(2, 'Hino Médio', difficulty: 40, level: 3),
-  _hymn(3, 'Hino Fácil', difficulty: 20, level: 1),
+final _pieces = [
+  _piece(1, 'Hino Difícil', difficulty: 60, level: 5),
+  _piece(2, 'Hino Médio', difficulty: 40, level: 3),
+  _piece(3, 'Hino Fácil', difficulty: 20, level: 1),
 ];
 
 void main() {
@@ -51,7 +52,7 @@ void main() {
 
   Future<void> pumpLibrary(
     WidgetTester tester, {
-    HymnProgressStore? progress,
+    PieceProgressStore? progress,
     Size size = const Size(760, 900),
   }) async {
     tester.view.physicalSize = size;
@@ -61,8 +62,8 @@ void main() {
       MaterialApp(
         theme: buildAppTheme(),
         home: LibraryScreen(
-          loadCatalog: () async => HymnCatalog(_hymns),
-          loadScore: (hymn) async => Uint8List(0),
+          loadCatalog: () async => PieceCatalog(_pieces),
+          loadScore: (piece) async => Uint8List(0),
           progress: progress,
           scoreBuilder: (context, o) => const Scaffold(body: Text('partitura')),
         ),
@@ -102,8 +103,8 @@ void main() {
   testWidgets('com um hino já aberto o cartão de começo não existe', (
     tester,
   ) async {
-    final progress = HymnProgressStore();
-    await progress.markOpened(2);
+    final progress = PieceProgressStore();
+    await progress.markOpened('002');
     await pumpLibrary(tester, progress: progress);
     expect(find.text('COMECE POR AQUI'), findsNothing);
     expect(find.text('CONTINUAR'), findsOneWidget);

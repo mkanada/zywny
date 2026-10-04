@@ -7,29 +7,39 @@ import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
 import '../settings/app_settings.dart';
 import '../settings/general_settings_panel.dart';
-import '../settings/hymn_settings.dart';
+import '../settings/piece_settings.dart';
 import '../trail/trail_progress.dart';
 import '../trail/trail_widgets.dart' show TrailProgressBar, trailResumeText;
 import '../ui/theme.dart';
-import 'hymn.dart';
-import 'hymn_progress.dart';
+import 'piece.dart';
+import 'piece_progress.dart';
+import 'library_installer.dart';
+import 'library_package.dart' show LibraryTerm;
+import 'library_term_scope.dart';
 import 'library_sort.dart';
+import 'library_store.dart';
 
 /// O que a tela de partitura recebe da biblioteca ao abrir um hino.
 @immutable
-class OpenedHymn {
-  const OpenedHymn({
-    required this.hymn,
+class OpenedPiece {
+  const OpenedPiece({
+    required this.piece,
     required this.scoreXml,
     required this.midiDeviceManager,
     required this.onPracticeScore,
     required this.appSettings,
-    required this.hymnSettings,
-    required this.onHymnSettingsChanged,
+    required this.pieceSettings,
+    required this.onPieceSettingsChanged,
     required this.trailProgress,
+    this.term = LibraryTerm.hymn,
+    this.numbered = true,
   });
 
-  final Hymn hymn;
+  final Piece piece;
+
+  /// Como a biblioteca chama a música e se ela é numerada (B07).
+  final LibraryTerm term;
+  final bool numbered;
 
   /// O `.musicxml` do hino já descompactado, em memória.
   final Uint8List scoreXml;
@@ -47,8 +57,8 @@ class OpenedHymn {
 
   /// O que este hino tinha guardado (layout, andamento, mão), e para onde
   /// vai o que o usuário mudar nele.
-  final HymnSettings hymnSettings;
-  final ValueChanged<HymnSettings> onHymnSettingsChanged;
+  final PieceSettings pieceSettings;
+  final ValueChanged<PieceSettings> onPieceSettingsChanged;
 
   /// O progresso da trilha (o mesmo da biblioteca, para a linha do hino
   /// atualizar ao voltar da partitura sem reabrir nada — J09).
@@ -63,23 +73,30 @@ class LibraryScreen extends StatefulWidget {
   const LibraryScreen({
     super.key,
     required this.scoreBuilder,
-    this.loadCatalog = HymnCatalog.load,
-    this.loadScore = HymnCatalog.loadScore,
+    this.loadCatalog,
+    this.loadScore,
+    this.libraryStore,
+    this.pickLibraryFile = pickLibraryBytes,
     this.progress,
     this.appSettings,
-    this.hymnSettings,
+    this.pieceSettings,
     this.trailProgress,
   });
 
   /// Constrói a tela de partitura do hino aberto (`ScoreHomePage`).
-  final Widget Function(BuildContext context, OpenedHymn opened) scoreBuilder;
+  final Widget Function(BuildContext context, OpenedPiece opened) scoreBuilder;
 
-  /// Trocáveis nos testes, que não têm `assets/hinos/` nem disco.
-  final Future<HymnCatalog> Function() loadCatalog;
-  final Future<Uint8List> Function(Hymn hymn) loadScore;
-  final HymnProgressStore? progress;
+  /// Trocáveis nos testes, que não têm biblioteca instalada nem disco. Sem
+  /// eles: o catálogo da biblioteca em uso e a partitura dele.
+  final Future<PieceCatalog> Function()? loadCatalog;
+  final Future<Uint8List> Function(Piece piece)? loadScore;
+  final LibraryStore? libraryStore;
+
+  /// O seletor do arquivo `.zywny`; os testes trocam por um falso.
+  final Future<Uint8List?> Function() pickLibraryFile;
+  final PieceProgressStore? progress;
   final AppSettings? appSettings;
-  final HymnSettingsStore? hymnSettings;
+  final PieceSettingsStore? pieceSettings;
 
   /// Resumos da trilha por hino (J09); os testes injetam com dados.
   final TrailProgressStore? trailProgress;
@@ -89,17 +106,18 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
-  late final Future<HymnCatalog> _catalog = widget.loadCatalog();
-  late final HymnProgressStore _progress =
-      widget.progress ?? HymnProgressStore();
+  late final LibraryStore _libraries = widget.libraryStore ?? LibraryStore();
+  late Future<PieceCatalog> _catalog = _loadCatalog();
+  late final PieceProgressStore _progress =
+      widget.progress ?? PieceProgressStore();
   final MidiDeviceManager _midi = MidiDeviceManager();
 
   /// Configurações gerais (uma só para o app inteiro, lida ao abrir) e as
   /// de cada hino (lidas quando o hino abre).
   late final AppSettings _settings = widget.appSettings ?? AppSettings();
   late final Future<void> _settingsLoaded = _settings.load();
-  late final HymnSettingsStore _hymnSettings =
-      widget.hymnSettings ?? HymnSettingsStore();
+  late final PieceSettingsStore _pieceSettings =
+      widget.pieceSettings ?? PieceSettingsStore();
   late final TrailProgressStore _trail =
       widget.trailProgress ?? TrailProgressStore();
 
@@ -121,12 +139,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void initState() {
     super.initState();
     _lockPortrait();
-    unawaited(
-      _progress.load().whenComplete(() {
-        if (mounted) setState(() => _progressLoaded = true);
-      }),
-    );
-    unawaited(_trail.load());
+    unawaited(_loadProgress());
     unawaited(_settingsLoaded);
   }
 
@@ -154,30 +167,86 @@ class _LibraryScreenState extends State<LibraryScreen> {
     unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
   }
 
-  Future<void> _open(Hymn hymn) async {
+  /// O catálogo da biblioteca em uso. Sem nenhuma instalada: vazio
+  /// ([PieceCatalog.none], que não é erro). Erro ao abrir o pacote sai como
+  /// exceção.
+  Future<PieceCatalog> _loadCatalog() async {
+    final custom = widget.loadCatalog;
+    if (custom != null) return custom();
+    await _libraries.load();
+    _shownLibrary = _librarySignature();
+    final id = _libraries.activeId;
+    if (id != null) {
+      final package = await _libraries.open(id);
+      if (package != null) return PieceCatalog.fromPackage(package);
+    }
+    return const PieceCatalog.none();
+  }
+
+  /// Escolhe um `.zywny`, instala e, se deu certo, recarrega o catálogo (a
+  /// biblioteca nova vira a em uso).
+  Future<void> _installLibrary() async {
+    final installed = await installLibraryFromFile(
+      context,
+      _libraries,
+      pick: widget.pickLibraryFile,
+    );
+    if (installed == null || !mounted) return;
+    _reloadCatalog();
+  }
+
+  /// Lê o progresso e a trilha da biblioteca do catálogo (e só ela).
+  Future<void> _loadProgress() async {
+    try {
+      final catalog = await _catalog;
+      // Uma ordem que a biblioteca nova não tem (o número, nos clássicos)
+      // cai na padrão dela.
+      if (!catalog.numbered && _sort.key == SortKey.number) {
+        _sort = const SortState(key: SortKey.title);
+      }
+      final id = catalog.libraryId;
+      if (id != null) {
+        await _progress.load(id);
+        await _trail.load([for (final p in catalog.pieces) p.id], id);
+      }
+    } on Object {
+      // Catálogo com erro: a tela já mostra o erro.
+    }
+    if (mounted) setState(() => _progressLoaded = true);
+  }
+
+  Future<void> _open(Piece piece) async {
     if (_opening) return;
     _opening = true;
     try {
-      final scoreXml = await widget.loadScore(hymn);
-      final hymnSettings = await _hymnSettings.load(hymn.number);
+      final catalog = await _catalog;
+      final loadScore = widget.loadScore ?? catalog.loadScore;
+      final scoreXml = await loadScore(piece);
+      final pieceSettings = await _pieceSettings.load(
+        piece.libraryId,
+        piece.id,
+      );
       await _settingsLoaded;
       if (!mounted) return;
-      unawaited(_progress.markOpened(hymn.number));
+      unawaited(_progress.markOpened(piece.id));
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) => widget.scoreBuilder(
             context,
-            OpenedHymn(
-              hymn: hymn,
+            OpenedPiece(
+              piece: piece,
               scoreXml: scoreXml,
               midiDeviceManager: _midi,
               onPracticeScore: (score) =>
-                  unawaited(_progress.recordScore(hymn.number, score)),
+                  unawaited(_progress.recordScore(piece.id, score)),
               appSettings: _settings,
-              hymnSettings: hymnSettings,
-              onHymnSettingsChanged: (changed) =>
-                  unawaited(_hymnSettings.save(hymn.number, changed)),
+              pieceSettings: pieceSettings,
+              onPieceSettingsChanged: (changed) => unawaited(
+                _pieceSettings.save(piece.libraryId, piece.id, changed),
+              ),
               trailProgress: _trail,
+              term: catalog.term,
+              numbered: catalog.numbered,
             ),
           ),
         ),
@@ -185,7 +254,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não deu para abrir o hino ${hymn.number}: $e')),
+        SnackBar(content: Text('Não deu para abrir "${piece.title}": $e')),
       );
     } finally {
       _opening = false;
@@ -195,17 +264,44 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   /// Som, teclado MIDI e cores — o que vale para todos os hinos. (O que é
   /// de um hino só é mexido com ele aberto.)
-  void _openSettings() {
-    unawaited(
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (context) => GeneralSettingsScreen(
+  Future<void> _openSettings() async {
+    await _libraries.load();
+    _shownLibrary ??= _librarySignature();
+    final term = await _catalog.then(
+      (c) => c.term,
+      onError: (Object _) => LibraryTerm.hymn,
+    );
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => LibraryTermScope(
+          term: term,
+          child: GeneralSettingsScreen(
             settings: _settings,
             midiDeviceManager: _midi,
+            libraryStore: _libraries,
+            pickLibraryFile: widget.pickLibraryFile,
           ),
         ),
       ),
     );
+    // Ao fechar o painel, a lista acompanha a biblioteca que ficou em uso
+    // (trocada, substituída, instalada ou removida).
+    if (mounted && _shownLibrary != _librarySignature()) _reloadCatalog();
+  }
+
+  /// Qual biblioteca (e versão) a lista mostra: muda quando a em uso troca,
+  /// é substituída ou some.
+  String _librarySignature() =>
+      '${_libraries.activeId}/${_libraries.active?.version}';
+  String? _shownLibrary;
+
+  void _reloadCatalog() {
+    setState(() {
+      _progressLoaded = false;
+      _catalog = _loadCatalog();
+    });
+    unawaited(_loadProgress());
   }
 
   @override
@@ -231,7 +327,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             constraints: const BoxConstraints(maxWidth: 720),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: FutureBuilder<HymnCatalog>(
+              child: FutureBuilder<PieceCatalog>(
                 future: _catalog,
                 builder: (context, snapshot) => ListenableBuilder(
                   listenable: Listenable.merge([_progress, _trail]),
@@ -245,72 +341,130 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  Widget _content(AsyncSnapshot<HymnCatalog> snapshot) {
+  Widget _content(AsyncSnapshot<PieceCatalog> snapshot) {
     final catalog = snapshot.data;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _header(catalog),
         const SizedBox(height: 14),
-        _searchField(),
-        const SizedBox(height: 14),
-        if (catalog != null) ...[
-          if (_continuing(catalog) case final hymn?) ...[
-            _continueCard(hymn),
-            const SizedBox(height: 14),
-          ] else if (_progressLoaded) ...[
-            // Primeiro uso: o mesmo lugar do "Continuar" diz por onde começar.
-            _startCard(),
-            const SizedBox(height: 14),
-          ],
-          _sortChips(),
-          const SizedBox(height: 4),
-          Expanded(child: _list(catalog)),
-        ] else
-          Expanded(
-            child: Center(
-              child: snapshot.hasError
-                  ? const Text(
-                      'Os hinos não vieram com esta compilação.\n'
-                      'Gere-os com tool/build_hymn_assets.py e compile de novo.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: kInkCaption),
-                    )
-                  : const CircularProgressIndicator(),
+        if (catalog != null && !catalog.hasLibrary)
+          Expanded(child: _noLibraryCard())
+        else ...[
+          _searchField(catalog?.numbered ?? true),
+          const SizedBox(height: 14),
+          if (catalog != null) ...[
+            if (_continuing(catalog) case final piece?) ...[
+              _continueCard(piece, catalog.term),
+              const SizedBox(height: 14),
+            ] else if (_progressLoaded) ...[
+              // Primeiro uso: o mesmo lugar do "Continuar" diz por onde começar.
+              _startCard(catalog.term),
+              const SizedBox(height: 14),
+            ],
+            _sortChips(catalog.numbered),
+            const SizedBox(height: 4),
+            Expanded(child: _list(catalog)),
+          ] else
+            Expanded(
+              child: Center(
+                child: snapshot.hasError
+                    ? const Text(
+                        'Não consegui abrir a biblioteca.\n'
+                        'Instale-a de novo pelas configurações.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: kInkCaption),
+                      )
+                    : const CircularProgressIndicator(),
+              ),
             ),
-          ),
+        ],
       ],
     );
   }
 
-  Hymn? _continuing(HymnCatalog catalog) {
-    final number = _progress.lastOpenedNumber;
-    if (number == null) return null;
-    for (final h in catalog.hymns) {
-      if (h.number == number) return h;
+  /// Sem nenhuma biblioteca (primeiro uso, ou depois de remover a última):
+  /// como instalar uma. Nenhuma palavra sobre onde baixar (D-BIB-DIST).
+  Widget _noLibraryCard() {
+    return Center(
+      child: SingleChildScrollView(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+          decoration: BoxDecoration(
+            color: kSurface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: kBorderSoft),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Instale uma biblioteca de músicas',
+                textAlign: TextAlign.center,
+                style: serifDisplay(fontSize: 22),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'O zywny não traz músicas. Elas chegam em bibliotecas: '
+                'arquivos .zywny que você abre aqui. Uma delas fica em uso '
+                'por vez, e você troca nas configurações.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: kInkCaption, height: 1.4),
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: () => unawaited(_installLibrary()),
+                icon: const Icon(Icons.folder_open),
+                label: const Text('Abrir arquivo…'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Piece? _continuing(PieceCatalog catalog) {
+    final id = _progress.lastOpenedId;
+    if (id == null) return null;
+    for (final h in catalog.pieces) {
+      if (h.id == id) return h;
     }
     return null;
   }
 
-  Widget _header(HymnCatalog? catalog) {
+  Widget _header(PieceCatalog? catalog) {
+    final title = switch (catalog) {
+      final c? when c.hasLibrary => c.libraryName,
+      _ => 'Músicas',
+    };
+    final count = catalog == null || !catalog.hasLibrary
+        ? ''
+        : catalog.term.count(catalog.pieces.length);
     return Row(
       children: [
-        Text('Hinário', style: serifDisplay(fontSize: 30)),
-        const SizedBox(width: 10),
+        // Nome e contagem numa linha só: um nome comprido de biblioteca
+        // corta a contagem primeiro, depois a si mesmo — nunca estoura.
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              catalog == null ? '' : '${catalog.hymns.length} hinos',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, color: kInkCaption),
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: title, style: serifDisplay(fontSize: 30)),
+                if (count.isNotEmpty)
+                  TextSpan(
+                    text: '  $count',
+                    style: const TextStyle(fontSize: 13, color: kInkCaption),
+                  ),
+              ],
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         IconButton(
           tooltip: 'Configurações gerais',
-          onPressed: _openSettings,
+          onPressed: () => unawaited(_openSettings()),
           color: kIconQuiet,
           icon: const Icon(Icons.settings_outlined),
         ),
@@ -320,7 +474,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  Widget _searchField() {
+  Widget _searchField(bool numbered) {
     OutlineInputBorder border(Color color) => OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: BorderSide(color: color),
@@ -334,7 +488,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         style: const TextStyle(fontSize: 15),
         decoration: InputDecoration(
           isDense: true,
-          hintText: 'Buscar número, título ou autor',
+          hintText: numbered
+              ? 'Buscar número, título ou autor'
+              : 'Buscar título ou autor',
           hintStyle: const TextStyle(color: kInkCaption),
           prefixIcon: const Icon(Icons.search, color: kInkCaption, size: 20),
           suffixIcon: _query.isEmpty
@@ -362,15 +518,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
     setState(() => _query = '');
   }
 
-  Widget _continueCard(Hymn hymn) {
-    final progress = _progress[hymn.number];
-    final trail = _trail[hymn.number];
+  Widget _continueCard(Piece piece, LibraryTerm term) {
+    final progress = _progress[piece.id];
+    final trail = _trail[piece.id];
     final started = trail.total > 0;
     // A etapa em que parou, numa linha própria; o resto, menor, embaixo.
     final resume = trail.resume;
     final stage = resume == null ? null : trailResumeText(resume);
     final details = [
-      'Hino ${hymn.number}',
+      if (piece.number != null)
+        '${term.singularCapitalized} ${piece.number}'
+      else
+        piece.composer,
       if (progress?.lastOpened case final at?) whenStudied(at, DateTime.now()),
       if (progress?.bestScore case final score?) 'melhor $score%',
     ].join(' · ');
@@ -403,7 +562,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      hymn.title,
+                      piece.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -436,7 +595,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   shape: const CircleBorder(),
                   child: InkWell(
                     customBorder: const CircleBorder(),
-                    onTap: () => unawaited(_open(hymn)),
+                    onTap: () => unawaited(_open(piece)),
                     child: const SizedBox(
                       width: 48,
                       height: 48,
@@ -477,7 +636,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   /// Cartão de primeiro uso (U16): no lugar do "Continuar" enquanto nenhum
   /// hino foi aberto. Não bloqueia nada e some sozinho no primeiro hino.
-  Widget _startCard() {
+  Widget _startCard(LibraryTerm term) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
       decoration: BoxDecoration(
@@ -499,9 +658,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ),
           ),
           const SizedBox(height: 2),
-          const Text(
-            'Escolha um hino fácil e ligue o teclado ao celular.',
-            style: TextStyle(
+          Text(
+            'Escolha ${term.um} ${term.singular} fácil e ligue o teclado ao '
+            'celular.',
+            style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
               color: kInk,
@@ -547,7 +707,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (_listScroll.hasClients) _listScroll.jumpTo(0);
   }
 
-  Widget _sortChips() {
+  Widget _sortChips(bool numbered) {
+    final keys = [
+      for (final k in SortKey.values)
+        if (numbered || k != SortKey.number) k,
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -587,10 +751,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ).createShader(rect),
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: SortKey.values.length,
+                  itemCount: keys.length,
                   separatorBuilder: (_, _) => const SizedBox(width: 8),
                   itemBuilder: (context, i) {
-                    final key = SortKey.values[i];
+                    final key = keys[i];
                     return _SortChip(
                       label: '${labelFor(key)}${_sort.arrowFor(key)}',
                       selected: _sort.key == key,
@@ -606,20 +770,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  Widget _list(HymnCatalog catalog) {
-    final hymns = filterHymns(
-      sortedHymns(catalog.hymns, _sort, _progress),
+  Widget _list(PieceCatalog catalog) {
+    final pieces = filterPieces(
+      sortedPieces(catalog.pieces, _sort, _progress),
       _query,
     );
-    if (hymns.isEmpty) {
+    if (pieces.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               _query.trim().isEmpty
-                  ? 'Nenhum hino encontrado'
-                  : 'Nenhum hino com “${_query.trim()}”.',
+                  ? '${catalog.term.nenhumCapitalized} '
+                        '${catalog.term.singular} ${catalog.term.encontrado}'
+                  : '${catalog.term.nenhumCapitalized} '
+                        '${catalog.term.singular} com “${_query.trim()}”.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: kInkCaption),
             ),
@@ -637,38 +803,44 @@ class _LibraryScreenState extends State<LibraryScreen> {
       controller: _listScroll,
       // 600 linhas iguais: altura fixa deixa a rolagem e a barra exatas.
       itemExtent: 64,
-      itemCount: hymns.length,
+      itemCount: pieces.length,
       padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       itemBuilder: (context, i) {
-        final hymn = hymns[i];
-        return _HymnRow(
-          hymn: hymn,
-          progress: _progress[hymn.number],
-          trail: _trail[hymn.number],
+        final piece = pieces[i];
+        return _PieceRow(
+          piece: piece,
+          progress: _progress[piece.id],
+          trail: _trail[piece.id],
           now: now,
-          match: hymnMatch(hymn, _query),
-          onTap: () => unawaited(_open(hymn)),
+          match: pieceMatch(piece, _query),
+          numbered: catalog.numbered,
+          onTap: () => unawaited(_open(piece)),
         );
       },
     );
   }
 }
 
-class _HymnRow extends StatelessWidget {
-  const _HymnRow({
-    required this.hymn,
+class _PieceRow extends StatelessWidget {
+  const _PieceRow({
+    required this.piece,
     required this.progress,
     required this.trail,
     required this.now,
     required this.onTap,
+    this.numbered = true,
     this.match,
   });
 
-  /// Onde a busca casou neste hino (U14); `null` sem busca.
-  final HymnMatch? match;
+  /// A biblioteca é numerada: a coluna do número existe. Sem ela (B07) o
+  /// subtítulo mostra compositor e número de catálogo.
+  final bool numbered;
 
-  final Hymn hymn;
-  final HymnProgress? progress;
+  /// Onde a busca casou neste hino (U14); `null` sem busca.
+  final PieceMatch? match;
+
+  final Piece piece;
+  final PieceProgress? progress;
 
   /// Progresso da trilha (resumo pronto do JSON, sem plano — J09). Sem nada
   /// iniciado (`total == 0`), a linha fica como hoje.
@@ -683,9 +855,9 @@ class _HymnRow extends StatelessWidget {
     const style = TextStyle(fontSize: 13, color: kInkCaption);
     final m = match;
     if (m != null && m.title.isEmpty) {
-      final lyricist = hymn.lyricist;
+      final lyricist = piece.lyricist;
       if (m.composer.isNotEmpty) {
-        return _highlighted(hymn.composer, m.composer, style);
+        return _highlighted(piece.composer, m.composer, style);
       }
       if (lyricist != null && m.lyricist.isNotEmpty) {
         return TextSpan(
@@ -696,7 +868,7 @@ class _HymnRow extends StatelessWidget {
           ],
         );
       }
-      final original = hymn.originalTitle;
+      final original = piece.originalTitle;
       if (original != null && m.originalTitle.isNotEmpty) {
         return TextSpan(
           style: style,
@@ -707,8 +879,18 @@ class _HymnRow extends StatelessWidget {
         );
       }
     }
+    if (!numbered) {
+      // Sem número, a linha diz quem compôs e o catálogo (Op. 100 nº 2).
+      return TextSpan(
+        text: [
+          piece.composer,
+          if (piece.originalTitle case final o? when o.isNotEmpty) o,
+        ].join(' · '),
+        style: style,
+      );
+    }
     return TextSpan(
-      text: switch (hymn.fifths) {
+      text: switch (piece.fifths) {
         final f? => keySignatureLabel(f),
         null => '',
       },
@@ -724,7 +906,10 @@ class _HymnRow extends StatelessWidget {
     // reticências: é o começo quem cede.
     final lead = _lead();
     final parts = [
-      if (hymn.level case final level?) 'nível $level de 5',
+      // A armadura, que nas numeradas abre a linha.
+      if (!numbered)
+        if (piece.fifths case final f?) keySignatureLabel(f),
+      if (piece.level case final level?) 'nível $level de 5',
       if (progress?.lastOpened case final at?) whenStudied(at, now),
       if (score != null) 'melhor $score%',
     ];
@@ -740,20 +925,24 @@ class _HymnRow extends StatelessWidget {
         child: Row(
           children: [
             // O número do hinário, na coluna da esquerda: é por ele que se
-            // acha um hino. Algarismos de largura fixa para alinhar.
-            SizedBox(
-              width: 38,
-              child: Text(
-                '${hymn.number}',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: kInkCaption,
-                  fontFeatures: [FontFeature.tabularFigures()],
+            // acha um hino. Algarismos de largura fixa para alinhar. Sem
+            // numeração (clássicos), a coluna não existe.
+            if (numbered) ...[
+              SizedBox(
+                width: 38,
+                child: Text(
+                  piece.number == null ? '' : '${piece.number}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: kInkCaption,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 6),
+              const SizedBox(width: 6),
+            ] else
+              const SizedBox(width: 2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,7 +950,7 @@ class _HymnRow extends StatelessWidget {
                 children: [
                   Text.rich(
                     _highlighted(
-                      hymn.title,
+                      piece.title,
                       match?.title ?? const [],
                       const TextStyle(
                         fontSize: 15.5,

@@ -1,5 +1,5 @@
 // Configurações: as gerais (lib/settings/app_settings.dart — som, MIDI,
-// cores) e as de cada hino (lib/settings/hymn_settings.dart — layout,
+// cores) e as de cada hino (lib/settings/piece_settings.dart — layout,
 // andamento, mão), e os dois painéis que as editam. O contrato principal é a
 // persistência: o que foi mudado volta numa nova instância (= o app aberto
 // de novo, ou atualizado), e o que foi gravado por outra versão não quebra.
@@ -16,14 +16,14 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:zywny/layout_options.dart';
-import 'package:zywny/library/hymn.dart';
+import 'package:zywny/library/piece.dart';
 import 'package:zywny/library/library_screen.dart';
 import 'package:zywny/main.dart';
 import 'package:zywny/practice/hand.dart';
 import 'package:zywny/practice/practice_controller.dart';
 import 'package:zywny/settings/app_settings.dart';
 import 'package:zywny/settings/general_settings_panel.dart';
-import 'package:zywny/settings/hymn_settings.dart';
+import 'package:zywny/settings/piece_settings.dart';
 import 'package:zywny/trail/trail_stage.dart';
 import 'package:zywny/ui/phone_chrome.dart';
 import 'package:zywny/ui/theme.dart';
@@ -40,7 +40,7 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Hymn _hymn(int n, String title) => Hymn(
+Piece _piece(int n, String title) => Piece(
   number: n,
   title: title,
   composer: 'Autor',
@@ -166,26 +166,27 @@ void main() {
 
     test('guarda só o que saiu do padrão', () {
       final values = {...defaults, 'unit': 8.0, 'breaks': 'line'};
-      expect(HymnSettings.layoutOverrides(values, defaults), {
+      expect(PieceSettings.layoutOverrides(values, defaults), {
         'unit': 8.0,
         'breaks': 'line',
       });
-      expect(HymnSettings.layoutOverrides(defaults, defaults), isEmpty);
+      expect(PieceSettings.layoutOverrides(defaults, defaults), isEmpty);
     });
 
     test('cada hino tem a sua, e ela volta ao abrir o app de novo', () async {
-      final first = HymnSettingsStore();
+      final first = PieceSettingsStore();
       await first.save(
-        12,
-        const HymnSettings(
+        'hinos',
+        '012',
+        const PieceSettings(
           layout: {'unit': 8.0, 'spacingStaff': 20},
           speed: 0.8,
           hand: Hand.esquerda,
         ),
       );
 
-      final second = HymnSettingsStore();
-      final twelve = await second.load(12);
+      final second = PieceSettingsStore();
+      final twelve = await second.load('hinos', '012');
       expect(twelve.layout, {'unit': 8.0, 'spacingStaff': 20});
       expect(twelve.pageFitsBox, isTrue);
       expect(twelve.speed, 0.8);
@@ -194,24 +195,28 @@ void main() {
       expect(twelve.layoutOver(defaults)['footer'], defaults['footer']);
 
       // Outro hino não herda nada.
-      final other = await second.load(13);
+      final other = await second.load('hinos', '013');
       expect(other.isDefault, isTrue);
       expect(other.layoutOver(defaults), defaults);
     });
 
     test('voltar ao padrão apaga a chave do hino', () async {
-      final store = HymnSettingsStore();
-      await store.save(7, const HymnSettings(layout: {'unit': 6.0}));
-      await store.save(7, const HymnSettings());
+      final store = PieceSettingsStore();
+      await store.save(
+        'hinos',
+        '007',
+        const PieceSettings(layout: {'unit': 6.0}),
+      );
+      await store.save('hinos', '007', const PieceSettings());
       expect(
-        await SharedPreferencesAsync().getString('hymn_settings_7'),
+        await SharedPreferencesAsync().getString('piece_settings_hinos_007'),
         isNull,
       );
     });
 
     test('o que outra versão do app gravou nunca chega torto', () async {
       await SharedPreferencesAsync().setString(
-        'hymn_settings_3',
+        'piece_settings_hinos_003',
         jsonEncode({
           'v': 9,
           'layout': {
@@ -226,13 +231,19 @@ void main() {
           'campoNovo': {'x': 1},
         }),
       );
-      final settings = await HymnSettingsStore().load(3);
+      final settings = await PieceSettingsStore().load('hinos', '003');
       expect(settings.layout, {'unit': 12.0, 'justifyVertically': true});
       expect(settings.speed, kSpeedMax);
       expect(settings.hand, isNull);
 
-      await SharedPreferencesAsync().setString('hymn_settings_4', '{quebrado');
-      expect((await HymnSettingsStore().load(4)).isDefault, isTrue);
+      await SharedPreferencesAsync().setString(
+        'piece_settings_hinos_004',
+        '{quebrado',
+      );
+      expect(
+        (await PieceSettingsStore().load('hinos', '004')).isDefault,
+        isTrue,
+      );
     });
   });
 
@@ -353,14 +364,14 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
 
-      OpenedHymn? opened;
+      OpenedPiece? opened;
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
           home: LibraryScreen(
             loadCatalog: () async =>
-                HymnCatalog([_hymn(1, 'Primeiro'), _hymn(2, 'Segundo')]),
-            loadScore: (hymn) async => Uint8List(0),
+                PieceCatalog([_piece(1, 'Primeiro'), _piece(2, 'Segundo')]),
+            loadScore: (piece) async => Uint8List(0),
             scoreBuilder: (context, o) {
               opened = o;
               return const Scaffold(body: Text('partitura'));
@@ -394,19 +405,19 @@ void main() {
       // O hino recebe as mesmas configurações gerais que a biblioteca editou.
       // (O som nasce ligado, U04: o toque em "Som" o desligou.)
       expect(opened!.appSettings.soundOn, isFalse);
-      expect(opened!.hymnSettings.isDefault, isTrue);
-      opened!.onHymnSettingsChanged(
-        const HymnSettings(layout: {'unit': 7.0}, speed: 0.6),
+      expect(opened!.pieceSettings.isDefault, isTrue);
+      opened!.onPieceSettingsChanged(
+        const PieceSettings(layout: {'unit': 7.0}, speed: 0.6),
       );
       await back();
 
       await open('Segundo');
-      expect(opened!.hymnSettings.isDefault, isTrue);
+      expect(opened!.pieceSettings.isDefault, isTrue);
       await back();
 
       await open('Primeiro');
-      expect(opened!.hymnSettings.layout, {'unit': 7.0});
-      expect(opened!.hymnSettings.speed, 0.6);
+      expect(opened!.pieceSettings.layout, {'unit': 7.0});
+      expect(opened!.pieceSettings.speed, 0.6);
     });
   });
 }

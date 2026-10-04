@@ -1,14 +1,15 @@
 // U13 — progresso à vista na biblioteca: a barra e o texto da linha, a
 // coluna da direita vazia sem trilha e a gaveta da trilha.
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
-import 'package:zywny/library/hymn.dart';
-import 'package:zywny/library/hymn_progress.dart';
+import 'package:zywny/library/piece.dart';
+import 'package:zywny/library/piece_progress.dart';
 import 'package:zywny/library/library_screen.dart';
 import 'package:zywny/trail/trail_progress.dart';
 import 'package:zywny/trail/trail_widgets.dart';
@@ -26,7 +27,7 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Hymn _hymn(int n, String composer, {int? level, int? fifths}) => Hymn(
+Piece _piece(int n, String composer, {int? level, int? fifths}) => Piece(
   number: n,
   title: 'Hino $n',
   composer: composer,
@@ -64,8 +65,8 @@ void main() {
 
   Future<void> pumpLibrary(
     WidgetTester tester, {
-    required List<Hymn> hymns,
-    HymnProgressStore? progress,
+    required List<Piece> pieces,
+    PieceProgressStore? progress,
     TrailProgressStore? trail,
     Size size = const Size(760, 900),
   }) async {
@@ -76,8 +77,8 @@ void main() {
       MaterialApp(
         theme: buildAppTheme(),
         home: LibraryScreen(
-          loadCatalog: () async => HymnCatalog(hymns),
-          loadScore: (hymn) async => Uint8List(0),
+          loadCatalog: () async => PieceCatalog(pieces),
+          loadScore: (piece) async => Uint8List(0),
           progress: progress,
           trailProgress: trail,
           scoreBuilder: (context, o) => const Scaffold(body: Text('partitura')),
@@ -95,14 +96,14 @@ void main() {
   testWidgets('a linha mostra a armadura, não o compositor; o resto e o '
       'progresso aparecem inteiros', (tester) async {
     const composer = 'Compositor Com Um Nome Bem Longo X';
-    final store = HymnProgressStore();
-    await store.markOpened(7);
-    await store.recordScore(7, 78);
+    final store = PieceProgressStore();
+    await store.markOpened('007');
+    await store.recordScore('007', 78);
     final trail = TrailProgressStore();
-    await trail.save(7, _progress(approved: 12, skipped: 1, total: 75));
+    await trail.save('007', _progress(approved: 12, skipped: 1, total: 75));
     await pumpLibrary(
       tester,
-      hymns: [_hymn(7, composer, level: 3, fifths: -3)],
+      pieces: [_piece(7, composer, level: 3, fifths: -3)],
       progress: store,
       trail: trail,
       size: const Size(1000, 900),
@@ -124,14 +125,14 @@ void main() {
   testWidgets('sem armadura no índice a linha não começa com separador', (
     tester,
   ) async {
-    await pumpLibrary(tester, hymns: [_hymn(9, 'Fulano', level: 2)]);
+    await pumpLibrary(tester, pieces: [_piece(9, 'Fulano', level: 2)]);
     expect(find.text('nível 2 de 5'), findsOneWidget);
   });
 
   testWidgets('hino nunca aberto não tem nada na coluna da direita', (
     tester,
   ) async {
-    await pumpLibrary(tester, hymns: [_hymn(8, 'Fulano')]);
+    await pumpLibrary(tester, pieces: [_piece(8, 'Fulano')]);
     expect(find.byType(TrailProgressBar), findsNothing);
     expect(find.text('—'), findsNothing);
     expect(find.textContaining('/'), findsNothing);
@@ -140,10 +141,10 @@ void main() {
   testWidgets('trilha concluída: barra cheia e a marca', (tester) async {
     final trail = TrailProgressStore();
     await trail.save(
-      9,
+      '009',
       _progress(approved: 50, skipped: 0, total: 51, finalApproved: true),
     );
-    await pumpLibrary(tester, hymns: [_hymn(9, 'Fulano')], trail: trail);
+    await pumpLibrary(tester, pieces: [_piece(9, 'Fulano')], trail: trail);
     expect(find.byTooltip('Trilha concluída'), findsOneWidget);
     final bar = tester.widget<TrailProgressBar>(find.byType(TrailProgressBar));
     expect(bar.done, bar.total);

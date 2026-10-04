@@ -51,9 +51,8 @@ app.*.map.json
 # (run tool/build_verovio_assets.sh).
 /assets/verovio_data.zip
 
-# Embedded hymns — generated from Hymn_Grabber, regenerable (run
-# tool/build_hymn_assets.py / `just hinos`). Third-party scores: keep out of
-# the repository.
+# The app no longer embeds hymns (phase B: installable libraries). Kept out of
+# the repository in case old copies are still on disk — third-party scores.
 /assets/hinos/
 
 # libverovio.so for Android (X01) — generated from verovio_flutter_bridge,
@@ -66,3 +65,12 @@ app.*.map.json
 # Verovio wasm toolkit for the Web (W02) — generated from verovio_flutter_bridge,
 # regenerable (run tool/build_verovio_web.sh).
 /web/verovio/
+
+# Web sound engine (W04): esbuild output and npm deps, regenerable
+# (run tool/build_audio_web.sh).
+/web/audio/
+/web_src/node_modules/
+/dist/
+
+# Chaves das bibliotecas (D-BIB-CIFRA): nunca vao para o remoto.
+/keys/

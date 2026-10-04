@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import 'layout_options.dart';
+import 'library/library_term_scope.dart';
 
-/// Floating panel with what belongs to **one hymn**: the Verovio options of
-/// [kLayoutGroups] (notation size first) and the on-screen zoom. Each hymn
-/// keeps its own values (`HymnSettingsStore`); what holds for every hymn —
+/// Floating panel with what belongs to **one piece**: the Verovio options of
+/// [kLayoutGroups] (notation size first) and the on-screen zoom. Each piece
+/// keeps its own values (`PieceSettingsStore`); what holds for every piece —
 /// sound, MIDI, colors — lives in `GeneralSettingsPanel`.
 ///
 /// It only edits [values]; `lib/main.dart` owns them and does the render.
@@ -28,7 +29,7 @@ class LayoutPanel extends StatelessWidget {
     this.subtitle,
   });
 
-  /// Which hymn these options belong to ("12 · Vinde, Povo do Senhor").
+  /// Which piece these options belong to ("12 · Vinde, Povo do Senhor").
   final String? subtitle;
 
   final Map<String, Object> values;
@@ -55,6 +56,7 @@ class LayoutPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final term = LibraryTermScope.of(context);
     final theme = Theme.of(context);
     return Card(
       margin: EdgeInsets.zero,
@@ -91,7 +93,8 @@ class LayoutPanel extends StatelessWidget {
                   icon: const Icon(Icons.copy_all, size: 20),
                 ),
                 IconButton(
-                  tooltip: 'Restaurar o layout padrão neste hino',
+                  tooltip:
+                      'Restaurar o layout padrão ${term.neste} ${term.singular}',
                   onPressed: onReset,
                   icon: const Icon(Icons.restart_alt, size: 20),
                 ),

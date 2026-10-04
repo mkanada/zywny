@@ -42,7 +42,7 @@ saídas temporárias em `compare/out/`, não alterar `View`/`SvgDeviceContext`,
 a spec `docs/formato/especificacao-v1.md` é atualizada junto com o formato).
 O plano **daquele** repo usa os prefixos F/S/R/A/E/P (+ G, ver abaixo); os
 passos deste plano usam prefixos próprios (X, N, C, K, M, T, W, V, J, L,
-U) para não colidir.
+U, B) para não colidir.
 
 A fase **J** (trilha de estudo: a música em trechos, com etapas que se
 desbloqueiam como fases de um jogo) tem especificação própria em
@@ -63,6 +63,12 @@ sobre as telas de `docs/telas/celular/`. O índice, os princípios e o modo
 de conferir uma mudança de tela (`just telas`) estão em
 [U00-ux-do-celular.md](U00-ux-do-celular.md) — quem executa um passo U lê
 também esse arquivo e a sugestão citada no passo.
+
+A fase **B** (bibliotecas instaláveis: o app vem vazio e as músicas chegam
+em pacotes `.zywny` — hinos, clássicos — abertos por arquivo) tem
+especificação e decisões em
+[B00-bibliotecas-instalaveis.md](B00-bibliotecas-instalaveis.md) — quem
+executa um passo B lê também esse arquivo.
 
 **N01 e N02 são 100%/quase 100% código do bridge** (fork C++ + spec, e
 `score_bridge/` — que também é pacote do bridge, não do zywny). Por isso os
@@ -113,7 +119,7 @@ zywny
       ├─ ScoreAudioScheduler (K04) ── janela à frente ──► SoundEngine (interface Dart)
       │                                                    ├─ NativeSoundEngine (K02/K03: Rust rustysynth+cpal, FFI)
       │                                                    ├─ MidiOutSoundEngine (M03: teclado externo)
-      │                                                    └─ WebSoundEngine (W03: SpessaSynth, js_interop)
+      │                                                    └─ WebSoundEngine (W04: SpessaSynth, js_interop)
       │
       ├─ PlaybackClock (C01) ◄── posição do áudio (quem manda é o áudio)
       │        └─ ScorePlayer (bridge) lê o relógio → destaque / virada
@@ -135,6 +141,9 @@ zywny
 | Painel de opções | `lib/layout_panel.dart`, `lib/layout_options.dart` |
 | Build | `justfile`, `tool/build_verovio_linux.sh`, `tool/build_verovio_assets.sh`, `linux/CMakeLists.txt` L109+ (instala `libverovio.so` em `lib/` do bundle) |
 | Testes | `test/widget_test.dart`, `test/vsb_render_test.dart`, `test/layout_options_test.dart` |
+| Bibliotecas (fase B): formato | `lib/library/library_envelope.dart` (cifra AES-256-GCM + assinatura Ed25519, `ZYWN`), `lib/library/library_package.dart` (`LibraryManifest`, `LibraryTerm`, `LibraryPackage.parse` — o zip de dentro), `tool/library_crypto.py`, `tool/build_library.py`, `tool/build_hymn_assets.py` (`just pacote-hinos`) |
+| Bibliotecas: guardar/instalar | `lib/library/library_store.dart` (`LibraryStore`, lista + em uso em `shared_preferences`), `library_blob_store*.dart` (arquivo no nativo, IndexedDB na Web, memória nos testes), `library_installer.dart` (`installLibraryFromFile`), `lib/settings/libraries_section.dart` |
+| Bibliotecas: músicas | `lib/library/piece.dart` (`Piece`, `PieceCatalog`: `libraryId`+`id`, número opcional), `library_keys.dart` (chaves por biblioteca), `piece_progress.dart`, `lib/settings/piece_settings.dart`, `lib/trail/trail_progress.dart`, `legacy_migration.dart`, `library_term_scope.dart` (vocabulário) |
 
 ### score_bridge (no bridge)
 
@@ -161,6 +170,17 @@ zywny
 | Bindings Dart | `verovio/bindings/dart/lib/src/verovio_toolkit.dart` (`renderToMIDI` L252, `getMIDIValuesForElement` L173 — **este ignora 8va/transposição**, não use para pitch) |
 
 ## Fatos (pesquisados em 2026-09-24)
+
+- **Bibliotecas (fase B, 2026-10-04):** o app **não traz música nenhuma**; as
+  músicas vêm de `.zywny` instalados por arquivo (D-BIB). O `.zywny` é um
+  envelope cifrado e assinado (D-BIB-CIFRA): as chaves ficam em `keys/` (fora
+  do git, **nunca vão ao remoto**) e a pública entra no build por
+  `--dart-define=ZYWNY_LIBRARY_KEY` (as receitas do `justfile` leem de `keys/`;
+  `just chaves` gera o par). `just pacote-hinos` gera `dist/hinos.zywny` (3,1
+  MB, 600 hinos). Tirar os hinos embutidos (B08) encolheu o APK arm64 de
+  74.238.467 para 71.183.847 B, o bundle Linux de 59.683.240 para 56.595.310 B
+  e a Web de 72.319.773 para 69.174.996 B (~3,1 MB cada).
+
 
 - **Estado das plataformas hoje**: só Linux roda. Android: existe
   `verovio/bindings/dart/android-libs/arm64-v8a/libverovio.so` no bridge e um
@@ -217,7 +237,7 @@ zywny
 | D-MIDI | Pilha MIDI: `flutter_midi_command` ou `midir` (Rust)? | M01 | `flutter_midi_command` (pronto nas 4 plataformas); `midir` só se M01 medir problema | **aberta** (recomendação pronta) |
 | D-WIN | Como compilar e testar no Windows (máquina própria, VM, CI)? | X02, K06 | DLLs cross-compiladas no Linux (mingw) + app compilado e testado numa VM Windows 11 no KVM; CI opcional — ver [windows-a-partir-do-linux.md](windows-a-partir-do-linux.md) | **aberta** (pesquisa feita) |
 | D-WEB | A Web entra na 1.0 com o mesmo peso? | ordem da fase W | Sim, mas depois do Android e antes do Windows (ordem do usuário: Linux → Android → Web → Windows); o custo é portar o render (Verovio→wasm), não o som | **decidida**: sim — o usuário mandou trabalhar na Web (2026-10-04) |
-| D-WEB-SYNTH | Síntese na Web: SpessaSynth (JS) ou o crate Rust em wasm? | W04 | SpessaSynth (maduro, AudioWorklet pronto); mesmo `.sf2` nos dois lados | **aberta** |
+| D-WEB-SYNTH | Síntese na Web: SpessaSynth (JS) ou o crate Rust em wasm? | W04 | SpessaSynth (maduro, AudioWorklet pronto); mesmo `.sf2` nos dois lados | **decidida**: SpessaSynth (2026-10-04, ao seguir a recomendação no W04) |
 | D-TREINO | Tolerâncias e UX do treino (janela de acerto, o que conta como erro) | T03 | ±75 ms "certo", ±150 ms "quase", fora disso "errado/perdido"; ornamentos e apojaturas não cobrados na 1.0 | **aberta** |
 | D-RITMO | Treino de rítmica: janelas, cobrar duração, som do toque | T05 | ±60 ms "certo", ±130 ms "quase" (de parede); duração não cobrada; toque soa as notas esperadas do onset ("piano mágico") | **aberta** |
 | D-FAIXA | Onde mora a informação da trilha no celular: na barra do título, ou numa faixa própria que não cobre a pauta? (O J00 pede "uma faixa fina na partitura"; hoje ela cobre as cifras e o cabeçalho dos painéis) | U01 | (a) barra do título — a área da partitura não muda e não há re-render; (b) faixa própria sempre presente, que custa 34 dp de pauta | **aberta** |
@@ -230,6 +250,8 @@ zywny
 | D-MODOS | Um seletor só de quatro modos (Ouvir, Espera, Tempo real, Ritmo) no lugar do seletor de dois + dois interruptores? | U11 | Sim | **decidida**: sim (U11) |
 | D-ORDEM | A seta da ordenação: direção real ("↑" crescente) ou a regra do artboard ("↓" = direção padrão da chave)? | U14 (só a seta) | Direção real | **decidida**: direção real (U14) |
 | D-SALTO | Trilha em músicas cujo caminho sem repetições tem salto (casas de 1ª/2ª vez, vários ritornelos): salto no agendador ou usar a última passagem? | J08 | **decidida (a)**: salto no agendador (generaliza o loop para vãos; sessões pré-filtradas sem os vãos) — a via (b) resgatava só 15/115 saltos (o resto é intro+casas e ritornelos seguidos); medição refeita: 0 hinos sem trilha — ver [J08](J08-saltos-no-caminho.md) | **decidida** |
+| D-BIB | Bibliotecas instaláveis: distribuição, app vazio, origem, Web, fonte dos clássicos, remover, atualizar, migrar, termo, extensão | fase B | — | **decidida** (2026-10-04): as 14 decisões D-BIB-* no [B00](B00-bibliotecas-instalaveis.md) |
+| D-BIB-CIFRA | Pacote `.zywny` cifrado e assinado; privada gera, pública sob controle do usuário, chaves fora do git | fase B | — | **decidida** (2026-10-04): ver o B00 "O envelope" |
 
 ## Riscos conhecidos
 
@@ -270,9 +292,9 @@ zywny
 | [X01](X01-android-render.md) | Android: `.vsb` e partitura rodando (sem som) | — | — | concluído |
 | [K05](K05-motor-no-android.md) | Motor de áudio no Android (cargo-ndk, AAudio) e latência | K04, X01 | — | pendente |
 | [W01](W01-verovio-wasm.md) | Protótipo: fork do Verovio em wasm gerando `.vsb` no navegador | — | D-WEB | concluído (a paginação "diferente" era a referência nativa sem `-a`; wasm idêntico ao nativo — ver correção nas notas) |
-| [W02](W02-app-na-web.md) | zywny compilando e desenhando a partitura na Web | W01 | — | concluído (critério 2 manual — Play/destaque no Chrome — aguardando verificação) |
-| [W03](W03-web-midi.md) | Web MIDI (entrada e saída) | W02, M03 | — | pendente |
-| [W04](W04-som-na-web.md) | Som na Web: `WebSoundEngine` (SpessaSynth) | W02, K04 | D-WEB-SYNTH | pendente |
+| [W02](W02-app-na-web.md) | zywny compilando e desenhando a partitura na Web | W01 | — | concluído (Play/destaque conferidos no Chromium headless em W04; falta a página alternativa do Maple Leaf Rag) |
+| [W03](W03-web-midi.md) | Web MIDI (entrada e saída) | W02, M03 | — | concluído (critério 2 manual — Safari/iOS — não testado; Firefox testado) |
+| [W04](W04-som-na-web.md) | Som na Web: `WebSoundEngine` (SpessaSynth) | W02, K04 | D-WEB-SYNTH | concluído (critérios manuais conferidos no Chromium headless com Web MIDI falso; falta ouvir num Chrome de verdade e a Gymnopédie/Maple Leaf Rag) |
 | [Y01](Y01-nota-fantasma.md) | Nota fantasma: tecla errada desenhada na pauta (lado zywny de G03–G05) | N03, T02 | — | concluído (falta ver no app) |
 | [X02](X02-windows-render.md) | Windows: `verovio.dll` e partitura rodando (sem som) | — | D-WIN | pendente |
 | [K06](K06-motor-no-windows.md) | Motor de áudio no Windows (WASAPI) | K04, X02 | D-WIN | pendente |
@@ -313,6 +335,16 @@ zywny
 | [U17](U17-vocabulario.md) | UX: vocabulário das configurações | U15 | — | concluído (critério 4, no emulador, aguardando verificação) |
 | [U18](U18-um-visual-so.md) | UX: um visual só — tema e superfícies | U12 | — | concluído (critérios 5–6, no emulador e no aparelho, aguardando verificação) |
 | [U19](U19-refazer-as-telas.md) | UX: refazer as telas e conferir os achados | todos os U | — | concluído (fotos refeitas; achados conferidos na seção "Depois da fase U" do estudo) |
+| [B01](B01-formato-e-leitor.md) | Bibliotecas: formato `.zywny` e leitor (Dart puro) | — | D-BIB | concluído |
+| [B02](B02-gerador-de-pacotes.md) | Bibliotecas: gerador de pacotes e o `hinos.zywny` | B01 | D-BIB | concluído |
+| [B03](B03-guardar-bibliotecas.md) | Bibliotecas: guardar pacotes (nativo e IndexedDB) e a em uso | B01 | D-BIB | concluído |
+| [B04](B04-musicas-por-biblioteca.md) | Bibliotecas: `Piece`, chaves por biblioteca e migração | B01, B03 | D-BIB | concluído |
+| [B05](B05-instalar-por-arquivo.md) | Bibliotecas: tela sem biblioteca e instalar por arquivo | B04 | D-BIB | concluído em código (aceite manual pendente) |
+| [B06](B06-bibliotecas-nas-configuracoes.md) | Bibliotecas: seção nas configurações gerais | B05 | D-BIB | concluído em código (aceite manual pendente) |
+| [B07](B07-vocabulario-da-biblioteca.md) | Bibliotecas: vocabulário e ordenação do manifesto | B04 | D-BIB | concluído em código (aceite manual pendente) |
+| [B08](B08-app-sem-hinos-embutidos.md) | Bibliotecas: o app sem hinos embutidos | B05, B06, B07 | D-BIB | concluído (aceite manual pendente) |
+| [B09](B09-curadoria-dos-classicos.md) | Bibliotecas: curadoria dos clássicos (musetrainer/library) | — | lista aprovada pelo usuário | proposta pronta (43 peças), **aguardando aprovação** |
+| [B10](B10-pacote-dos-classicos.md) | Bibliotecas: pacote dos clássicos | B02, B09 | D-BIB | pendente (espera a aprovação do B09) |
 
 Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
 Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em

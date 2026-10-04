@@ -1,13 +1,14 @@
 // U14 — ordem dos resultados, "por que casou", a seta da ordenação e a busca
 // sem resultado.
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
-import 'package:zywny/library/hymn.dart';
+import 'package:zywny/library/piece.dart';
 import 'package:zywny/library/library_screen.dart';
 import 'package:zywny/library/library_sort.dart';
 import 'package:zywny/ui/theme.dart';
@@ -24,13 +25,13 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Hymn _hymn(
+Piece _piece(
   int n,
   String title,
   String composer, {
   String? lyricist,
   String? original,
-}) => Hymn(
+}) => Piece(
   number: n,
   title: title,
   composer: composer,
@@ -43,7 +44,9 @@ Hymn _hymn(
   ),
 );
 
-List<int> _numbers(Iterable<Hymn> hymns) => [for (final h in hymns) h.number];
+List<int> _numbers(Iterable<Piece> pieces) => [
+  for (final h in pieces) h.number!,
+];
 
 void main() {
   setUp(() {
@@ -56,38 +59,38 @@ void main() {
     test(
       'quem tem a palavra no título vem antes de quem a tem só no autor',
       () {
-        final hymns = [
-          _hymn(1, 'Cristo Vive', 'Jader D. Santos'),
-          _hymn(2, 'Santo, Santo, Santo!', 'John B. Dykes'),
-          _hymn(3, 'Hino Santo', 'Autor'),
+        final pieces = [
+          _piece(1, 'Cristo Vive', 'Jader D. Santos'),
+          _piece(2, 'Santo, Santo, Santo!', 'John B. Dykes'),
+          _piece(3, 'Hino Santo', 'Autor'),
         ];
         // Na ordem dada (por número), o de autor viria primeiro.
-        expect(_numbers(filterHymns(hymns, 'santo')), [2, 3, 1]);
+        expect(_numbers(filterPieces(pieces, 'santo')), [2, 3, 1]);
       },
     );
 
     test('a busca só por número não muda', () {
-      final hymns = [
-        _hymn(12, 'A', 'x'),
-        _hymn(120, 'B', 'y'),
-        _hymn(2, 'C', 'z'),
+      final pieces = [
+        _piece(12, 'A', 'x'),
+        _piece(120, 'B', 'y'),
+        _piece(2, 'C', 'z'),
       ];
-      expect(_numbers(filterHymns(hymns, '12')), [12, 120]);
+      expect(_numbers(filterPieces(pieces, '12')), [12, 120]);
     });
   });
 
-  group('hymnMatch', () {
+  group('pieceMatch', () {
     test('acha o trecho no texto original, com acento', () {
-      final h = _hymn(120, 'Ao Deus de Abraão Louvai', 'Melodia hebraica');
-      final m = hymnMatch(h, 'abraao')!;
+      final h = _piece(120, 'Ao Deus de Abraão Louvai', 'Melodia hebraica');
+      final m = pieceMatch(h, 'abraao')!;
       expect(m.title, [(start: 11, end: 17)]);
       expect(m.composer, isEmpty);
       expect(h.title.substring(11, 17), 'Abraão');
     });
 
     test('com pontuação: todas as ocorrências', () {
-      final h = _hymn(1, 'Santo, Santo, Santo!', 'John B. Dykes');
-      final m = hymnMatch(h, 'santo santo')!;
+      final h = _piece(1, 'Santo, Santo, Santo!', 'John B. Dykes');
+      final m = pieceMatch(h, 'santo santo')!;
       expect(m.title, [
         (start: 0, end: 5),
         (start: 7, end: 12),
@@ -96,22 +99,22 @@ void main() {
     });
 
     test('casamento só no letrista', () {
-      final h = _hymn(
+      final h = _piece(
         1,
         'Santo, Santo, Santo!',
         'John B. Dykes',
         lyricist: 'Reginald Heber',
       );
-      final m = hymnMatch(h, 'heber')!;
+      final m = pieceMatch(h, 'heber')!;
       expect(m.title, isEmpty);
       expect(m.composer, isEmpty);
       expect(m.lyricist, [(start: 9, end: 14)]);
     });
 
     test('sem busca, ou só número, não há o que negritar', () {
-      final h = _hymn(12, 'A', 'x');
-      expect(hymnMatch(h, ''), isNull);
-      expect(hymnMatch(h, '12'), isNull);
+      final h = _piece(12, 'A', 'x');
+      expect(pieceMatch(h, ''), isNull);
+      expect(pieceMatch(h, '12'), isNull);
     });
   });
 
@@ -127,7 +130,7 @@ void main() {
     });
   });
 
-  Future<void> pumpLibrary(WidgetTester tester, List<Hymn> hymns) async {
+  Future<void> pumpLibrary(WidgetTester tester, List<Piece> pieces) async {
     tester.view.physicalSize = const Size(760, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -135,8 +138,8 @@ void main() {
       MaterialApp(
         theme: buildAppTheme(),
         home: LibraryScreen(
-          loadCatalog: () async => HymnCatalog(hymns),
-          loadScore: (hymn) async => Uint8List(0),
+          loadCatalog: () async => PieceCatalog(pieces),
+          loadScore: (piece) async => Uint8List(0),
           scoreBuilder: (context, o) => const Scaffold(body: Text('partitura')),
         ),
       ),
@@ -149,13 +152,13 @@ void main() {
     tester,
   ) async {
     await pumpLibrary(tester, [
-      _hymn(
+      _piece(
         1,
         'Santo, Santo, Santo!',
         'John B. Dykes',
         lyricist: 'Reginald Heber',
       ),
-      _hymn(2, 'Outro Hino', 'Fulano'),
+      _piece(2, 'Outro Hino', 'Fulano'),
     ]);
     await tester.enterText(find.byType(TextField), 'heber');
     await tester.pump();
@@ -166,7 +169,7 @@ void main() {
 
   testWidgets('casou só no título original: "original: …"', (tester) async {
     await pumpLibrary(tester, [
-      _hymn(
+      _piece(
         1,
         'Santo, Santo, Santo!',
         'John B. Dykes',
@@ -181,8 +184,8 @@ void main() {
   testWidgets('sem resultado: "Limpar a busca" esvazia o campo e a lista '
       'volta', (tester) async {
     await pumpLibrary(tester, [
-      _hymn(1, 'Santo, Santo, Santo!', 'John B. Dykes'),
-      _hymn(2, 'Outro Hino', 'Fulano'),
+      _piece(1, 'Santo, Santo, Santo!', 'John B. Dykes'),
+      _piece(2, 'Outro Hino', 'Fulano'),
     ]);
     await tester.enterText(find.byType(TextField), 'chopin');
     await tester.pump();
@@ -198,7 +201,7 @@ void main() {
   });
 
   testWidgets('o "×" do campo limpa a busca', (tester) async {
-    await pumpLibrary(tester, [_hymn(1, 'Santo', 'Autor')]);
+    await pumpLibrary(tester, [_piece(1, 'Santo', 'Autor')]);
     expect(find.byTooltip('Limpar a busca'), findsNothing);
     await tester.enterText(find.byType(TextField), 'santo');
     await tester.pump();

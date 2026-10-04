@@ -13,17 +13,21 @@
 
 linux_bundle := "build/linux/x64/release/bundle/zywny"
 
+# Chave pública das bibliotecas (D-BIB-CIFRA), lida de keys/ — fora do git —
+# e embutida no app. Sem o arquivo, o app compila mas não instala biblioteca.
+lib_key := "--dart-define=ZYWNY_LIBRARY_KEY=$(cat keys/biblioteca.public.b64 2>/dev/null)"
+
 # Lista as receitas disponíveis.
 default:
     @just --list
 
 # Roda no Linux sem Impeller. Flags extras passam: `just run --release`.
 run *ARGS:
-    flutter run -d linux --no-enable-impeller {{ARGS}}
+    flutter run -d linux --no-enable-impeller {{lib_key}} {{ARGS}}
 
 # Roda com Impeller (padrão do Flutter) — para reconferir #191171.
 run-impeller *ARGS:
-    flutter run -d linux {{ARGS}}
+    flutter run -d linux {{lib_key}} {{ARGS}}
 
 # Roda no Linux com o modo de debug do app (ScoreHomePage.debugMode: guarda
 # o .vsb renderizado no diretório corrente, com data/hora no nome).
@@ -31,11 +35,11 @@ run-impeller *ARGS:
 # próprio `flutter run` (build mode, já é o padrão). Por isso precisa do
 # --dart-entrypoint-args para chegar no Dart.
 run-debug *ARGS:
-    flutter run -d linux --no-enable-impeller --dart-entrypoint-args=--debug {{ARGS}}
+    flutter run -d linux --no-enable-impeller {{lib_key}} --dart-entrypoint-args=--debug {{ARGS}}
 
 # Build de release do bundle Linux.
 build-release:
-    flutter build linux --release
+    flutter build linux --release {{lib_key}}
 
 # O `flutter run` passa a flag pelo ambiente (FLUTTER_ENGINE_SWITCHES +
 # FLUTTER_ENGINE_SWITCH_N), não por argv, então lançar o binário direto
@@ -70,7 +74,7 @@ mockup-images:
     tool/build_mockup_images.sh
 
 # Preparação completa a partir de um clone limpo.
-setup: native assets hinos
+setup: native assets
     flutter pub get
 
 # Compila a libverovio.so do verovio_flutter_bridge (não versionada).
@@ -81,15 +85,21 @@ native:
 assets:
     tool/build_verovio_assets.sh
 
-# Gera assets/hinos/ (os hinos embutidos) a partir do Hymn_Grabber (não
-# versionado). Rode de novo quando o extrator de lá mudar.
-hinos *ARGS:
+# Guarde cópia da privada fora do repositório: sem ela, nenhum app instalado
+# aceita pacote novo.
+# Gera o par de chaves das bibliotecas em keys/ (fora do git; não sobrescreve).
+chaves:
+    tool/library_crypto.py gen
+
+# Uso privado, fora do git; rode de novo quando o extrator de lá mudar.
+# Gera dist/hinos.zywny do Hymn_Grabber, cifrado e assinado com keys/ (`just chaves`).
+pacote-hinos *ARGS:
     tool/build_hymn_assets.py {{ARGS}}
 
 # APK de release (arm64 só, para instalar direto no celular). Rode antes
-# `just native-android native-audio-android hinos assets`, ao menos uma vez.
+# `just native-android native-audio-android assets`, ao menos uma vez.
 build-apk:
-    flutter build apk --release --target-platform android-arm64
+    flutter build apk --release {{lib_key}} --target-platform android-arm64
 
 # Compila a libzywny_audio.so nativa (native/zywny_audio/, K02; não
 # versionada).
@@ -109,7 +119,7 @@ native-audio-android:
 # Roda o app de verdade (não o mockup) no Android — emulador ou aparelho
 # conectado. Rode `just native-android` antes, ao menos uma vez.
 run-android *ARGS:
-    flutter run -d android {{ARGS}}
+    flutter run -d android {{lib_key}} {{ARGS}}
 
 # Refotografa as telas do celular em docs/telas/celular/ — roda o app de
 # verdade num emulador ou aparelho Android já ligado (o mesmo preparo do
@@ -117,9 +127,25 @@ run-android *ARGS:
 # Em profile: sem a faixa "DEBUG" e com o desempenho de uma versão final.
 # Emulador sem janela e sem gravar nada no AVD:
 #   emulator -avd Medium_Phone_2 -read-only -no-window -no-audio
+# O app não traz música: ponha `dist/hinos.zywny` no aparelho (`adb push`) e passe
+# `--dart-define=ZYWNY_TEST_LIBRARY=<caminho no aparelho>` em ARGS.
 telas *ARGS:
     flutter drive --profile --driver=test_driver/telas_celular.dart \
-        --target=integration_test/telas_celular_test.dart -d android {{ARGS}}
+        --target=integration_test/telas_celular_test.dart -d android {{lib_key}} {{ARGS}}
+
+# Gera web/audio/ (SpessaSynth empacotado com esbuild, W04; não versionado).
+# Precisa de node/npm e rede na primeira vez.
+web-audio:
+    tool/build_audio_web.sh
+
+# Compila a versão Web (release). Antes: `tool/build_verovio_web.sh` e
+# `just web-audio`, ao menos uma vez.
+build-web:
+    flutter build web --release {{lib_key}}
+
+# Teste de fumaça da Web no Chromium headless (W03/W04) — roda `build-web`.
+web-smoke: build-web
+    node tool/web_smoke/smoke.mjs
 
 # Refaz .so e assets depois que o verovio_flutter_bridge mudar.
 rebuild-deps: native assets
