@@ -62,4 +62,66 @@ MIDI (M03) e o treino (T02-T04) funcionam com teclado USB, pelo Web MIDI.
 
 ## Notas de execução
 
-(preencher)
+### Notas de execução (2026-10-04)
+
+**O que o plugin faz (lido em `flutter_midi_command_web` 1.3.0)**
+- Funcionou sem `js_interop` próprio: lista, conecta, recebe e envia pelo
+  Web MIDI; `onMidiSetupChanged` chega do `MIDIAccess.onstatechange` (com
+  atraso de 250 ms para juntar eventos).
+- Três problemas, nenhum exigiu trocar o plugin:
+  1. **Pede `requestMIDIAccess(sysex: true)`** (fixo no código) — a pergunta
+     mais assustadora do Chrome. Correção: um shim de 4 linhas em
+     `web/index.html` que reescreve as opções para `sysex: false` antes de o
+     Flutter carregar.
+  2. **Pede o acesso na primeira chamada** (`devices`, e até só assinar
+     `onMidiSetupChanged`), isto é, ao abrir a biblioteca — e é isso que
+     gerava as três exceções "Error" sem texto da inicialização (W02): sem o
+     acesso, o `unawaited(refresh())` do gerenciador estourava. Correção em
+     `MidiDeviceManager` (ver abaixo).
+  3. Sem Web MIDI lança `UnsupportedError` do `initialize`; com acesso
+     recusado, uma exceção do navegador.
+- **Carimbo de entrada**: `event.timestamp` chega como
+  `MIDIMessageEvent.timeStamp.toInt()` — milissegundos inteiros na base do
+  `performance.now()` (truncado: perde a fração). O app continua ignorando-o
+  e carimbando com o relógio do motor de áudio (M01), então nada muda.
+- **Saída com timestamp**: o plugin aceita (`sendData(..., timestamp:)` →
+  `output.send(data, ms)`), mas **não foi usado**: exigiria que o
+  `MidiOutSoundEngine` trabalhasse na base do `performance.now()` e a
+  otimização não era simples. Fica o despacho por `Timer` de M03; medido no
+  navegador, as notas de um acorde saem no mesmo instante (mesmo
+  `performance.now()` a 0,1 ms).
+
+**O que foi feito**
+- `lib/midi/web_midi_access*.dart` (import condicional): `webMidiSupported`
+  (`navigator.requestMIDIAccess` existe?) e `webMidiGranted()` (Permissions
+  API, `{name: 'midi', sysex: false}`; chamada direta porque `package:web`
+  não traz a Permissions API).
+- `MidiDeviceManager` ganhou `unavailable` (`MidiUnavailable`: `unsupported`,
+  `notAsked`, `denied`). Na Web, na abertura: sem suporte → `unsupported`;
+  com permissão já dada → lista e conecta como no nativo; senão `notAsked` e
+  **não toca no plugin** (a pergunta só abre quando o usuário aperta "Ativar
+  o MIDI" no seletor). Erros do plugin viram `unsupported`/`denied` em vez
+  de exceção solta; "Tentar de novo" repete. Nativo inalterado.
+- `showMidiDevicePicker`: texto e botão por motivo (`midiUnavailableText`):
+  Chrome/Edge sugerido no `unsupported`; no `denied` o cadeado do Chrome e o
+  aviso de que o Firefox só libera com um complemento.
+- `test/midi_device_manager_web_test.dart` (5 testes): não toca no plugin
+  antes do clique, permissão já dada, sem suporte, `UnsupportedError`,
+  recusa seguida de nova tentativa.
+
+**Critérios**
+1. (manual) Feito no **Chromium headless com um `navigator.requestMIDIAccess`
+   falso** (`tool/web_smoke/`), não com o VMPK: o teclado falso aparece e
+   conecta, uma nota injetada toca no monitor (W04), o modo espera (T02)
+   avança com notas (pendente azul, certas verdes, extras como fantasma) e a
+   saída MIDI recebe as notas do Play (21 no primeiro trecho do hino 1).
+   ✔ (falta um teclado/VMPK de verdade no Chrome)
+2. (manual) Navegador sem `requestMIDIAccess` (simulado): mensagem clara,
+   o resto do app segue. **Firefox 156 de verdade** (WebDriver BiDi): o app
+   abre e desenha; o Firefox tem a função, então o botão "Ativar o MIDI"
+   chama `requestMIDIAccess`, que fica pendente até o usuário responder ao
+   pedido de instalar o complemento (se recusar, cai em `denied`). Safari/iOS
+   não testados. ✔ (parcial)
+3. Base do timestamp registrada acima. ✔
+4. `flutter build web --release` e `flutter analyze` limpos; `flutter test`:
+   294 passam, 2 ignorados. ✔

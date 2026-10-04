@@ -41,6 +41,18 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <!--
+    O flutter_midi_command_web pede `requestMIDIAccess({sysex: true})`, que
+    abre a pergunta mais assustadora do Chrome ("controlar e reprogramar seus
+    dispositivos MIDI"). O zywny só lê notas e manda notas: sem sysex.
+  -->
+  <script>
+    if (navigator.requestMIDIAccess) {
+      const requestMIDIAccess = navigator.requestMIDIAccess.bind(navigator);
+      navigator.requestMIDIAccess = (options) =>
+          requestMIDIAccess({...options, sysex: false});
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

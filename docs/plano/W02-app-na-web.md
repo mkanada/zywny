@@ -132,3 +132,9 @@ string `generator`).
   travar, mover o `jsonDecode` para o worker.
 - Tirar `verovio_data.zip` dos assets da Web e carregar o `.sf2` só quando o
   som existir diminuiria o download.
+
+**Atualização (2026-10-04, W03/W04)**: o critério 2 (Play, destaque e virada
+de página) foi conferido no Chromium headless depois que o som existiu (W04),
+com o hino 1; a página alternativa do Maple Leaf Rag segue sem conferir. As
+três exceções "Error" sem texto da inicialização eram o plugin MIDI pedindo
+acesso ao navegador sem suporte/permissão — resolvidas em W03.

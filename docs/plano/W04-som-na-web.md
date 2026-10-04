@@ -82,4 +82,85 @@ a partitura com o relógio do `AudioContext` mandando no destaque; monitor
 
 ## Notas de execução
 
-(preencher)
+### Notas de execução (2026-10-04)
+
+**D-WEB-SYNTH decidida**: SpessaSynth (`spessasynth_lib` 4.3.14 +
+`spessasynth_core` 4.3.22, Apache-2.0), seguindo a recomendação.
+
+**O que foi feito**
+- `web_src/` (fonte do bundle; `package.json` + lock versionados,
+  `node_modules` não): `src/zywny_audio.js` é um módulo ES com `init`,
+  `loadSoundFont`, `send`, `schedule`, `clear`, `allOff`, `now`, `earliest`,
+  `latency`, `baseLatency`, `outputLatency`, `peak`, `state`, `dispose`.
+  `tool/build_audio_web.sh` (esbuild) gera `web/audio/zywny_audio.js` (210 KB,
+  86 KB gzip) e copia o worklet `spessasynth_processor.min.js` (394 KB, 136 KB
+  gzip) — pasta git-ignorada, como `web/verovio/`. `just web-audio`.
+- `lib/audio/web_sound_engine.dart` (`WebSoundEngine`): extension type sobre o
+  módulo, carregado **sob demanda** por `importModule('./audio/zywny_audio.js')`
+  na primeira abertura do som (nada de som no download inicial). A fábrica
+  (`sound_engine_factory.dart`) agora é `_native.dart if (dart.library.js_interop)
+  _web.dart`; o stub que lançava `UnsupportedError` saiu. `schedule` manda um
+  lote em dois typed arrays (tempos `Float64Array`, bytes 3 por evento).
+- `settings`: "Timbre do piano → Trocar" escondido na Web (não há onde guardar
+  o `.sf2` escolhido); só o TimGM6mb embutido.
+
+**Relógio** (confirmado no código do SpessaSynth): `synth.sendMessage(bytes, 0,
+{time})` com `time` em segundos do `AudioContext`; o worklet enfileira se
+`time > currentTime` e processa na hora senão (resolução de um quantum, 128
+amostras = 2,7 ms). `nowSeconds` = `getOutputTimestamp().contextTime`
+extrapolado com `performance.now()` (só com o contexto `running`; senão
+`currentTime - latência`), `earliestScheduleSeconds` = `currentTime`,
+`outputLatencySeconds` = `outputLatency || baseLatency`. A diferença entre os
+dois relógios foi 38,5 ms com `outputLatency` de 40 ms.
+
+**A agenda mora no JS, não no worklet**: o worklet **não tem como cancelar**
+eventos agendados (`stopAll` só para vozes, `eventQueue` não é limpa). Então
+`schedule` guarda a fila no JS e um `setInterval` de 25 ms só manda ao worklet
+o que está a menos de 100 ms (`LEAD`); `clear` descarta a fila e, para cada
+nota-on que já estava a caminho, manda um nota-off logo depois (senão ficaria
+presa); `allOff` faz isso, `stopAll(true)` e CC64=0 nos 16 canais. Custo: o
+disparo depende do timer da página (uma aba em segundo plano e silenciosa é
+limitada a 1 s pelo Chrome — com áudio saindo não é).
+
+**`AudioContext`**: criado em `start()`; `resume()` é chamado a cada
+`send`/`schedule` (um evento MIDI não conta como gesto — o contexto tem de
+ter sido liberado antes por um clique, o que o fluxo normal garante). O
+Chromium do teste usa `--autoplay-policy=no-user-gesture-required`.
+
+**Medido** (Chromium headless, Linux, `latencyHint: 'interactive'`)
+- `sampleRate` 48000; `baseLatency` 10,7 ms; `outputLatency` 40 ms.
+- Início do contexto + worklet: 292 ms. Carregar o TimGM6mb (5,97 MB) no
+  worklet: 52 ms.
+- Monitor (tecla → amostra gerada no grafo, pelo `AnalyserNode`): 4–13 ms,
+  uma vez 26 ms (primeira nota); some a isso `outputLatency`. A latência
+  percebida num Chrome de verdade, com um teclado, ainda não foi medida.
+- Nota imediata, nota agendada (silêncio antes, som no horário, silêncio
+  depois) e cancelamento (com e sem `allOff`) sem nota presa: conferidos pelo
+  pico do analisador.
+
+**Critérios**
+1. (manual) No Chromium headless dirigido por CDP (o hino 1; a Gymnopédie e o
+   Maple Leaf Rag **não** foram abertos — são `.vsb` de teste, não estão na
+   biblioteca): Play toca (pico 0,05–0,15), destaque em verde e virada de
+   página acompanham; Parar, Pausar e Reiniciar silenciam em < 0,3 s e,
+   depois de Parar, 1,6 s depois o pico é 0 (também após Próxima página e
+   Reiniciar com o Play ligado). ✔ (falta ouvir e conferir a repetição do
+   Maple Leaf Rag)
+2. (manual) Monitor com o Web MIDI falso: nota injetada soa (pico 0,07) e
+   para ao soltar; latências registradas acima. ✔ (falta teclado real)
+3. (manual) Modo espera (T02): ver W03, critério 1. ✔
+4. `flutter build web --release`, `flutter analyze` e `flutter test` (294,
+   2 ignorados) limpos. O Linux não foi reaberto à mão (`just run`); a
+   única mudança no caminho nativo é a fábrica condicional. ✔
+
+**Teste de fumaça**: `tool/web_smoke/` (`just web-smoke`): Chromium
+headless + Web MIDI falso, 7 verificações (sem pergunta na abertura, sysex
+falso, conexão, Play soa, Parar silencia, monitor soa, saída MIDI recebe).
+
+**Para depois**
+- Volume: o pico do piano é baixo (≈ 0,15 no Play, 0,07 no monitor); o
+  motor nativo tem `setGain` — conferir a diferença de volume de ouvido e, se
+  preciso, `synth.setMasterParameter('masterGain', …)`.
+- O download da Web ainda leva `assets/verovio_data.zip` (2,5 MB, inútil
+  aqui) e o `.sf2` (5,7 MB) mesmo sem som — ver W02.
+- SF3 (menor): não foi preciso; 5,7 MB já é pouco.
