@@ -1,4 +1,5 @@
 // U16 — cartão de primeiro uso da biblioteca.
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,7 +62,7 @@ void main() {
         theme: buildAppTheme(),
         home: LibraryScreen(
           loadCatalog: () async => HymnCatalog(_hymns),
-          extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+          loadScore: (hymn) async => Uint8List(0),
           progress: progress,
           scoreBuilder: (context, o) => const Scaffold(body: Text('partitura')),
         ),

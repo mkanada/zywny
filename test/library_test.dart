@@ -2,6 +2,7 @@
 // e a tela inicial. Os hinos de verdade ficam em `assets/hinos/`, que não é
 // versionado — aqui o catálogo é uma lista pequena e nada vai a disco.
 
+import 'dart:typed_data';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -313,7 +314,7 @@ void main() {
           theme: buildAppTheme(),
           home: LibraryScreen(
             loadCatalog: _loadCatalog,
-            extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+            loadScore: (hymn) async => Uint8List(0),
             scoreBuilder: (context, o) {
               opened = o;
               return const Scaffold(body: Text('partitura'));
@@ -327,7 +328,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('partitura'), findsOneWidget);
       expect(opened!.hymn.number, 12);
-      expect(opened!.scorePath, '/tmp/012.musicxml');
+      expect(opened!.scoreXml, isEmpty);
 
       // Um treino avaliado terminou com 83% de precisão.
       opened!.onPracticeScore(83);
@@ -375,7 +376,7 @@ void main() {
         theme: buildAppTheme(),
         home: LibraryScreen(
           loadCatalog: _loadCatalog,
-          extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+          loadScore: (hymn) async => Uint8List(0),
           trailProgress: trail,
           scoreBuilder: (context, o) => const Scaffold(body: Text('partitura')),
         ),
@@ -413,7 +414,7 @@ void main() {
           theme: buildAppTheme(),
           home: LibraryScreen(
             loadCatalog: _loadCatalog,
-            extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+            loadScore: (hymn) async => Uint8List(0),
             trailProgress: trail,
             scoreBuilder: (context, o) =>
                 const Scaffold(body: Text('partitura')),
@@ -452,7 +453,7 @@ void main() {
           theme: buildAppTheme(),
           home: LibraryScreen(
             loadCatalog: _loadCatalog,
-            extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+            loadScore: (hymn) async => Uint8List(0),
             progress: progress,
             trailProgress: trail,
             scoreBuilder: (context, o) =>
@@ -488,7 +489,7 @@ void main() {
                   searchKey: 'hino $n',
                 ),
             ]),
-            extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+            loadScore: (hymn) async => Uint8List(0),
             trailProgress: trail,
             scoreBuilder: (context, o) =>
                 const Scaffold(body: Text('partitura')),

@@ -1,5 +1,6 @@
 // U14 — ordem dos resultados, "por que casou", a seta da ordenação e a busca
 // sem resultado.
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -135,7 +136,7 @@ void main() {
         theme: buildAppTheme(),
         home: LibraryScreen(
           loadCatalog: () async => HymnCatalog(hymns),
-          extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+          loadScore: (hymn) async => Uint8List(0),
           scoreBuilder: (context, o) => const Scaffold(body: Text('partitura')),
         ),
       ),

@@ -1,9 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 
 /// Um hino da biblioteca embutida — uma linha de `assets/hinos/indice.json`
 /// (gerado por `tool/build_hymn_assets.py` a partir do Hymn_Grabber).
@@ -90,20 +89,16 @@ class HymnCatalog {
     ]);
   }
 
-  /// Descompacta o hino para um arquivo e devolve o caminho — o Verovio só
-  /// lê de disco (`VsbRenderRequest.inputPath`). Sempre regrava: é rápido e
-  /// uma atualização do app pode ter trazido outra versão da partitura.
-  static Future<String> extractScore(Hymn hymn, [AssetBundle? bundle]) async {
+  /// Descompacta o hino e devolve o `.musicxml` em memória: a renderização
+  /// (`ScoreRenderer`) recebe bytes, porque na Web não há disco — o lado
+  /// nativo é que grava o arquivo temporário que o Verovio exige. O `gzip`
+  /// é do `archive` (o de `dart:io` não existe na Web).
+  static Future<Uint8List> loadScore(Hymn hymn, [AssetBundle? bundle]) async {
     final data = await (bundle ?? rootBundle).load(hymn.assetPath);
-    final xml = gzip.decode(
+    final xml = GZipDecoder().decodeBytes(
       data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
     );
-    final base = await getTemporaryDirectory();
-    final dir = Directory('${base.path}/hinos');
-    await dir.create(recursive: true);
-    final file = File('${dir.path}/${hymn.paddedNumber}.musicxml');
-    await file.writeAsBytes(xml, flush: true);
-    return file.path;
+    return Uint8List.fromList(xml);
   }
 }
 

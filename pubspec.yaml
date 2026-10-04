@@ -43,6 +43,8 @@ dependencies:
   # lib/audio/native_sound_engine.dart (K03) — já vinha transitivo via o
   # binding do Verovio; direto aqui porque é usado direto aqui também.
   ffi: ^2.1.0
+  # Web (W02): Worker e interop com o wasm do Verovio.
+  web: ^1.1.0
 
   # Bindings FFI do fork do Verovio que exporta `.vsb` (Verovio Score
   # Bridge), em /home/mauricio/rust_projects/verovio_flutter_bridge.

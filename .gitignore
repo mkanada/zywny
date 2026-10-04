@@ -62,3 +62,7 @@ app.*.map.json
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# Verovio wasm toolkit for the Web (W02) — generated from verovio_flutter_bridge,
+# regenerable (run tool/build_verovio_web.sh).
+/web/verovio/

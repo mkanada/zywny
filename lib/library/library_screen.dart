@@ -20,7 +20,7 @@ import 'library_sort.dart';
 class OpenedHymn {
   const OpenedHymn({
     required this.hymn,
-    required this.scorePath,
+    required this.scoreXml,
     required this.midiDeviceManager,
     required this.onPracticeScore,
     required this.appSettings,
@@ -31,8 +31,8 @@ class OpenedHymn {
 
   final Hymn hymn;
 
-  /// O `.musicxml` do hino já descompactado em disco.
-  final String scorePath;
+  /// O `.musicxml` do hino já descompactado, em memória.
+  final Uint8List scoreXml;
 
   /// O mesmo gerenciador da biblioteca: o teclado conectado aqui continua
   /// conectado na partitura (e vice-versa).
@@ -64,7 +64,7 @@ class LibraryScreen extends StatefulWidget {
     super.key,
     required this.scoreBuilder,
     this.loadCatalog = HymnCatalog.load,
-    this.extractScore = HymnCatalog.extractScore,
+    this.loadScore = HymnCatalog.loadScore,
     this.progress,
     this.appSettings,
     this.hymnSettings,
@@ -76,7 +76,7 @@ class LibraryScreen extends StatefulWidget {
 
   /// Trocáveis nos testes, que não têm `assets/hinos/` nem disco.
   final Future<HymnCatalog> Function() loadCatalog;
-  final Future<String> Function(Hymn hymn) extractScore;
+  final Future<Uint8List> Function(Hymn hymn) loadScore;
   final HymnProgressStore? progress;
   final AppSettings? appSettings;
   final HymnSettingsStore? hymnSettings;
@@ -158,7 +158,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (_opening) return;
     _opening = true;
     try {
-      final path = await widget.extractScore(hymn);
+      final scoreXml = await widget.loadScore(hymn);
       final hymnSettings = await _hymnSettings.load(hymn.number);
       await _settingsLoaded;
       if (!mounted) return;
@@ -169,7 +169,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             context,
             OpenedHymn(
               hymn: hymn,
-              scorePath: path,
+              scoreXml: scoreXml,
               midiDeviceManager: _midi,
               onPracticeScore: (score) =>
                   unawaited(_progress.recordScore(hymn.number, score)),

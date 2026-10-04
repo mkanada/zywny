@@ -76,3 +76,59 @@ som é W04).
 ## Notas de execução
 
 (preencher)
+
+### Notas de execução (2026-10-04)
+
+**O que foi feito**
+- `lib/render/score_renderer.dart`: `ScoreRenderer` (+ `ScoreRenderRequest`,
+  `RenderedScore`), com import condicional (`if (dart.library.io)`):
+  `score_renderer_native.dart` (grava temp, `renderScoreToVsb` por FFI, cópia
+  do `.vsb` no `--debug`) e `score_renderer_web.dart` (Web Worker +
+  `dart:js_interop`/`package:web`, lê o JSON único com `VsbDocument.fromJson`).
+  As constantes de tamanho de página foram para `lib/render/page_size.dart`
+  (`verovio_render.dart` as reexporta, então os testes não mudaram).
+- A partitura circula como **bytes**: `HymnCatalog.extractScore` virou
+  `loadScore` (devolve `Uint8List`; `gzip` do `archive`, não o de `dart:io`),
+  `OpenedHymn.scorePath` virou `scoreXml`. Testes ajustados.
+- `main.dart` sem `dart:io` (`defaultTargetPlatform` no lugar de `Platform`);
+  `diag_log.dart` e `general_settings_panel.dart` com guarda `kIsWeb`;
+  `SoundEngineDebugPanel` com stub na Web (usa `NativeSoundEngine`/FFI).
+- `web/verovio_worker.js` (versionado) + `tool/build_verovio_web.sh` (roda o
+  `build_wasm.sh` do bridge e copia para `web/verovio/`, git-ignorado).
+- `pubspec.yaml`: `web: ^1.1.0`.
+
+**Correção no bridge (C++, não commitada)**: `Toolkit::RenderToBridgeJson`
+passava `""` como timemap, apesar de a spec (§2) dizer que o JSON único o
+leva — sem timemap não há `ScorePlayer` (`_canPlay` exige `timemap`). Agora
+pede o timemap com as mesmas opções do `.vsb` (`includeMeasures`,
+`includeRests`) e a mesma regra "omite se vazio". Conferido no Gymnopédie
+(189 entradas) e no Maple Leaf Rag (1013): o `timemap` do JSON é igual ao do
+`timemap.json` do `.vsb`, e o JSON do wasm é igual ao do nativo (só muda a
+string `generator`).
+
+**Critérios**
+1. `flutter build web --release` sem erros (59 s); `flutter analyze` limpo. ✔
+2. (manual) No Chromium headless dirigido por CDP: biblioteca aparece; o
+   hino 1 abre e a partitura é desenhada (5 páginas; `render` = 1,8 s, já
+   contando carregar e instanciar o wasm). **Play/destaque/virada de página
+   não foram conferidos**: os cliques do script não acionaram o Play (a tela
+   abre em modo trilha e o som é impossível até o W04) — conferir à mão no
+   Chrome, inclusive a página alternativa do Maple Leaf Rag. ✘ pendente
+3. `flutter test`: 289 passam, 2 ignorados. `just run` no Linux não foi
+   reaberto à mão. ✔ (testes)
+4. Download (release): `main.dart.js` 3,2 MB (957 KB gzip); wasm do Verovio
+   14,8 MB (4,8 MB gzip, carregado pelo worker); `canvaskit/` 37 MB (só o
+   necessário é baixado); assets 17 MB (hinos 4,3 MB, soundfont 5,7 MB,
+   `verovio_data.zip` 2,5 MB — este último é inútil na Web, o wasm já embute
+   os recursos). Tempo até a 1ª página não medido com rede.
+
+**Descobertas para os próximos passos**
+- Na Web três exceções "Error" sem texto aparecem na inicialização (antes de
+  abrir qualquer hino) — provavelmente o `flutter_midi_command` sem
+  implementação Web; investigar no W03.
+- O som falha com `UnsupportedError` (`createSoundEngine`), já tratado pelo
+  app ("som: erro ao iniciar"); W04 troca isso.
+- O parse do JSON (7 MB no Maple Leaf Rag) roda na thread principal; se
+  travar, mover o `jsonDecode` para o worker.
+- Tirar `verovio_data.zip` dos assets da Web e carregar o `.sf2` só quando o
+  som existir diminuiria o download.

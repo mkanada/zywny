@@ -142,3 +142,27 @@ bloqueador real antes de investir em W02+: precisa isolar a causa da
 paginação diferente (ex.: instrumentar `System::GetHeight`/cálculo de
 largura de sistema com logs nos dois builds e comparar nó a nó) antes de
 confiar no caminho Web.
+
+### Correção (2026-10-04): o achado bloqueador era falso
+
+A "paginação diferente" vinha da **referência nativa**, não do wasm: o CLI
+`verovio -t vsb-json` sem `-a` (`--all-pages`) emite só a página 1
+(`main.cpp`: `to = allPages ? GetPageCount() : from`). O wasm sempre emite o
+documento inteiro. Com `-a` o nativo dá 2 páginas (Gymnopédie) e 3 (Maple
+Leaf Rag), igual ao wasm. **Receita da referência nativa:**
+`verovio -a -t vsb-json --xml-id-seed 42 --resource-path verovio/data -o X.json peça.mxl`.
+
+O wasm de 2026-09-28 também estava velho (anterior ao `pitchpos` e ao G01),
+então foi recompilado de 2026-10-04 (`build_wasm.sh`, 15 MB; 4,8 MB em gzip).
+Comparado ao nativo (-a, mesma semente), nas duas peças: `alternates`,
+`glyphs`, `meta`, `midi`, `pitchpos` e `scene` **idênticos**; só
+`manifest.generator` difere (hash do commit do binário nativo, mais antigo que
+o wasm) — diferença explicada, critério 1 atendido. Tempo no Node 26
+(processo inteiro, incluindo carregar o wasm): Gymnopédie 0,96 s, Maple Leaf
+Rag 3,14 s.
+
+**Parecer revisado (critério 4): sim, o caminho é viável para a 1.0.**
+Lição para os próximos passos: qualquer referência nativa para comparar com o
+wasm precisa de `-a`, e o wasm precisa ser recompilado quando o C++ do bridge
+muda. Harness de comparação sem navegador: carregar
+`verovio-toolkit-hum.js` no Node e chamar `Module.cwrap` como o `worker.js`.

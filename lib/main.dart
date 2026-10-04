@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show listEquals, setEquals;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
@@ -27,7 +27,6 @@ import 'midi/midi_monitor.dart';
 import 'midi/midi_monitor_panel.dart';
 import 'midi/midi_out_sound_engine.dart';
 import 'music/performance_track.dart';
-import 'native_paths.dart';
 import 'practice/app_hand.dart';
 import 'practice/count_in_overlay.dart';
 import 'practice/hand.dart';
@@ -52,8 +51,7 @@ import 'ui/practice_legend.dart';
 import 'ui/side_panel.dart';
 import 'ui/theme.dart';
 import 'diag_log.dart';
-import 'verovio_render.dart';
-import 'verovio_resources.dart';
+import 'render/score_renderer.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -128,7 +126,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final hymn? => '${hymn.number} · ${hymn.title}',
     null => null,
   };
-  late final String? _inputPath = widget.opened?.scorePath;
+  late final Uint8List? _scoreXml = widget.opened?.scoreXml;
+  final ScoreRenderer _renderer = createScoreRenderer();
   VsbDocument? _document;
   int _pageIndex = 0;
   String _status = 'nenhuma partitura';
@@ -575,7 +574,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         if (mounted) setState(() {});
       });
     }
-    if (_inputPath == null) return;
+    if (_scoreXml == null) return;
     // No celular esta tela é travada em paisagem, mas abre a partir da
     // biblioteca em retrato: uma caixa mais alta que larga é só o aparelho
     // ainda girando, e gravar a partitura para ela seria trabalho jogado
@@ -616,12 +615,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (widget.debugMode) 'vsbDebug': true,
   };
 
-  /// Renders [_inputPath] with the current options and displays it. The
+  /// Renders [_scoreXml] with the current options and displays it. The
   /// previous page stays on screen meanwhile, so the effect of an option can
   /// be compared at the same zoom and pan.
   Future<void> _renderAndShow() async {
-    final inputPath = _inputPath;
-    if (inputPath == null || _boxDevicePx == null || !mounted) return;
+    final scoreXml = _scoreXml;
+    if (scoreXml == null || _boxDevicePx == null || !mounted) return;
     if (_busy) {
       _renderQueued = true;
       return;
@@ -640,43 +639,27 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _status = 'gerando .vsb…';
     });
 
-    Directory? tmpDir;
     try {
-      tmpDir = await Directory.systemTemp.createTemp('zywny');
-      final outPath = '${tmpDir.path}/score.vsb';
       final name = _scoreName ?? '';
 
       setState(() => _status = 'renderizando $name ($pageWidth×$pageHeight)…');
 
       final renderStopwatch = Stopwatch()..start();
-      final document = await renderScoreToVsb(
-        VsbRenderRequest(
-          inputPath: inputPath,
-          outputPath: outPath,
-          libraryPath: findVerovioLibrary(),
-          resourcePath: await verovioResourcePath(),
+      final rendered = await _renderer.render(
+        ScoreRenderRequest(
+          source: scoreXml,
+          fileName: '${widget.opened?.hymn.paddedNumber ?? 'score'}.musicxml',
           pageWidth: pageWidth,
           pageHeight: pageHeight,
           options: options,
         ),
       );
+      final document = rendered.document;
+      final debugCopyPath = rendered.debugCopyPath;
       debugPrint(
-        '_renderAndShow: renderScoreToVsb($name) levou '
+        '_renderAndShow: render($name) levou '
         '${renderStopwatch.elapsedMilliseconds}ms',
       );
-
-      // `--debug` (widget.debugMode): o .vsb some com o tmpDir no `finally`
-      // abaixo, então guardamos uma cópia no diretório corrente antes disso,
-      // com data/hora no nome para achar depois.
-      String? debugCopyPath;
-      if (widget.debugMode) {
-        final timestamp = DateTime.now().toIso8601String().replaceAll(
-          RegExp(r'[:.]'),
-          '-',
-        );
-        debugCopyPath = '${Directory.current.path}/score_$timestamp.vsb';
-        await File(outPath).copy(debugCopyPath);
-      }
 
       if (!mounted) return;
       // A new engraving has new ids (and possibly new pages): drop the
@@ -734,10 +717,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         _renderError = '$e';
         _busy = false;
       });
-    } finally {
-      // The .vsb is fully in memory by now; one temp dir per render adds up
-      // fast when trying options.
-      unawaited(tmpDir?.delete(recursive: true).then((_) {}, onError: (_) {}));
     }
 
     if (mounted && _renderQueued) {
@@ -2608,7 +2587,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   final ValueNotifier<int> _noMeasure = ValueNotifier(0);
 
   /// Celular de verdade (não só janela estreita): começa com [kPhoneUnit].
-  static final bool _isPhone = Platform.isAndroid || Platform.isIOS;
+  static final bool _isPhone =
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   Widget _buildOptionsDrawer() {
     final trailActive = _trailMode;

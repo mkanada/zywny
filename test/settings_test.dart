@@ -4,6 +4,7 @@
 // persistência: o que foi mudado volta numa nova instância (= o app aberto
 // de novo, ou atualizado), e o que foi gravado por outra versão não quebra.
 
+import 'dart:typed_data';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -359,7 +360,7 @@ void main() {
           home: LibraryScreen(
             loadCatalog: () async =>
                 HymnCatalog([_hymn(1, 'Primeiro'), _hymn(2, 'Segundo')]),
-            extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+            loadScore: (hymn) async => Uint8List(0),
             scoreBuilder: (context, o) {
               opened = o;
               return const Scaffold(body: Text('partitura'));

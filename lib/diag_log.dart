@@ -26,7 +26,8 @@ class DiagLog {
   /// Abre o arquivo e liga a captura de erros e do ciclo de vida do app.
   /// Chamar uma vez, logo depois de `WidgetsFlutterBinding.ensureInitialized`.
   static Future<void> init() async {
-    if (!Platform.isAndroid || _file != null) return;
+    // Só no Android; `Platform` nem pode ser consultada na Web.
+    if (kIsWeb || !Platform.isAndroid || _file != null) return;
     try {
       final dir = await getExternalStorageDirectory();
       if (dir == null) return;

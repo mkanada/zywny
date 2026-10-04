@@ -1,5 +1,6 @@
 // U13 — progresso à vista na biblioteca: a barra e o texto da linha, a
 // coluna da direita vazia sem trilha e a gaveta da trilha.
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,7 +77,7 @@ void main() {
         theme: buildAppTheme(),
         home: LibraryScreen(
           loadCatalog: () async => HymnCatalog(hymns),
-          extractScore: (hymn) async => '/tmp/${hymn.paddedNumber}.musicxml',
+          loadScore: (hymn) async => Uint8List(0),
           progress: progress,
           trailProgress: trail,
           scoreBuilder: (context, o) => const Scaffold(body: Text('partitura')),
