@@ -1,0 +1,1 @@
+lessons/01-a.md:8: erro: A partitura não renderiza (o Verovio disse: …).

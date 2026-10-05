@@ -6,6 +6,15 @@ import 'package:zywny/course/format/directory_course_files.dart';
 
 /// Cada pasta de `test/fixtures/cursos/` tem um `esperado.txt` com a saída
 /// exata do validador (o que o professor vai ver).
+///
+/// I11: a lista cobre, no mínimo, marca desconhecida (com sugestão), chave
+/// desconhecida (com sugestão), YAML inválido, front matter sem `---`,
+/// `format: 2`, arquivo de mídia ausente, imagem remota, `link` `http://`,
+/// `requires` circular, `requires` de lição posterior, id repetido (lição e
+/// exercício), lição listada sem arquivo, `abc` e `file` juntos, `speed` em
+/// modo espera, nota inválida (`H4`), faixa invertida, `answer` fora das
+/// `options` e ABC que não renderiza (este depende do `--render` do I12 e da
+/// `libverovio.so`; pulado aqui).
 void main() {
   final root = Directory('test/fixtures/cursos');
   final courses = root.listSync().whereType<Directory>().toList()
@@ -17,16 +26,24 @@ void main() {
 
   for (final course in courses) {
     final name = course.path.split('/').last;
+    // `erro-render` só vale com o `--render` do I12 (Verovio): o `readCourse`
+    // puro não dá erro aqui (ABC sem notas passa no validador). Pulado até o
+    // I12, onde a fixture passa a valer.
+    final skipRender = name == 'erro-render'
+        ? '--render do I12 ainda não existe (ABC sem notas)'
+        : null;
     test('$name: a saída do validador é a esperada', () async {
       final expected = File('${course.path}/esperado.txt').readAsStringSync();
       final result = await readCourse(DirectoryCourseFiles(course));
       final actual = [for (final issue in result.issues) '$issue\n'].join();
       expect(actual, expected);
       expect(result.course == null, result.hasErrors);
-      if (name.startsWith('erro-') && !name.contains('lista')) {
+      if (name.startsWith('erro-') &&
+          !name.contains('lista') &&
+          name != 'erro-render') {
         expect(result.hasErrors, isTrue);
       }
-    });
+    }, skip: skipRender);
   }
 
   test('lib/course/format não importa Flutter', () {
@@ -42,6 +59,60 @@ void main() {
           .join('\n');
       expect(imports, isNot(contains('package:flutter')), reason: file.path);
       expect(imports, isNot(contains('dart:ui')), reason: file.path);
+    }
+  });
+
+  test('toda mensagem de "Erros comuns" existe nas fixtures', () {
+    // A especificação não promete mensagem que o validador não dá (I11.4).
+    final spec = File('docs/licoes/formato-v1.md').readAsStringSync();
+    final section = spec.split('## 11. Erros comuns').last.split('\n## ').first;
+    final bullets = [
+      for (final line in section.split('\n'))
+        if (line.startsWith('- ')) line,
+    ];
+    // Um trecho distintivo por mensagem, na ordem da especificação.
+    const distinctive = [
+      'chave desconhecida',
+      'marca desconhecida',
+      'não foi fechada',
+      'YAML inválido',
+      'falta a chave obrigatória',
+      'id de exercício repetido',
+      'forma um ciclo',
+      'vem depois',
+      'não existe na pasta do curso',
+      'não vale',
+      'não tem andamento',
+      'precisa ser igual a uma das',
+      'já traz o cabeçalho',
+      'não é uma nota',
+      'aparece como texto',
+    ];
+    expect(
+      bullets,
+      hasLength(distinctive.length),
+      reason:
+          'a seção "Erros comuns" mudou: atualize `distinctive` e as fixtures',
+    );
+    for (var i = 0; i < distinctive.length; i++) {
+      expect(
+        bullets[i],
+        contains(distinctive[i]),
+        reason: 'mensagem ${i + 1} da especificação mudou?',
+      );
+    }
+    final combined = [
+      for (final course in courses)
+        if (course.path.split('/').last != 'erro-render')
+          File('${course.path}/esperado.txt').readAsStringSync(),
+    ].join('\n');
+    for (final phrase in distinctive) {
+      expect(
+        combined,
+        contains(phrase),
+        reason:
+            'a especificação promete "$phrase", mas nenhuma fixture o mostra',
+      );
     }
   });
 }

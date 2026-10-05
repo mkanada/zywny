@@ -373,8 +373,8 @@ zywny
 | [I07](I07-tipos-por-pergunta.md) | Lições: tipos por pergunta (`find-key`, `name-note`, `count-beats`, `choice`) | I03, I09 | D-LIC | **concluído** |
 | [I08](I08-tipos-com-tempo.md) | Lições: tipos com tempo (`rhythm`, `play-score`) | I03, I09 | — | **concluído** |
 | [I09](I09-telas-e-progresso.md) | Lições: progresso, telas do curso, da lição e do exercício, entrada | I03, I05 | D-LIC | **concluído** |
-| [I10](I10-curso-inicial.md) | Lições: o curso inicial completo, embutido | I05, I07, I08 | D-LIC | pendente |
-| [I11](I11-testes-da-plataforma.md) | Lições: cobertura, aluno simulado, cursos quebrados | I10 | — | pendente |
+| [I10](I10-curso-inicial.md) | Lições: o curso inicial completo, embutido | I05, I07, I08 | D-LIC | **concluído** (código + conteúdo; manual no aparelho pendente, critérios 4–5) |
+| [I11](I11-testes-da-plataforma.md) | Lições: cobertura, aluno simulado, cursos quebrados | I10 | — | **concluído** (código; sem manual — o passo não pede aparelho) |
 | [I12](I12-autoria-e-rascunho.md) | Lições: `validate --render` e modo rascunho (desktop e Web) | I05, I09 | D-LIC | pendente |
 | [I13](I13-conferencia.md) | Lições: conferência (`just telas`, Web, celular, lição de fora) | todos os I | — | pendente |
 | [Q00](Q00-transpor-sem-acidentes.md) | Transpor sem acidentes: as três alturas, a tabela de intervalos, a conferência no teclado e índice (passos Q01–Q08) | — | D-TRP | especificação (decisões tomadas) |
