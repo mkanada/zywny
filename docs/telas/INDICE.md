@@ -6,7 +6,7 @@ Todas as telas do app num só lugar, em ordem de uso. Capturas do app real num c
 - Análise de UX a partir delas: [`../ux/estudo-ux-celular.md`](../ux/estudo-ux-celular.md).
 - Protótipo navegável (não é o app): `lib/mockup/` e `lib/main_mockup.dart` — não entra nas fotos.
 
-Total: 46 telas.
+Total: 60 telas.
 
 ## Abertura e biblioteca
 
@@ -89,3 +89,19 @@ Código: `lib/trail/trail_widgets.dart` · `lib/ui/practice_legend.dart`
 <table><tr><td align="center"><a href="celular/37-etapa-contagem.png"><img src="celular/37-etapa-contagem.png" width="440"></a><br><sub><b>37</b> · Etapa com contagem</sub></td><td align="center"><a href="celular/38-etapa-tempo-real.png"><img src="celular/38-etapa-tempo-real.png" width="440"></a><br><sub><b>38</b> · Etapa em tempo real</sub></td></tr></table>
 
 <table><tr><td align="center"><a href="celular/39-resumo-da-etapa-reprovada.png"><img src="celular/39-resumo-da-etapa-reprovada.png" width="440"></a><br><sub><b>39</b> · Resumo da etapa reprovada</sub></td></tr></table>
+
+## Cursos da fase I
+
+Retrato (47–58), paisagem no exercício com partitura (59–60). O curso inicial embutido, a lição 2 e os três tipos de exercício com e sem teclado.
+
+Código: `lib/course/ui/courses_screen.dart` · `lib/course/ui/course_screen.dart` · `lib/course/ui/lesson_screen.dart` · `lib/course/ui/exercise_screen.dart`
+
+<table><tr><td align="center"><a href="celular/47-curso-inicial-sem-biblioteca.png"><img src="celular/47-curso-inicial-sem-biblioteca.png" width="200"></a><br><sub><b>47</b> · Curso inicial sem biblioteca</sub></td><td align="center"><a href="celular/48-licao-1-pelo-cartao.png"><img src="celular/48-licao-1-pelo-cartao.png" width="200"></a><br><sub><b>48</b> · Lição 1 pelo cartão</sub></td><td align="center"><a href="celular/49-biblioteca-com-cursos.png"><img src="celular/49-biblioteca-com-cursos.png" width="200"></a><br><sub><b>49</b> · Biblioteca com “Cursos”</sub></td><td align="center"><a href="celular/50-lista-de-cursos.png"><img src="celular/50-lista-de-cursos.png" width="200"></a><br><sub><b>50</b> · Lista de cursos</sub></td></tr></table>
+
+<table><tr><td align="center"><a href="celular/51-tela-do-curso.png"><img src="celular/51-tela-do-curso.png" width="200"></a><br><sub><b>51</b> · Curso: feita, aberta, bloqueadas</sub></td><td align="center"><a href="celular/52-licao-2-topo.png"><img src="celular/52-licao-2-topo.png" width="200"></a><br><sub><b>52</b> · Lição 2 (topo)</sub></td><td align="center"><a href="celular/53-licao-2-partitura.png"><img src="celular/53-licao-2-partitura.png" width="200"></a><br><sub><b>53</b> · Lição 2 (partitura)</sub></td><td align="center"><a href="celular/54-licao-2-exercicio.png"><img src="celular/54-licao-2-exercicio.png" width="200"></a><br><sub><b>54</b> · Lição 2 (“Precisa do teclado”)</sub></td></tr></table>
+
+<table><tr><td align="center"><a href="celular/55-exercicio-conecte-o-teclado.png"><img src="celular/55-exercicio-conecte-o-teclado.png" width="440"></a><br><sub><b>55</b> · “Conecte o teclado”</sub></td><td align="center"><a href="celular/56-exercicio-name-note.png"><img src="celular/56-exercicio-name-note.png" width="440"></a><br><sub><b>56</b> · Exercício `name-note`</sub></td></tr></table>
+
+<table><tr><td align="center"><a href="celular/57-licao-8-choice-cartao.png"><img src="celular/57-licao-8-choice-cartao.png" width="200"></a><br><sub><b>57</b> · Cartão do `choice`</sub></td><td align="center"><a href="celular/58-exercicio-choice.png"><img src="celular/58-exercicio-choice.png" width="440"></a><br><sub><b>58</b> · Exercício `choice`</sub></td></tr></table>
+
+<table><tr><td align="center"><a href="celular/59-exercicio-play-notes-antes.png"><img src="celular/59-exercicio-play-notes-antes.png" width="440"></a><br><sub><b>59</b> · `play-notes` antes</sub></td><td align="center"><a href="celular/60-exercicio-play-notes-depois.png"><img src="celular/60-exercicio-play-notes-depois.png" width="440"></a><br><sub><b>60</b> · `play-notes` aprovado</sub></td></tr></table>

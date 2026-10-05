@@ -58,4 +58,58 @@ rascunho.
 
 ## Notas de execução
 
-(vazio)
+Parte automática concluída (itens 1–3); manuais 4–5 com o usuário.
+
+**1. `just telas` verde (60 fotos).** O roteiro ganhou o 3º ato `cursos da
+fase I` (`integration_test/telas_celular_test.dart`): cartão "Comece pelo
+curso inicial" sem biblioteca (47), lição 1 pelo cartão (48), linha "Cursos"
+(49), lista (50), tela do curso com feita/aberta/bloqueadas (51), lição 2
+(52–54), porta "Conecte o teclado" (55), `name-note` (56), `choice` (57–58)
+e `play-notes` antes/depois com o teclado falso (59–60, 100%). Fotos em
+`docs/telas/celular/` (47–60 novas; 01–46 refeitas no mesmo giro) e seção
+"Cursos da fase I" em `docs/telas/INDICE.md`. Para rodar limpo foi preciso:
+garantir `hinos.zywny` na pasta privada do app antes de abrir (emulador
+limpo não tem biblioteca e o 1º teste esperava ` hinos`); seed do histórico
+a partir dos ids reais do plano (`_plan.stages`, 75 etapas, fases `tempoD` —
+os ids fixos antigos de 51 etapas/`ritmoD` punham o teste 2 numa etapa de
+ritmo tocada como espera); rolar o painel de configurações até "Trilha de
+estudo"/"Cores" (cresceu com as seções Bibliotecas/Cursos); ajudantes
+`_scrollTo` (rolável explícito + primeiro de duplicadas) e `_startExercise`
+(abre pelo botão do próprio cartão — o título não é tocável e o "Começar"
+genérico abria outro exercício).
+
+**2. Achados (princípios do U00) e correções feitas.**
+- Progresso de curso perdido no restart: `CourseProgressStore.ensureLoaded`
+  existia mas ninguém chamava — a lista e a lição mostravam 0. Agora
+  `_loadCourses` e `LessonScreen.initState` carregam e o `ensureLoaded`
+  avisa a UI (`lib/course/course_progress.dart`, `lib/library/library_screen.dart`,
+  `lib/course/ui/lesson_screen.dart`).
+- `&quot;` literal na apresentação do curso (foto 51): `md.Document()` com
+  `encodeHtml` padrão em `lib/course/ui/markdown_view.dart` (só display;
+  teste novo `test/lesson_markdown_view_test.dart`).
+- `allNotesOff()` explodia `start() não foi chamado` no `dispose` (teardown
+  do teste 3): virou no-op sem áudio aberto no nativo e na Web
+  (`lib/audio/native_sound_engine.dart`, `lib/audio/web_sound_engine.dart`).
+- Sem correção: a porta "Conecte o teclado" só aparece se o teclado cair com
+  o exercício abrindo — sem teclado o cartão já avisa "Precisa do teclado"
+  com o Começar desabilitado (foto 54), comportamento aceitável; "rodada 2"
+  na foto 55 (o contador conta a abertura interrompida), cosmético; foto 58
+  com o spinner da partitura ainda carregando (assíncrono normal).
+
+**3. `just web-smoke` verde (15 oks).** A fumaça abre o curso inicial sem
+biblioteca, a lição 1 e (com biblioteca) a lista e a tela do curso
+(`tool/web_smoke/smoke.mjs`: blocos de curso + `tapBig`, que prefere botão
+e resolve semânticas duplicadas; a volta à biblioteca recarrega a página; o
+hino 1 abre pelo título — as coordenadas fixas quebraram com os cartões
+"Cursos"/"Comece por aqui").
+
+**Pendente (manual).** Item 4: curso inicial inteiro no celular com teclado
+MIDI (critério 5 do I10), anotando tempo por lição e travas. Item 5: a lição
+de fora (regra 5 do I00) — build Web publicado e APK gerado neste passo
+para o teste. Cada tropeço vira correção abaixo.
+
+**APK (medida exata do I10).** `app-arm64-v8a-release.apk`: 46 MB (2026-09-29,
+antes do I10) → 49 MB agora (`libapp.so` 5,5 → 8,3 MB: a plataforma de
+cursos inteira; o curso em si tem 102 KB). O `just build-apk` sem split saiu
+com 72 MB porque leva as `.so` x86_64 do emulador junto — para o celular,
+use o split arm64.

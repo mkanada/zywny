@@ -160,6 +160,8 @@ zywny
 | Bibliotecas (fase B): formato | `lib/library/library_envelope.dart` (cifra AES-256-GCM + assinatura Ed25519, `ZYWN`), `lib/library/library_package.dart` (`LibraryManifest`, `LibraryTerm`, `LibraryPackage.parse` — o zip de dentro), `tool/library_crypto.py`, `tool/build_library.py`, `tool/build_hymn_assets.py` (`just pacote-hinos`) |
 | Bibliotecas: guardar/instalar | `lib/library/library_store.dart` (`LibraryStore`, lista + em uso em `shared_preferences`), `library_blob_store*.dart` (arquivo no nativo, IndexedDB na Web, memória nos testes), `library_installer.dart` (`installLibraryFromFile`), `lib/settings/libraries_section.dart` |
 | Bibliotecas: músicas | `lib/library/piece.dart` (`Piece`, `PieceCatalog`: `libraryId`+`id`, número opcional), `library_keys.dart` (chaves por biblioteca), `piece_progress.dart`, `lib/settings/piece_settings.dart`, `lib/trail/trail_progress.dart`, `legacy_migration.dart`, `library_term_scope.dart` (vocabulário) |
+| Cursos (fase I): formato e motor | `lib/course/format/` (modelo, leitor `course_reader.dart`, validador, `course_render_check.dart` do `--render`), `lib/course/exercise/` (tipos, rodada, `pass`, aluno simulado nos testes), `tool/zywny_course.dart` (`just curso-validar`), `tool/build_course.py` (`just pacote-curso`) |
+| Cursos: telas e progresso | `lib/course/ui/` (`courses_screen.dart`, `course_screen.dart`, `lesson_screen.dart`, `exercise_screen.dart`, `question_body.dart`, `markdown_view.dart`), `lib/course/course_progress.dart` (`CourseProgressStore`, JSON `course_progress:<id>`), `lib/course/draft/` (rascunho I12), `assets/cursos/iniciacao/` (curso embutido) |
 
 ### score_bridge (no bridge)
 
@@ -375,8 +377,8 @@ zywny
 | [I09](I09-telas-e-progresso.md) | Lições: progresso, telas do curso, da lição e do exercício, entrada | I03, I05 | D-LIC | **concluído** |
 | [I10](I10-curso-inicial.md) | Lições: o curso inicial completo, embutido | I05, I07, I08 | D-LIC | **concluído** (código + conteúdo; manual no aparelho pendente, critérios 4–5) |
 | [I11](I11-testes-da-plataforma.md) | Lições: cobertura, aluno simulado, cursos quebrados | I10 | — | **concluído** (código; sem manual — o passo não pede aparelho) |
-| [I12](I12-autoria-e-rascunho.md) | Lições: `validate --render` e modo rascunho (desktop e Web) | I05, I09 | D-LIC | pendente |
-| [I13](I13-conferencia.md) | Lições: conferência (`just telas`, Web, celular, lição de fora) | todos os I | — | pendente |
+| [I12](I12-autoria-e-rascunho.md) | Lições: `validate --render` e modo rascunho (desktop e Web) | I05, I09 | D-LIC | **concluído** (código; manual Linux/Web pendente, ver notas do I12) |
+| [I13](I13-conferencia.md) | Lições: conferência (`just telas`, Web, celular, lição de fora) | todos os I | — | em andamento (parte automática concluída: telas + web-smoke verdes; manuais 4–5 com o usuário) |
 | [Q00](Q00-transpor-sem-acidentes.md) | Transpor sem acidentes: as três alturas, a tabela de intervalos, a conferência no teclado e índice (passos Q01–Q08) | — | D-TRP | especificação (decisões tomadas) |
 | [Q01](Q01-verovio-transpondo.md) | Transpor: medir o Verovio transpondo (`.vsb`, repetições, determinismo, faixa) | — | — | pendente |
 | [Q02](Q02-calculo-da-transposicao.md) | Transpor: `Transposition` e `PitchFrame` (cálculo puro) | — | D-TRP | pendente |

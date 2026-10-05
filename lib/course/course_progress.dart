@@ -251,10 +251,15 @@ class CourseProgressStore extends ChangeNotifier {
   CourseProgress operator [](String courseId) =>
       _byId[courseId] ?? CourseProgress.empty(courseId);
 
-  /// Garante o curso na memória (uma chave só).
+  /// Garante o curso na memória (uma chave só). Avisa quem escuta para a
+  /// lista e a tela do curso mostrarem o progresso guardado ao abrir.
   Future<CourseProgress> ensureLoaded(String courseId) async {
+    if (_byId.containsKey(courseId)) return this[courseId];
     final stored = await _read(courseId);
-    if (stored != null) _byId[courseId] = stored;
+    if (stored != null) {
+      _byId[courseId] = stored;
+      notifyListeners();
+    }
     return this[courseId];
   }
 

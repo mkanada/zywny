@@ -28,8 +28,13 @@ import 'package:integration_test/integration_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zywny/course/built_in_course.dart';
+import 'package:zywny/course/course_progress.dart';
+import 'package:zywny/course/ui/exercise_card.dart';
 import 'package:zywny/library/library_keys.dart';
+import 'package:zywny/library/library_screen.dart';
 import 'package:zywny/library/library_store.dart';
+import 'package:zywny/library/piece.dart';
 import 'package:zywny/main.dart';
 import 'package:zywny/music/performance_track.dart';
 import 'package:zywny/practice/count_in_overlay.dart';
@@ -147,6 +152,45 @@ Future<void> _tap(WidgetTester tester, Finder finder, {int ms = 700}) async {
   await _until(tester, () => _has(finder), what: '$finder', seconds: 20);
   await tester.tap(finder.first, warnIfMissed: false);
   await _wait(tester, ms);
+}
+
+/// Abre o exercício [title] pelo botão do próprio cartão (o "Começar"
+/// genérico pegaria o primeiro da lista, que é de outro exercício).
+Future<void> _startExercise(WidgetTester tester, String title) async {
+  await _scrollTo(tester, find.text(title));
+  final cards = find.byType(ExerciseCard);
+  final n = cards.evaluate().length;
+  for (var i = 0; i < n; i++) {
+    final card = cards.at(i);
+    if (find
+        .descendant(of: card, matching: find.text(title))
+        .evaluate()
+        .isNotEmpty) {
+      await _tap(
+        tester,
+        find.descendant(of: card, matching: find.text('Começar')),
+      );
+      return;
+    }
+  }
+  fail('cartão de exercício não encontrado: $title');
+}
+
+/// Rola a lista da tela até [finder] aparecer. O `Scrollable` é o mais
+/// externo (a lição e o curso têm roláveis aninhados e o padrão do
+/// `scrollUntilVisible` exige um só); se o mesmo texto sair duas vezes,
+/// vale o primeiro. Sem rolável na tela, falha explicando o que procurava.
+Future<void> _scrollTo(WidgetTester tester, Finder finder, [double dy = 400]) async {
+  if (find.byType(Scrollable).evaluate().isEmpty) {
+    fail('sem rolável na tela ao procurar $finder');
+  }
+  final n = finder.evaluate().length;
+  // Só mira o primeiro quando há duplicada: com zero, o original deixa o
+  // `dragUntilVisible` rolar até construir a linha (`ListView.builder`).
+  final target = n == 1 ? finder : (n > 1 ? finder.first : finder);
+  final scrollable = find.byType(Scrollable).first;
+  await tester.scrollUntilVisible(target, dy, scrollable: scrollable);
+  await _wait(tester, 800);
 }
 
 Future<void> _shot(WidgetTester tester, String name) async {
@@ -407,6 +451,38 @@ Future<void> _playAlong(
   }
 }
 
+/// Toca uma rodada de espera do curso (play-notes): os acordes da partitura
+/// em ordem, um por vez, até o painel de resultado aparecer.
+Future<void> _playCourseWait(WidgetTester tester) async {
+  final view = tester.widget<ScoreView>(find.byType(ScoreView));
+  final track = PerformanceTrack.fromDocument(view.document);
+  final byOnMs = <double, Set<int>>{};
+  for (final chord in track.chords(staves: {1, 2})) {
+    final pitches = {
+      for (final e in chord.notes)
+        if (!e.ornament) e.pitch,
+    };
+    if (pitches.isEmpty) continue;
+    byOnMs.putIfAbsent(chord.onMs, () => {}).addAll(pitches);
+  }
+  final onsets = byOnMs.keys.toList()..sort();
+  bool done() =>
+      _has(find.text('Exercício aprovado!')) ||
+      _has(find.textContaining('Precisa de')) ||
+      _has(find.textContaining('Tente de novo'));
+  for (final onMs in onsets) {
+    if (done()) break;
+    for (final p in byOnMs[onMs]!) {
+      _keyboard.noteOn(p);
+    }
+    await _wait(tester, 160);
+    for (final p in byOnMs[onMs]!) {
+      _keyboard.noteOff(p);
+    }
+    await _wait(tester, 160);
+  }
+}
+
 /// O app não traz música nenhuma (fase B): o roteiro instala a biblioteca de
 /// hinos que `just telas` recebe em `--dart-define=ZYWNY_TEST_LIBRARY=<caminho
 /// no aparelho>` (um `dist/hinos.zywny` posto lá com `adb push`, de preferência
@@ -475,40 +551,62 @@ Future<void> _seedHistory() async {
         'e18': record('pulada', 0),
       },
       'resume': {
-        'id': 't1.ritmoE.75',
-        'label': 'Ritmo da esquerda 75%',
+        'id': 't1.tempoE.75',
+        'label': 'Esquerda no ritmo 75%',
         'seg': 1,
-        'segs': 4,
+        'segs': 6,
       },
     }),
   );
 
   // O hino do roteiro: o 1º trecho feito (uma etapa pulada), parado no
-  // começo do 2º.
+  // começo do 2º (uma espera, que o roteiro toca com o teclado falso). Os
+  // ids vêm do plano real da 1ª passagem — o corte muda com o N e as fases
+  // já se chamaram `ritmoD` um dia.
   final plan = _plan;
-  final first = [
-    't0.notasD',
-    't0.notasE',
-    't0.notasJ',
-    for (final phase in ['ritmoD', 'ritmoE', 'junto'])
-      for (final pct in [50, 75, 100]) 't0.$phase.$pct',
+  final seg0 = [
+    for (final s in plan?.stages ?? const []) if (s.segment == 0) s,
   ];
+  final seg1 = [
+    for (final s in plan?.stages ?? const []) if (s.segment == 1) s,
+  ];
+  final List<String> first;
+  final String resumeId;
+  final String resumeLabel;
+  if (seg0.isNotEmpty && seg1.isNotEmpty) {
+    first = [for (final s in seg0) s.id];
+    resumeId = seg1.first.id;
+    resumeLabel = seg1.first.label;
+  } else {
+    first = [
+      't0.notasD',
+      't0.notasE',
+      't0.notasJ',
+      for (final phase in ['tempoD', 'tempoE', 'junto'])
+        for (final pct in [50, 75, 100]) 't0.$phase.$pct',
+    ];
+    resumeId = 't1.notasD';
+    resumeLabel = 'Notas da direita';
+  }
   const bests = [100, 96, 93, 100, 95, 91, 97, 94, 82, 98, 92, 90];
   await prefs.setString(
     trailKeyFor('hinos', _kHymnId),
     jsonEncode({
       'v': 1,
       'n': plan?.n ?? kTrailDefaultMeasures,
-      'total': plan?.stages.length ?? 51,
+      'total': plan?.stages.length ?? first.length,
       'records': {
         for (var i = 0; i < first.length; i++)
-          first[i]: record(i == 8 ? 'pulada' : 'aprovada', bests[i]),
+          first[i]: record(
+            i == 8 ? 'pulada' : 'aprovada',
+            bests[i % bests.length],
+          ),
       },
       'resume': {
-        'id': 't1.notasD',
-        'label': 'Notas da direita',
+        'id': resumeId,
+        'label': resumeLabel,
         'seg': 1,
-        'segs': plan?.segmentCount ?? 4,
+        'segs': plan?.segmentCount ?? 6,
       },
     }),
   );
@@ -529,6 +627,15 @@ void main() {
 
   testWidgets('primeiro uso, sem teclado', (tester) async {
     await SharedPreferencesAsync().clear();
+    // Emulador limpo não tem biblioteca instalada (o app não traz música):
+    // garante a de teste antes de abrir, como as passagens seguintes fazem.
+    try {
+      await _installTestLibrary();
+    } on Object catch (e) {
+      debugPrint('telas: sem biblioteca de teste ($e)');
+      // Sem o arquivo no aparelho, segue sem biblioteca (o roteiro mostra
+      // a tela de instalar).
+    }
     await _launch(tester, splash: true);
     await _wait(tester, 500);
     await _shot(tester, '01-abertura');
@@ -561,10 +668,13 @@ void main() {
       what: 'configurações gerais',
     );
     await _shot(tester, '07-configuracoes');
-    // Mudar o corte da trilha pede confirmação: recomeça as trilhas.
+    // Mudar o corte da trilha pede confirmação: recomeça as trilhas. O painel
+    // cresceu (Bibliotecas e Cursos das fases B/I): rola até a seção.
+    await _settingsRow(tester, 'Trilha de estudo');
     await _tap(tester, find.byTooltip('Mais compassos por trecho'));
     await _shot(tester, '08-configuracoes-mudar-o-padrao');
     await _tap(tester, find.text('Cancelar'));
+    await _settingsRow(tester, 'Cores');
     await _tap(tester, find.text('Nota certa'));
     await _shot(tester, '09-seletor-de-cor');
     await _tap(tester, find.text('Cancelar'));
@@ -791,5 +901,224 @@ void main() {
 
     await _backToLibrary(tester);
     await _shot(tester, '46-biblioteca-depois-do-estudo');
+  }, timeout: const Timeout(Duration(minutes: 12)));
+
+  testWidgets('cursos da fase I', (tester) async {
+    // Sem biblioteca (não mexe no blob instalado): a tela direto com o
+    // catálogo vazio mostra o cartão do curso inicial.
+    _keyboard.unplug();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: _shotKey,
+        child: MaterialApp(
+          home: LibraryScreen(
+            loadCatalog: () async => PieceCatalog.none(),
+            loadScore: (piece) async => Uint8List(0),
+            loadCourses: loadBuiltInCourses,
+            scoreBuilder: (context, o) =>
+                const Scaffold(body: Text('partitura')),
+          ),
+        ),
+      ),
+    );
+    await _until(
+      tester,
+      () => _has(find.text('Comece pelo curso inicial')),
+      what: 'cartão do curso inicial sem biblioteca',
+      seconds: 60,
+    );
+    await _wait(tester, 2000);
+    await _shot(tester, '47-curso-inicial-sem-biblioteca');
+
+    await _tap(tester, find.text('Começar'));
+    await _until(
+      tester,
+      () => _has(find.text('O teclado')),
+      what: 'lição 1 do curso',
+      seconds: 30,
+    );
+    await _wait(tester, 1500);
+    await _shot(tester, '48-licao-1-pelo-cartao');
+
+    // Com biblioteca: o app de verdade, com a lição 1 feita (uma feita, uma
+    // aberta, o resto bloqueado). Não limpa o blob: só o progresso de curso.
+    final prefs = SharedPreferencesAsync();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await prefs.setString(
+      CourseProgressStore.keyFor('iniciacao'),
+      jsonEncode({
+        'v': 1,
+        'course': 'iniciacao',
+        'records': {
+          'l1-achar-do': {'p': true, 's': 1, 'b': 100, 't': now},
+          'l1-achar-brancas': {'p': true, 's': 1, 'b': 100, 't': now},
+        },
+        'doneLessons': [],
+        'lastLessonId': 'pauta-e-clave-de-sol',
+      }),
+    );
+    try {
+      await _installTestLibrary();
+    } on Object {
+      // Já instalada: segue.
+    }
+    await _launch(tester, splash: false);
+    await _libraryReady(tester);
+    await _until(
+      tester,
+      () => _has(find.textContaining('Cursos ·')),
+      what: 'linha Cursos na biblioteca',
+      seconds: 30,
+    );
+    await _shot(tester, '49-biblioteca-com-cursos');
+
+    await _tap(tester, find.textContaining('Cursos ·'));
+    await _until(
+      tester,
+      () => _has(find.text('Cursos')) && _has(find.text('Primeiros passos ao piano')),
+      what: 'lista de cursos',
+      seconds: 30,
+    );
+    await _wait(tester, 1000);
+    await _shot(tester, '50-lista-de-cursos');
+
+    await _tap(tester, find.text('Primeiros passos ao piano'));
+    await _until(
+      tester,
+      () => _has(find.text('Apresentação')) && _has(find.text('O teclado')),
+      what: 'tela do curso',
+      seconds: 30,
+    );
+    await _wait(tester, 1000);
+    await _shot(tester, '51-tela-do-curso');
+
+    // Lição 2 em retrato: topo, partitura e cartão do exercício. O corpo da
+    // lição é RichText (markdown), não Text.
+    await _tap(tester, find.text('A pauta e a clave de sol'));
+    await _until(
+      tester,
+      () => find
+          .textContaining('Cinco linhas', findRichText: true)
+          .evaluate()
+          .isNotEmpty,
+      what: 'lição 2',
+      seconds: 30,
+    );
+    await _wait(tester, 1500);
+    await _shot(tester, '52-licao-2-topo');
+    await _scrollTo(
+      tester,
+      find.text('Do Dó ao Sol na clave de sol'),
+    );
+    await _shot(tester, '53-licao-2-partitura');
+    await _scrollTo(tester, find.text('Toque do Dó ao Sol'));
+    await _shot(tester, '54-licao-2-exercicio');
+
+    // O cartão sem teclado deixa o Começar desabilitado ("Precisa do
+    // teclado", foto 54): a porta "Conecte o teclado" do exercício só
+    // aparece se o teclado cair com o exercício abrindo. Liga, abre pelo
+    // botão do cartão e despluga em seguida — a rodada carrega devagar no
+    // emulador, então a porta chega antes da partitura.
+    _keyboard.plug();
+    await _wait(tester, 1500);
+    await _startExercise(tester, 'Toque do Dó ao Sol');
+    _keyboard.unplug();
+    await _until(
+      tester,
+      () => _has(find.text('Conecte o teclado')),
+      what: 'porta do teclado no exercício',
+      seconds: 60,
+    );
+    await _wait(tester, 800);
+    await _shot(tester, '55-exercicio-conecte-o-teclado');
+    // De volta à lição, religa para as telas com partitura.
+    _popRoute(tester);
+    await _wait(tester);
+    _keyboard.plug();
+    await _wait(tester, 1500);
+
+    // name-note (botões, sem MIDI): abre pelo botão do cartão.
+    await _startExercise(tester, 'Que nota é esta');
+    await _until(
+      tester,
+      () => _has(find.byType(ScoreView)) || _has(find.textContaining('Dó')),
+      what: 'exercício name-note',
+      seconds: 60,
+    );
+    await _wait(tester, 1000);
+    await _shot(tester, '56-exercicio-name-note');
+
+    // Volta e abre o choice da lição 8 (precisa liberar a lição: abre assim
+    // mesmo pela tela do curso). A lista volta onde estava (lição 2 no
+    // topo), então rola até a lição 8 em vez de só esperar.
+    _popRoute(tester);
+    await _wait(tester);
+    _popRoute(tester);
+    await _wait(tester);
+    await _until(
+      tester,
+      () => _has(find.text('Apresentação')),
+      what: 'tela do curso depois dos pops',
+      seconds: 30,
+    );
+    await _scrollTo(tester, find.text('Acidentes'), 200);
+    await _wait(tester, 300);
+    await tester.tap(find.text('Acidentes'), warnIfMissed: false);
+    await _wait(tester, 800);
+    if (_has(find.text('Abrir assim mesmo'))) {
+      await _tap(tester, find.text('Abrir assim mesmo'));
+    }
+    await _until(
+      tester,
+      () => _has(find.text('Para que serve o bequadro')),
+      what: 'choice do bequadro',
+      seconds: 30,
+    );
+    await _scrollTo(
+      tester,
+      find.text('Para que serve o bequadro'),
+    );
+    await _shot(tester, '57-licao-8-choice-cartao');
+    await _startExercise(tester, 'Para que serve o bequadro');
+    await _until(
+      tester,
+      () =>
+          _has(find.textContaining('bequadro')) &&
+          _has(find.textContaining('Anula')),
+      what: 'exercício choice',
+      seconds: 30,
+    );
+    await _shot(tester, '58-exercicio-choice');
+    _popRoute(tester);
+    await _wait(tester);
+    _popRoute(tester);
+    await _wait(tester);
+
+    // play-notes com teclado: antes e depois da rodada (a lista está na
+    // lição 8; rola de volta até a lição 2).
+    await _scrollTo(tester, find.text('A pauta e a clave de sol'));
+    await tester.tap(find.text('A pauta e a clave de sol'), warnIfMissed: false);
+    await _wait(tester, 1500);
+    await _startExercise(tester, 'Toque do Dó ao Sol');
+    await _until(
+      tester,
+      () => _has(find.byType(ScoreView)),
+      what: 'partitura do play-notes',
+      seconds: 90,
+    );
+    await _wait(tester, 1200);
+    await _shot(tester, '59-exercicio-play-notes-antes');
+    await _playCourseWait(tester);
+    await _until(
+      tester,
+      () =>
+          _has(find.text('Exercício aprovado!')) ||
+          _has(find.textContaining('Precisa de')) ||
+          _has(find.textContaining('Tente de novo')),
+      what: 'resultado do play-notes',
+      seconds: 60,
+    );
+    await _wait(tester, 800);
+    await _shot(tester, '60-exercicio-play-notes-depois');
   }, timeout: const Timeout(Duration(minutes: 12)));
 }

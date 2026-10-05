@@ -201,7 +201,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
     try {
       await _coursesStore.load();
-      return [...builtin, ...await _coursesStore.openAll()];
+      final all = [...builtin, ...await _coursesStore.openAll()];
+      // O progresso guardado vale ao abrir (a lista mostra "X de Y").
+      for (final course in all) {
+        await _courseProgress.ensureLoaded(course.id);
+      }
+      return all;
     } on Object {
       return builtin;
     }

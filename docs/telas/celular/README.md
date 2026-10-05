@@ -79,6 +79,25 @@ O que as fotos **não** mostram:
 | `45-monitor-midi` | Painel "Teclas que chegam" |
 | `46-biblioteca-depois-do-estudo` | Biblioteca ao voltar do estudo |
 
+## 3ª passagem — cursos da fase I
+
+| Arquivo | Tela |
+|---|---|
+| `47-curso-inicial-sem-biblioteca` | Sem biblioteca: cartão "Comece pelo curso inicial" |
+| `48-licao-1-pelo-cartao` | Lição 1 aberta pelo cartão |
+| `49-biblioteca-com-cursos` | Biblioteca com a linha "Cursos" |
+| `50-lista-de-cursos` | Lista de cursos |
+| `51-tela-do-curso` | Tela do curso: uma feita, uma aberta, o resto bloqueado |
+| `52-licao-2-topo` | Lição 2, começo (retrato) |
+| `53-licao-2-partitura` | Lição 2, rolada até a partitura |
+| `54-licao-2-exercicio` | Lição 2, cartão do exercício ("Precisa do teclado") |
+| `55-exercicio-conecte-o-teclado` | Exercício sem teclado: "Conecte o teclado" |
+| `56-exercicio-name-note` | Exercício `name-note` (botões) |
+| `57-licao-8-choice-cartao` | Lição 8, cartão do `choice` |
+| `58-exercicio-choice` | Exercício `choice` |
+| `59-exercicio-play-notes-antes` | Exercício `play-notes` antes da rodada (paisagem) |
+| `60-exercicio-play-notes-depois` | Exercício `play-notes` aprovado (100%) |
+
 ## O que mudou na fase U
 
 Fotos refeitas no fim da fase U (passos U01–U18). Mudaram de nome: `12` (era

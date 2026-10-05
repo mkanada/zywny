@@ -62,6 +62,8 @@ class _LessonScreenState extends State<LessonScreen> {
   @override
   void initState() {
     super.initState();
+    // O progresso guardado vale ao abrir (cartões com o selo certo).
+    unawaited(widget.progress.ensureLoaded(widget.loaded.id));
     // Fora do `build`: o `touchLesson` avisa quem escuta (a própria tela).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

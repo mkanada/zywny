@@ -41,6 +41,18 @@ try {
     return n;
   };
   const tap = async (re, wait = 1000) => { const n = await find(re); await b.click(n.x, n.y); await sleep(wait); };
+  // O cartão do curso gera vários nós com o mesmo rótulo (semânticas
+  // aninhadas); o primeiro pode ser um recorte escondido e o maior, um
+  // texto morto. Prefere botão, depois o maior.
+  const tapBig = async (re, wait = 1000) => {
+    const all = (await semantics(b)).filter((n) => re.test(n.label));
+    if (!all.length) throw new Error('sem nó na tela: ' + re);
+    const tappable = all.filter((n) => n.role === 'button' || n.role === 'link');
+    const pool = tappable.length ? tappable : all;
+    const n = pool.reduce((a, c) => (c.w > a.w ? c : a));
+    await b.click(n.x, n.y);
+    await sleep(wait);
+  };
   const peak = (ms = 400) => b.evalJs(`(async()=>{const m=await import('/audio/zywny_audio.js');let p=0;const t=performance.now();while(performance.now()-t<${ms}){p=Math.max(p,m.peak());await new Promise(r=>setTimeout(r,25));}return p})()`);
   const log = async () => JSON.parse(await b.evalJs('JSON.stringify(window.__log)'));
 
@@ -59,6 +71,21 @@ try {
   await b.send('Page.setInterceptFileChooserDialog', { enabled: true });
   await find(/Instale uma biblioteca/);
   check(true, 'biblioteca: sem pacote, o cartão de instalar aparece');
+
+  // I13: o curso inicial embutido abre sem biblioteca.
+  await find(/Comece pelo curso inicial/);
+  check(true, 'cursos: cartão inicial aparece sem biblioteca');
+  await tap(/Começar/, 2500);
+  await find(/O teclado/);
+  check(true, 'cursos: lição 1 abre pelo cartão');
+  await b.shot('smoke-curso-licao');
+  // Volta à biblioteca recarregando (o "Voltar ao curso" tem vários nós de
+  // semântica e o clique pode cair no escondido).
+  await b.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+  await sleep(6000);
+  await find(/Instale uma biblioteca/);
+  check(true, 'cursos: voltou à biblioteca');
+
   await tap(/Abrir arquivo/, 100);
   const chooser = await waitEvent('Page.fileChooserOpened');
   await b.send('DOM.setFileInputFiles', { files: [pack], backendNodeId: chooser.params.backendNodeId });
@@ -72,14 +99,30 @@ try {
   await find(/600 hinos/);
   check(true, 'biblioteca: depois de recarregar, os hinos continuam lá (IndexedDB)');
   await b.send('Page.setInterceptFileChooserDialog', { enabled: false });
+  // I13: com biblioteca, a linha "Cursos" leva à lista e ao curso.
+  await tap(/Cursos ·/, 2000);
+  await find(/Primeiros passos ao piano/);
+  check(true, 'cursos: lista abre pela linha Cursos');
+  // A lista reconstrói ao carregar o progresso do disco: espera assentar
+  // para o clique não cair em coordenada velha.
+  await sleep(3000);
+  await tapBig(/Primeiros passos ao piano/, 2000);
+  await find(/Apresentação/);
+  check(true, 'cursos: tela do curso abre');
+  await b.shot('smoke-curso');
+  // De volta à biblioteca para o resto da fumaça (o IndexedDB mantém).
+  await b.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+  await sleep(8000);
+  await find(/600 hinos/);
   await tap(/Conectar teclado MIDI/);
   await tap(/Ativar o MIDI/);
   check((await b.evalJs('window.__reqOptions[0]')) === '{"sysex":false}', 'MIDI: pedido sem sysex');
   check((await log()).includes('open input Fake Piano'), 'MIDI: teclado conectado');
   await tap(/^Fechar$/);
 
-  await b.click(320, 342); // hino 1
-  await sleep(9000);
+  // Abre o hino 1 pelo título (as coordenadas fixas quebraram com os
+  // cartões novos da biblioteca: "Cursos" e "Comece por aqui").
+  await tapBig(/Santo, Santo, Santo!/, 9000);
   await tap(/Treino livre/, 1500);
   await tap(/Tocar \(destacar/, 100);
   const playing = await peak(2000); // pega o ataque de alguma nota, não o decaimento

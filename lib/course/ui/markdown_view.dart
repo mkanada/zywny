@@ -44,7 +44,9 @@ class MarkdownView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nodes = md.Document().parse(text);
+    // Sem `encodeHtml`: a AST vai direto para widgets, e entidades (`"`,
+    // `&`) sairiam literais como `&quot;` na tela (visto no I13, foto 51).
+    final nodes = md.Document(encodeHtml: false).parse(text);
     final builder = _BlockBuilder(files: files, openLink: openLink);
     final widgets = <Widget>[];
     for (final node in nodes) {
