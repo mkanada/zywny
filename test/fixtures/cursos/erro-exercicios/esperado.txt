@@ -1,0 +1,16 @@
+lessons/01-a.md:10: erro: `G4-C4` não é uma faixa de notas: escreva da mais grave para a mais aguda, como C4-G5.
+lessons/01-a.md:17: erro: `H4` não é uma nota: use de C a B, com # ou b, e a oitava, como C4 (o piano vai de A0 a C8).
+lessons/01-a.md:18: erro: `rounds` precisa estar entre 1 e 10 (recebi 11).
+lessons/01-a.md:18: erro: `speed` não vale em `play-notes`: só vale com tempo real (`rhythm` e `play-score` com `mode: realtime`).
+lessons/01-a.md:26: erro: o modo espera não tem andamento: tire `speed` ou use `mode: realtime`.
+lessons/01-a.md:33: erro: `F#4` tem sustenido ou bemol: neste tipo só valem as notas naturais.
+lessons/01-a.md:42: erro: `answer` (`c`) precisa ser igual a uma das `options`: `a`, `b`.
+lessons/01-a.md:43: erro: `time-limit` precisa estar entre 1 e 120 (recebi 500).
+lessons/01-a.md:50: erro: `figures` só vale no sorteio; com `abc` o ritmo é o que está escrito.
+lessons/01-a.md:60: erro: `key` não é um tom que o formato conhece (`H`); use C, G, D, A, E, B, F#, C#, F, Bb, Eb, Ab, Db, Gb, Cb ou o menor com `m` (Am, Em…).
+lessons/01-a.md:68: erro: `accidentals` só vale com sorteio (`notes: {random: …}`); numa lista fixa escreva a nota com # ou b, como F#4.
+lessons/01-a.md:73: erro: tipo de exercício desconhecido `ritmo` — você quis dizer `rhythm`? (tipos: find-key, play-notes, name-note, rhythm, count-beats, play-score, choice).
+lessons/01-a.md:84: erro: chave desconhecida `objetivo` (chaves aceitas no exercício `name-note`: id, type, title, pass, clef, key, notes, choices).
+lessons/01-a.md:87: erro: falta a chave obrigatória `id` no exercício `choice`.
+lessons/01-a.md:87: erro: falta a chave obrigatória `title` no exercício `choice`.
+lessons/01-a.md:90: erro: `options` precisa de pelo menos 2 itens.

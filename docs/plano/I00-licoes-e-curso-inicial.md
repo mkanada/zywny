@@ -40,8 +40,8 @@ app instalado nunca instala curso sem assinatura.
 
 As chaves e os valores do formato são **em inglês** (D-LIC-IDIOMA); o texto
 das lições fica na língua do autor (o curso inicial, em português). A
-especificação para professores (`docs/licoes/formato-v1.md`, escrita no I01)
-é em português e é a referência; a tabela abaixo é o resumo.
+especificação para professores ([`docs/licoes/formato-v1.md`](../licoes/formato-v1.md),
+escrita no I01) é em português e é a referência; a tabela abaixo é o resumo.
 
 Um curso é uma pasta. Na distribuição, a pasta vira um pacote `.zywny` (I04).
 
@@ -290,7 +290,7 @@ Tomadas pelo usuário em 2026-10-04.
 
 | Passo | Título | Depende de | Lições do curso inicial que fecha | Status |
 | --- | --- | --- | --- | --- |
-| [I01](I01-formato-e-validador.md) | Especificação v1 para professores, leitor e validador (Dart puro), `zywny_course validate` | — | — (fixtures quebradas) | pendente |
+| [I01](I01-formato-e-validador.md) | Especificação v1 para professores, leitor e validador (Dart puro), `zywny_course validate` | — | — (fixtures quebradas) | **concluído** |
 | [I02](I02-partituras-das-licoes.md) | Partituras: ABC no Verovio (alcance), cabeçalho ABC, gerador de MusicXML das rodadas, tempo de render | I01 | — | pendente |
 | [I03](I03-motor-de-exercicios.md) | Motor de exercícios: rodada, `pass`, `play-notes` em modo espera, aluno simulado | I02 | 2–5 (só exercícios `play-notes`) | pendente |
 | [I04](I04-pacote-de-curso.md) | Pacote de curso: `.zywny` assinado, instalar, guardar, remover, `just pacote-curso` | I01, I09 | — | pendente |

@@ -1,0 +1,1 @@
+course.md:1: erro: O arquivo precisa começar pelo front matter: uma linha `---`, as chaves e outra linha `---`.

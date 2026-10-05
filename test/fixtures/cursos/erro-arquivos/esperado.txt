@@ -1,0 +1,9 @@
+lessons/01-a.md:6: erro: imagem: `https://exemplo.com/a.png` é de fora da pasta do curso; coloque o arquivo em `media/` e use o caminho relativo.
+lessons/01-a.md:8: erro: imagem: o arquivo `media/sumida.png` não existe na pasta do curso.
+lessons/01-a.md:10: erro: imagem: o caminho `../outro.png` sai da pasta do curso; use um caminho relativo como `media/arquivo.png` (sem `..` nem `/` no começo).
+lessons/01-a.md:12: erro: imagem: `media/a.gif` não tem um formato aceito aqui (.png, .jpg, .webp).
+lessons/01-a.md:14: erro: o link `http://exemplo.com` não vale: links do texto só podem ser `https://…`.
+lessons/01-a.md:16: aviso: HTML não é interpretado e aparece como texto.
+lessons/01-a.md:19: erro: o arquivo `media/nada.ogg` não existe na pasta do curso.
+lessons/01-a.md:23: erro: `link` precisa ser um endereço `https://…`.
+lessons/01-a.md:30: erro: o arquivo `media/ausente.musicxml` não existe na pasta do curso.

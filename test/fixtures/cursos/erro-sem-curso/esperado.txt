@@ -1,0 +1,1 @@
+course.md:1: erro: Falta o arquivo `course.md` na raiz do curso.

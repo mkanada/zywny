@@ -1,0 +1,3 @@
+lessons/02-b.md:4: erro: `requires` forma um ciclo: a → b → a.
+lessons/03-c.md:4: erro: `requires` cita a lição `d`, que vem depois na ordem de `lessons`: só valem lições anteriores.
+lessons/04-d.md:4: erro: `requires` cita a lição `zzz`, que não existe no curso.

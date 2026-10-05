@@ -1,0 +1,2 @@
+course.md:7: erro: a lição `falta` não tem arquivo em `lessons/` (o `id` do front matter precisa ser `falta`).
+lessons/02-sobra.md:2: aviso: a lição `sobra` não está em `lessons` de `course.md` e não entra no curso.

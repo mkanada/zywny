@@ -1,0 +1,7 @@
+lessons/01-a.md:8: erro: um `abc` com `X:` já traz o cabeçalho: tire `clef`.
+lessons/01-a.md:13: erro: use só um: `abc` ou `file`, não os dois.
+lessons/01-a.md:16: erro: informe `abc` ou `file`.
+lessons/01-a.md:21: erro: `from` (C5) precisa ser mais grave que `to` (C4).
+lessons/01-a.md:26: erro: a nota `C2` em `mark` está fora da faixa C3-C5 do teclado.
+lessons/01-a.md:30: erro: `names` precisa ser `true` ou `false` (`yes` e `no` não valem).
+lessons/01-a.md:33: erro: falta a chave obrigatória `link` na marca `zywny-video`.

@@ -175,6 +175,11 @@ test:
 analyze:
     flutter analyze
 
+# Valida uma pasta de curso (I01): `just curso-validar validate <pasta>`.
+# Sai com 1 se houver erro; imprime `arquivo:linha: erro|aviso: mensagem`.
+curso-validar *ARGS:
+    dart run tool/zywny_course.dart {{ARGS}}
+
 # Atualiza o grafo de contexto do graft/ (ver AGENTS.md).
 graft:
     graft build

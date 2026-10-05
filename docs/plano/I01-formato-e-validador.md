@@ -1,6 +1,6 @@
 # I01 — Especificação v1, leitor e validador de curso (Dart puro)
 
-**Repo:** zywny · **Depende de:** — · **Decisão necessária:** não
+**Repo:** zywny · **Depende de:** — · **Status:** concluído · **Decisão necessária:** não
 (D-LIC-MARCAS, D-LIC-IDIOMA, D-LIC-NOTACAO decididas no I00)
 
 ## Objetivo
@@ -149,4 +149,78 @@ pacote (I04), renderizar o ABC para validar (I12).
 
 ## Notas de execução
 
-(vazio)
+Concluído em 2026-10-04. `just test` (431 testes) e `just analyze` limpos.
+
+**O que existe**
+
+- `lib/course/format/`: `course_files.dart` (`CourseFiles`, `MemoryCourseFiles`,
+  `ZipCourseFiles`), `directory_course_files.dart` (`dart:io`, só para o
+  comando e o modo nativo), `note_name.dart` (`Pitch`, `NoteRange`),
+  `vocabulary.dart` (as tabelas como dados: `kContentMarkKeys`,
+  `exerciseKeys(type)`, `kPassKeys`, `kRandomNotesKeys`, `kCourseKeys`,
+  `kLessonKeys`), `course_model.dart`, `course_issue.dart`,
+  `lesson_scanner.dart` (front matter + texto/marcas, com a linha de cada
+  marca), `field_reader.dart` (lê YAML contra o vocabulário, linhas pelo
+  `span` do `yaml`), `mark_parser.dart` (marcas e exercícios → modelo),
+  `text_check.dart` (imagens, links, HTML do texto), `suggest.dart`
+  ("você quis dizer"), `course_reader.dart` (`readCourse`, checagens entre
+  arquivos). Nada importa Flutter (um teste confere os imports).
+- `tool/zywny_course.dart` + `just curso-validar validate <pasta>` (os
+  argumentos passam inteiros, então o `validate` vai junto). O `dart run`
+  escreve `Running build hooks...` no **stderr**; o stdout fica vazio num curso
+  válido.
+- `yaml` e `meta` viraram dependências diretas do `pubspec.yaml`.
+- `docs/licoes/formato-v1.md` (para professores) e as fixtures em
+  `test/fixtures/cursos/` (`minimo/` + 12 pastas `erro-*`, cada uma com
+  `esperado.txt`). O `esperado.txt` foi gravado da saída do validador **depois
+  de lida linha a linha** — se mudar uma mensagem, regrave e releia.
+- Testes: `test/course_reader_test.dart` (modelo do `minimo/`, os sete tipos
+  com padrões, zip, cercas, `Pitch`) e `test/course_validator_test.dart`
+  (saída das pastas quebradas + sem Flutter em `lib/course/format/`).
+
+**Escolhas minhas onde o I00 não dizia** (o I02–I13 devem seguir; o
+usuário pode revisar):
+
+- `choices` do `name-note`: **letras `A`–`G`** (2 ou mais, sem repetir), e
+  toda nota que o exercício pode usar precisa ter botão.
+- `answer` do `choice`: o **texto de uma das `options`** (YAML aceita
+  número: `options: [1, 2]`, `answer: 2`); o modelo guarda o índice.
+- `count`: dentro de `notes: {random, count}` (padrão 12; `find-key` 10) e
+  no `count-beats` (padrão 8). `measures` do `rhythm` é inteiro de 1 a 8
+  (padrão 4); no `play-score` é `5` ou `"5-12"`.
+- `zywny-keyboard`: `names: true` escreve o nome em **todas** as teclas
+  brancas da faixa; padrão `false`. `mark` tem de caber em `from`–`to`.
+- `clef`/`key`/`time` com `file:` (`.musicxml`) são **erro**, como com ABC
+  completo. `play-score` e `choice` não têm `clef`/`key`/`time`: para ter
+  armadura ou fórmula, o autor escreve ABC completo (`X:`). Ficou assim
+  porque "na dúvida, fica fora da v1"; se o I02 achar que falta, acrescente
+  as três chaves ao `play-score` no vocabulário.
+- `accidentals` numa lista fixa de notas é erro (só vale no sorteio).
+- Faixa de notas: de `A0` a `C8` (o piano); `bpm` de 30 a 240; `.musicxml` é
+  a única extensão de partitura; imagens `.png`/`.jpg`/`.webp`; áudio
+  `.ogg`/`.mp3`.
+- `only: lines|spaces`: linha é nota de índice diatônico par (E4, G4… e a
+  suplementar do dó central; igual no baixo: G2, B2…). A faixa precisa de
+  pelo menos 2 naturais do tipo. O I02 deve usar `Pitch.onLine`.
+- Cada `figure` precisa caber num compasso do `time` (`whole` em 3/4 é erro).
+- Lição em `lessons/` fora da lista do `course.md`: **aviso**; lista com `id`
+  sem arquivo: erro (omitido se algum arquivo de lição está ilegível).
+- Ciclo em `requires`: uma mensagem só ("a → b → a") na lição que fecha o
+  ciclo; aresta para lição posterior fora de ciclo: outra mensagem.
+- `course.md` com marca `zywny-…`: erro. Texto do `course.md` passa pelas
+  mesmas conferências (imagem, link, HTML).
+- Mensagens do pacote `yaml` (em inglês) são traduzidas para os erros comuns
+  (colchete sem fechar, `:` solto, tabulação, aspas, chave repetida); o texto
+  original vai entre parênteses.
+- Apelidos em português (`titulo`, `tipo`, `notas`, `exercicio`, `ritmo`…)
+  geram a sugestão certa ("você quis dizer…").
+- Erros de forma numa chave impedem montar o modelo daquele bloco, mas o
+  `pass` é conferido mesmo assim; erros de dois blocos diferentes sempre
+  aparecem juntos.
+
+**Não feito (de propósito)**: ABC que renderiza (é o `--render` do I12);
+critério 5 ("alguém de fora escreve um `play-notes` de clave de fá com três
+rodadas só com a especificação") — a receita está no §10 do `formato-v1.md` e
+foi relida de cabeça fria, mas a prova real é a regra 5 do I00 / I13.
+O trecho "Partituras" do `formato-v1.md` tem uma nota dizendo que o alcance
+do ABC sai do I02; **o I02 deve trocá-la pela tabela de limites**.

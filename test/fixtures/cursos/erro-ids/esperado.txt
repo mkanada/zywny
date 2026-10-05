@@ -1,0 +1,4 @@
+lessons/01-a.md:2: erro: id de lição repetido `a` (também em lessons/03-c.md:2).
+lessons/01-a.md:6: erro: id de exercício repetido `igual` (também em lessons/02-b.md:6).
+lessons/02-b.md:6: erro: id de exercício repetido `igual` (também em lessons/01-a.md:6).
+lessons/03-c.md:2: erro: id de lição repetido `a` (também em lessons/01-a.md:2).

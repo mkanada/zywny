@@ -1,0 +1,2 @@
+lessons/01-a.md:10: erro: YAML inválido: uma lista entre colchetes `[ ]` está sem fechar ou sem vírgula entre os itens (While parsing a flow sequence, expected ',' or ']'.)
+lessons/01-a.md:13: erro: A marca `zywny-audio` não foi fechada: falta uma linha só com três crases (```).

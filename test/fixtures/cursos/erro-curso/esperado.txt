@@ -1,0 +1,4 @@
+course.md:1: erro: falta a chave obrigatória `title` no front matter do curso.
+course.md:1: erro: falta a chave obrigatória `version` no front matter do curso.
+course.md:3: erro: `id` inválido: use de 1 a 40 letras minúsculas, números ou hífens (recebi `Meu Curso`).
+course.md:4: erro: chave desconhecida `titulo` — você quis dizer `title`?
