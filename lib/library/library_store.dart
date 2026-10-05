@@ -93,6 +93,11 @@ class LibraryStore extends ChangeNotifier {
   /// Em ordem de instalação.
   List<InstalledLibrary> get installed => List.unmodifiable(_installed);
 
+  /// A chave pública que abre os pacotes (`null` sem chave no build): o
+  /// despacho do instalador usa esta ou a dos cursos (a mesma pessoa assina
+  /// os dois, D-LIC-CONFIANCA).
+  Uint8List? get publicKey => _publicKey;
+
   /// O `id` da biblioteca em uso, ou `null` se não há nenhuma.
   String? get activeId => _active;
 

@@ -99,4 +99,67 @@ escopo"). Atualização automática.
 
 ## Notas de execução
 
-(vazio)
+Concluído em código; aceite manual pendente (critério 3: instalar pelo
+"Abrir arquivo…" no Linux, na Web e no celular, abrir uma lição, remover —
+e o tempo de abrir o envelope no celular).
+
+`just analyze` limpo; `just test` limpo (657 passando, 5 pulados, com a
+`libverovio.so` real — antes 640/5; +17 do `course_install_test`).
+
+**O que existe**
+
+- `tool/build_course.py` + `just pacote-curso <pasta> [-o dist/<id>.zywny]`:
+  valida antes (`dart run tool/zywny_course.dart validate`, para no erro),
+  zipa só `course.md`, `lessons/*.md` e `media/**` (ocultos e lixo de editor
+  ignorados, com `AVISO:`; zip determinístico como o `build_library.py`) e
+  sela com a mesma chave das bibliotecas (`library_crypto.py`,
+  D-LIC-CONFIANCA — sem par novo). `just pacote-curso
+  test/fixtures/cursos/minimo` gera o `.zywny` (3 arquivos); pasta quebrada
+  (`erro-yaml`) para no validador com código ≠ 0.
+- `lib/course/course_store.dart` — `CourseStore` (`ChangeNotifier`): lista em
+  `shared_preferences` (`course_installed`: id, título, autor, versão, data),
+  bytes do envelope no mesmo blob store das bibliotecas com o prefixo
+  `course:` no id (arquivo, IndexedDB e memória reaproveitados). Abrir =
+  decifrar + `readCourse`. Sem "em uso": vários instalados ao mesmo tempo.
+  O despacho (`manifest.json` × `course.md`) mora em `packageKindOfZip`,
+  usado pelo store e pelo instalador. `course.md` + `manifest.json` juntos,
+  só biblioteca, curso com erro (as 3 primeiras mensagens com arquivo e
+  linha) e id `iniciacao` viram `LibraryFormatException` com a mensagem
+  pronta para a tela. O progresso não é tocado aqui: substituir e remover
+  mantêm o que o aluno fez (é por id, no `CourseProgressStore`).
+- `lib/course/course_installer.dart` — `installCourseFromFile` (escolher →
+  validar → perguntar → gravar → avisar, como o das bibliotecas) e
+  `installPackageFromFile` (o despacho: o mesmo seletor aceita biblioteca ou
+  curso; a chave vale qualquer uma que existir, mesma pessoa assina os dois).
+  Mesmo id com outra versão pergunta ("Substituir …?"); mesma versão avisa
+  "Já instalado".
+- Lista (item 5): `CoursesScreen` com o cartão "Instalar curso…" no fim (só
+  com `onInstall`); a `LibraryScreen` carrega o embutido + os instalados e
+  abre a lista viva (`_LiveCoursesScreen`, atualiza sem sair da tela).
+- Remover (item 6): `CoursesSection` nas configurações gerais, ao lado da de
+  bibliotecas (lista, "Instalar outro…", remover com confirmação dizendo que
+  o progresso fica). O embutido não aparece para remover.
+- `test/course_install_test.dart` (critério 1, 17 testes) +
+  `test/support/course_fixtures.dart` (cursos mínimos selados com chaves de
+  teste): instala e abre; outra chave, sem envelope, curso+biblioteca, curso
+  com erro, `iniciacao` — todos recusados sem gravar; substituir e remover
+  mantêm o progresso; fluxo de tela (aviso, diálogo, "Já instalado",
+  despacho pros dois tipos); cartão da lista e seção das configurações.
+
+**Desvios do plano**
+
+- O `LibraryStore` ganhou só um `publicKey` (leitura, para o despacho usar
+  qualquer chave que existir); o fluxo da biblioteca
+  (`installLibraryFromFile`) não mudou — os testes de biblioteca passam sem
+  tocar neles.
+- A `LibraryScreen` cria o `CourseStore` sozinha (como já fazia com o
+  `LibraryStore`): o `main.dart` não mudou.
+- O `_BusyDialog` foi duplicado no instalador de cursos (pequeno, mesma
+  cara); o `_ReplaceDialog` das bibliotecas não servia (fala de peças e
+  termos), então o de cursos é próprio.
+
+**Pendente (manual, critério 3)**: instalar o pacote do `minimo` pelo "Abrir
+arquivo…" no Linux, na Web e no celular, abrir uma lição e remover; medir o
+tempo de abrir o envelope no celular (referência: o pacote de hinos, 3,1 MB,
+levava ~460 ms no Linux no B01). Se passar de ~1 s no celular, mostrar o
+`_BusyDialog` (hoje a leitura já acontece sob "Lendo o curso…").

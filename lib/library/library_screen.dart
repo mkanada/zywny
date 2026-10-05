@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 
 import '../audio/engine_opener.dart';
 import '../audio/sound_engine.dart';
+import '../course/course_installer.dart';
 import '../course/course_progress.dart';
+import '../course/course_store.dart';
 import '../course/loaded_course.dart';
 import '../course/ui/course_flow.dart';
 import '../course/ui/courses_screen.dart';
@@ -91,6 +93,7 @@ class LibraryScreen extends StatefulWidget {
     this.trailProgress,
     this.loadCourses,
     this.courseProgress,
+    this.courseStore,
   });
 
   /// Constrói a tela de partitura do hino aberto (`ScoreHomePage`).
@@ -102,7 +105,8 @@ class LibraryScreen extends StatefulWidget {
   final Future<Uint8List> Function(Piece piece)? loadScore;
   final LibraryStore? libraryStore;
 
-  /// O seletor do arquivo `.zywny`; os testes trocam por um falso.
+  /// O seletor do arquivo `.zywny` (biblioteca ou curso, I04); os testes
+  /// trocam por um falso.
   final Future<Uint8List?> Function() pickLibraryFile;
   final PieceProgressStore? progress;
   final AppSettings? appSettings;
@@ -117,6 +121,12 @@ class LibraryScreen extends StatefulWidget {
 
   /// Progresso dos cursos; os testes injetam com dados.
   final CourseProgressStore? courseProgress;
+
+  /// Cursos instalados de pacotes `.zywny` (I04); os testes injetam.
+  final CourseStore? courseStore;
+
+  /// O seletor de arquivos `.zywny` (biblioteca ou curso, I04); os testes
+  /// trocam por um falso.
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -138,8 +148,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
   late final TrailProgressStore _trail =
       widget.trailProgress ?? TrailProgressStore();
 
-  /// Cursos (I09): carregados uma vez; `[]` sem provedor (até o I10).
-  late final Future<List<LoadedCourse>> _courses = _loadCourses();
+  /// Cursos (I09): o embutido mais os instalados (I04), carregados uma vez;
+  /// `[]` sem provedor e sem instalado (até o I10).
+  late Future<List<LoadedCourse>> _courses = _loadCourses();
+  late final CourseStore _coursesStore = widget.courseStore ?? CourseStore();
   late final CourseProgressStore _courseProgress =
       widget.courseProgress ?? CourseProgressStore();
 
@@ -166,13 +178,30 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<List<LoadedCourse>> _loadCourses() async {
+    List<LoadedCourse> builtin = const [];
     final load = widget.loadCourses;
-    if (load == null) return const [];
-    try {
-      return await load();
-    } on Object {
-      return const [];
+    if (load != null) {
+      try {
+        builtin = await load();
+      } on Object {
+        builtin = const [];
+      }
     }
+    try {
+      await _coursesStore.load();
+      return [...builtin, ...await _coursesStore.openAll()];
+    } on Object {
+      return builtin;
+    }
+  }
+
+  /// A lista de cursos mudou (instalou, removeu): recarrega sem mexer no
+  /// resto.
+  void _refreshCourses() {
+    final courses = _loadCourses();
+    setState(() {
+      _courses = courses;
+    });
   }
 
   CourseScreenDeps _courseDeps() => CourseScreenDeps(
@@ -186,11 +215,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void _openCourses(List<LoadedCourse> courses) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => CoursesScreen(
-          courses: courses,
+        builder: (context) => _LiveCoursesScreen(
+          initial: courses,
+          libraries: _libraries,
+          courses: _coursesStore,
           progress: _courseProgress,
-          onOpen: (context, course) =>
-              openCourseScreen(context, course, progress: _courseProgress, deps: _courseDeps()),
+          deps: _courseDeps(),
+          pickPackage: widget.pickLibraryFile,
+          onLibraryInstalled: _reloadCatalog,
         ),
       ),
     );
@@ -261,16 +293,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return const PieceCatalog.none();
   }
 
-  /// Escolhe um `.zywny`, instala e, se deu certo, recarrega o catálogo (a
-  /// biblioteca nova vira a em uso).
+  /// Escolhe um `.zywny` (biblioteca ou curso, I04), instala e, se deu
+  /// certo, recarrega o que mudou (a biblioteca nova vira a em uso; o curso
+  /// novo entra na lista de cursos).
   Future<void> _installLibrary() async {
-    final installed = await installLibraryFromFile(
+    final installed = await installPackageFromFile(
       context,
       _libraries,
+      _coursesStore,
       pick: widget.pickLibraryFile,
     );
     if (installed == null || !mounted) return;
-    _reloadCatalog();
+    if (installed is InstalledLibrary) _reloadCatalog();
+    _refreshCourses();
   }
 
   /// Lê o progresso e a trilha da biblioteca do catálogo (e só ela).
@@ -359,6 +394,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             midiDeviceManager: _midi,
             libraryStore: _libraries,
             pickLibraryFile: widget.pickLibraryFile,
+            courseStore: _coursesStore,
           ),
         ),
       ),
@@ -431,8 +467,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           child: FutureBuilder<List<LoadedCourse>>(
             future: _courses,
             builder: (context, coursesSnapshot) {
-              final courses =
-                  coursesSnapshot.data ?? const <LoadedCourse>[];
+              final courses = coursesSnapshot.data ?? const <LoadedCourse>[];
               if (catalog != null && !catalog.hasLibrary) {
                 return _noLibraryCard(courses);
               }
@@ -511,16 +546,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 onStart: () {
                   final first = courses.first;
                   final progress = _courseProgress[first.id];
-                  final next = [
-                    for (final lesson in first.course.lessons)
-                      if (!progress.lessonDone(lesson)) lesson,
-                  ].firstOrNull ?? first.course.lessons.first;
-                  openLessonScreen(
-                    context,
-                    first,
-                    next,
-                    deps: _courseDeps(),
-                  );
+                  final next =
+                      [
+                        for (final lesson in first.course.lessons)
+                          if (!progress.lessonDone(lesson)) lesson,
+                      ].firstOrNull ??
+                      first.course.lessons.first;
+                  openLessonScreen(context, first, next, deps: _courseDeps());
                 },
               ),
               const SizedBox(height: 12),
@@ -547,7 +579,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     'arquivos .zywny que você abre aqui. Uma delas fica em uso '
                     'por vez, e você troca nas configurações.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: kInkCaption, height: 1.4),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: kInkCaption,
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   FilledButton.icon(
@@ -960,6 +996,76 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 }
 
+/// A lista de cursos viva (I04): abre o embutido e os instalados; instalar
+/// outro atualiza a lista sem sair da tela. O estado mora aqui para a
+/// `LibraryScreen` não recarregar o resto junto.
+class _LiveCoursesScreen extends StatefulWidget {
+  const _LiveCoursesScreen({
+    required this.initial,
+    required this.libraries,
+    required this.courses,
+    required this.progress,
+    required this.deps,
+    required this.pickPackage,
+    required this.onLibraryInstalled,
+  });
+
+  /// O embutido (não muda enquanto a rota está aberta).
+  final List<LoadedCourse> initial;
+  final LibraryStore libraries;
+  final CourseStore courses;
+  final CourseProgressStore progress;
+  final CourseScreenDeps deps;
+  final Future<Uint8List?> Function() pickPackage;
+  final VoidCallback onLibraryInstalled;
+
+  @override
+  State<_LiveCoursesScreen> createState() => _LiveCoursesScreenState();
+}
+
+class _LiveCoursesScreenState extends State<_LiveCoursesScreen> {
+  late Future<List<LoadedCourse>> _courses = _load();
+
+  Future<List<LoadedCourse>> _load() async {
+    try {
+      await widget.courses.load();
+      return [...widget.initial, ...await widget.courses.openAll()];
+    } on Object {
+      return widget.initial;
+    }
+  }
+
+  Future<void> _install() async {
+    final installed = await installPackageFromFile(
+      context,
+      widget.libraries,
+      widget.courses,
+      pick: widget.pickPackage,
+    );
+    if (installed == null || !mounted) return;
+    if (installed is InstalledLibrary) widget.onLibraryInstalled();
+    setState(() => _courses = _load());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<LoadedCourse>>(
+      future: _courses,
+      builder: (context, snapshot) => CoursesScreen(
+        courses: snapshot.data ?? widget.initial,
+        progress: widget.progress,
+        onOpen: (context, course) => openCourseScreen(
+          context,
+          course,
+          progress: widget.progress,
+          deps: widget.deps,
+        ),
+        onInstall: () => unawaited(_install()),
+      ),
+    );
+  }
+}
+
 /// Linha "Cursos" da biblioteca: compacta, com o curso em andamento.
 class _CoursesRowCard extends StatelessWidget {
   const _CoursesRowCard({
@@ -1007,10 +1113,7 @@ class _CoursesRowCard extends StatelessWidget {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: kInkCaption,
-                      ),
+                      style: const TextStyle(fontSize: 13, color: kInkCaption),
                     ),
                   ],
                 ),

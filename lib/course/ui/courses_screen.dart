@@ -21,14 +21,20 @@ class CoursesScreen extends StatelessWidget {
     required this.courses,
     required this.progress,
     required this.onOpen,
+    this.onInstall,
   });
 
   final List<LoadedCourse> courses;
   final CourseProgressStore progress;
   final OpenCourse onOpen;
 
+  /// I04: instalar outro curso de um `.zywny` (aceita biblioteca também: é o
+  /// mesmo instalador); `null` esconde o cartão.
+  final VoidCallback? onInstall;
+
   @override
   Widget build(BuildContext context) {
+    final onInstall = this.onInstall;
     return Scaffold(
       backgroundColor: kLibraryBg,
       appBar: AppBar(
@@ -41,8 +47,11 @@ class CoursesScreen extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            itemCount: courses.length,
+            itemCount: courses.length + (onInstall == null ? 0 : 1),
             itemBuilder: (context, i) {
+              if (i >= courses.length) {
+                return _InstallCard(onTap: onInstall!);
+              }
               final loaded = courses[i];
               return _CourseCard(
                 loaded: loaded,
@@ -50,6 +59,57 @@ class CoursesScreen extends StatelessWidget {
                 onTap: () => onOpen(context, loaded),
               );
             },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cartão "Instalar curso…" no fim da lista (I04).
+class _InstallCard extends StatelessWidget {
+  const _InstallCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: kSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: kBorderSoft),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.fromLTRB(18, 14, 18, 14),
+          child: Row(
+            children: [
+              Icon(Icons.add, color: kAccentDark),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Instalar curso…',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'abre um arquivo .zywny',
+                      style: TextStyle(fontSize: 13, color: kInkCaption),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -157,7 +217,10 @@ class _ProgressLine extends StatelessWidget {
             child: Row(
               children: [
                 if (done > 0)
-                  Expanded(flex: done, child: const ColoredBox(color: kAccent)),
+                  Expanded(
+                    flex: done,
+                    child: const ColoredBox(color: kAccent),
+                  ),
                 if (t - done > 0)
                   Expanded(
                     flex: t - done,
@@ -182,11 +245,8 @@ void openCourseScreen(
 }) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (context) => CourseScreen(
-        loaded: loaded,
-        progress: progress,
-        deps: deps,
-      ),
+      builder: (context) =>
+          CourseScreen(loaded: loaded, progress: progress, deps: deps),
     ),
   );
 }

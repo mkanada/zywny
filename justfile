@@ -101,6 +101,12 @@ pacote-hinos *ARGS:
 pacote-classicos *ARGS:
     tool/build_classics.py {{ARGS}}
 
+# Uso privado: empacota uma pasta de curso num `.zywny` assinado (I04).
+# Valida antes; sem pacote de curso inválido.
+# Gera dist/<id>.zywny, ou o caminho de `-o`.
+pacote-curso *ARGS:
+    python3 tool/build_course.py {{ARGS}}
+
 # APK de release (arm64 só, para instalar direto no celular). Rode antes
 # `just native-android native-audio-android assets`, ao menos uma vez.
 build-apk:
