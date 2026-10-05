@@ -368,11 +368,11 @@ zywny
 | [I02](I02-partituras-das-licoes.md) | Lições: ABC no Verovio, cabeçalho ABC, gerador de MusicXML das rodadas, tempo de render | I01 | D-LIC | **concluído** (falta medir no celular) |
 | [I03](I03-motor-de-exercicios.md) | Lições: motor de exercícios, `pass`, `play-notes`, aluno simulado | I02 | — | **concluído** |
 | [I04](I04-pacote-de-curso.md) | Lições: pacote de curso assinado, instalar, guardar, remover | I01, I09 | D-LIC | pendente |
-| [I05](I05-leitor-de-licao.md) | Lições: leitor de lição (markdown seguro e marcas de conteúdo) | I01, I02 | D-LIC | pendente |
+| [I05](I05-leitor-de-licao.md) | Lições: leitor de lição (markdown seguro e marcas de conteúdo) | I01, I02 | D-LIC | **concluído** |
 | [I06](I06-teclado-da-tela.md) | Lições: teclado da tela | — | D-LIC | dispensado (sem teclado na tela) |
-| [I07](I07-tipos-por-pergunta.md) | Lições: tipos por pergunta (`find-key`, `name-note`, `count-beats`, `choice`) | I03, I09 | D-LIC | pendente |
-| [I08](I08-tipos-com-tempo.md) | Lições: tipos com tempo (`rhythm`, `play-score`) | I03, I09 | — | pendente |
-| [I09](I09-telas-e-progresso.md) | Lições: progresso, telas do curso, da lição e do exercício, entrada | I03, I05 | D-LIC | pendente |
+| [I07](I07-tipos-por-pergunta.md) | Lições: tipos por pergunta (`find-key`, `name-note`, `count-beats`, `choice`) | I03, I09 | D-LIC | **concluído** |
+| [I08](I08-tipos-com-tempo.md) | Lições: tipos com tempo (`rhythm`, `play-score`) | I03, I09 | — | **concluído** |
+| [I09](I09-telas-e-progresso.md) | Lições: progresso, telas do curso, da lição e do exercício, entrada | I03, I05 | D-LIC | **concluído** |
 | [I10](I10-curso-inicial.md) | Lições: o curso inicial completo, embutido | I05, I07, I08 | D-LIC | pendente |
 | [I11](I11-testes-da-plataforma.md) | Lições: cobertura, aluno simulado, cursos quebrados | I10 | — | pendente |
 | [I12](I12-autoria-e-rascunho.md) | Lições: `validate --render` e modo rascunho (desktop e Web) | I05, I09 | D-LIC | pendente |

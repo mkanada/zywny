@@ -7,6 +7,8 @@ import '../format/note_name.dart';
 import '../score/lesson_score.dart';
 import '../score/round_score.dart';
 import 'exercise_round.dart';
+import 'question_kinds.dart';
+import 'timed_kinds.dart';
 
 /// O que um `type` de exercício sabe fazer: sortear uma rodada do [spec].
 /// Roda sem tela e sem relógio; [rng] com semente dá a mesma rodada.
@@ -21,6 +23,12 @@ abstract class ExerciseKind<T extends ExerciseSpec> {
 /// `name-note`, `count-beats` e `choice`; o I08, `rhythm` e `play-score`.
 final Map<ExerciseType, ExerciseKind> exerciseKinds = {
   ExerciseType.playNotes: const PlayNotesKind(),
+  ExerciseType.findKey: const FindKeyKind(),
+  ExerciseType.nameNote: const NameNoteKind(),
+  ExerciseType.countBeats: const CountBeatsKind(),
+  ExerciseType.choice: const ChoiceKind(),
+  ExerciseType.rhythm: const RhythmKind(),
+  ExerciseType.playScore: const PlayScoreKind(),
 };
 
 /// A rodada de [spec], pelo tipo certo; tipo sem implementação ainda lança

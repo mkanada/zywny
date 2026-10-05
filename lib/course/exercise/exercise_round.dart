@@ -23,6 +23,8 @@ class ScoreRound extends ExerciseRound {
     this.speed = 1.0,
     this.pitches = const [],
     this.noteIds = const [],
+    this.measures,
+    this.bpm,
   });
 
   /// MusicXML ou ABC (a **extensão** de [fileName] informa o formato).
@@ -46,14 +48,50 @@ class ScoreRound extends ExerciseRound {
 
   /// `xml:id` da i-ésima nota (`roundNoteId`), quando a rodada é sorteada.
   final List<String> noteIds;
+
+  /// Só estes compassos **escritos** (`play-score` com `measures`): `5` ou
+  /// `5-12`, base 1, inclusivos. `null` é a partitura toda.
+  final MeasureRange? measures;
+
+  /// Andamento escrito que vale como 1,0 (`play-score` com `bpm`): o som
+  /// sai neste `bpm`, convertido para a velocidade relativa ao andamento
+  /// do arquivo. `null` é o andamento da partitura.
+  final int? bpm;
+
+  ScoreRound copyWith({double? speed}) => ScoreRound(
+    bytes: bytes,
+    fileName: fileName,
+    mode: mode,
+    hand: hand,
+    speed: speed ?? this.speed,
+    pitches: pitches,
+    noteIds: noteIds,
+    measures: measures,
+    bpm: bpm,
+  );
 }
 
 /// Rodada de perguntas (I07 preenche: `find-key`, `name-note`,
 /// `count-beats`, `choice`).
 class QuestionRound extends ExerciseRound {
-  const QuestionRound(this.questions);
+  const QuestionRound(
+    this.questions, {
+    this.scoreBytes,
+    this.fileName,
+    this.imagePath,
+  });
 
   final List<Question> questions;
+
+  /// Partitura da rodada, quando há (`name-note`, `count-beats` e `choice`
+  /// com `abc`): os bytes que o `ScoreRenderer` desenha.
+  final Uint8List? scoreBytes;
+
+  /// Nome do arquivo da partitura (a extensão informa o formato).
+  final String? fileName;
+
+  /// Imagem da pergunta (`choice` com `image`): caminho na pasta do curso.
+  final String? imagePath;
 }
 
 /// Uma pergunta da rodada. Os campos que cada tipo usa ficam para o I07.
@@ -65,6 +103,7 @@ class Question {
     this.correct,
     this.expectedPitch,
     this.highlightId,
+    this.anyOctave = false,
   });
 
   /// O que a tela mostra (texto), se houver.
@@ -81,6 +120,10 @@ class Question {
 
   /// A nota da partitura em destaque (`xml:id`), se houver.
   final String? highlightId;
+
+  /// `find-key` com `octave: any`: qualquer oitava serve (compara a classe
+  /// de altura, `pitch % 12`). Com `false` (`exact`), só a altura exata.
+  final bool anyOctave;
 }
 
 /// O resultado de uma rodada: [hits] de [total] e o andamento em que foi

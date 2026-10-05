@@ -1,6 +1,6 @@
 # I08 — Tipos com tempo: `rhythm` e `play-score`
 
-**Repo:** zywny · **Depende de:** I03, I09 · **Decisão necessária:** não
+**Repo:** zywny · **Status:** concluído · **Depende de:** I03, I09 · **Decisão necessária:** não
 
 ## Objetivo
 
@@ -95,4 +95,40 @@ Tipos por pergunta (I07); trilha (fase J) dentro de um curso; transposição
 
 ## Notas de execução
 
-(vazio)
+Concluído. `just analyze` limpo; `just test` limpo (571 passando, 4
+pulados/manuais, com a `libverovio.so` real).
+
+**O que existe**
+
+- `lib/course/exercise/timed_kinds.dart` — `RhythmKind` (sorteio com
+  `pickFigures` + `rhythmScore` com `bpm`, ou `abc` do autor; sempre em
+  tempo real, `Hand.direita`) e `PlayScoreKind` (`abc` completo ou
+  `file:`, `hand`, `mode`, `measures`, `bpm`). `note` com `abc` já era
+  erro do validador (I01, sem mudança).
+- `lib/course/exercise/exercise_round.dart` — `ScoreRound` com
+  `measures` (só estes compassos escritos), `bpm` (o 1,0 passa a ser
+  esse `bpm`) e `copyWith(speed:)` (o andamento escolhido).
+- `lib/course/exercise/score_round_runner.dart` — `exerciseRange`
+  (compassos escritos via `TrailPath`: primeira ocorrência de cada um,
+  saltos como `rangeJumps`; fora da partitura: erro claro), mão única
+  ignora `hand` (pauta 1 do aluno), `bpm` convertido pela velocidade
+  relativa ao primeiro `tempo` do timemap (120 sem ele), `beats` +
+  metrônomo no tempo real (`rhythm` sempre ligado; `play-score`, o das
+  configurações) e `start()` com um compasso de contagem no tempo real.
+- `lib/course/ui/exercise_screen.dart` — controle de andamento (começa
+  no `pass.speed`, 25–200%), contagem (a do U09, número grande na metade
+  direita via `CountInOverlay`), play/stop (recomeça sem registrar) e
+  "ouvir antes" (as duas mãos, sem avaliar, e recomeça).
+- Aluno simulado (`simulated_student.dart`): `playTimedRound(runner,
+  ..., {wrongEvery, lateMs})` — cada evento no instante certo do
+  relógio falso (latência 0), com atraso opcional.
+- Testes: `test/exercise_timed_test.dart` (critério 1, os cinco itens).
+
+**Escolhas onde o I00/I08 não diziam**: `measures` via `TrailPath`
+(números lógicos = escritos nas partituras simples; com anacruse colada
+podem divergir — erro claro só se fora de 1–N); ouvir usa um agendador
+à parte (só áudio, sem mover o player); velocidade clamp 25–200%.
+
+**Manual (critério 2, pendente)**: no celular deitado com o teclado
+MIDI, uma rodada de `rhythm` e uma de `play-score` em tempo real, com
+contagem e metrônomo audíveis e na hora.

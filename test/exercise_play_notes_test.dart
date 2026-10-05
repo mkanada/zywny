@@ -94,15 +94,14 @@ void main() {
       expect(both.hand, Hand.ambas);
     });
 
-    test('tipo sem implementação lança UnimplementedError', () async {
-      final spec = await specFrom(
+    test('todos os tipos geram rodada (nada mais lança UnimplementedError)',
+        () async {
+      final choice = await specFrom(
         'id: c\ntype: choice\ntitle: C\nquestion: Q\noptions: [a, b]\n'
         'answer: a',
       );
-      expect(
-        () => generateRound(spec, files, Random(1)),
-        throwsA(isA<UnimplementedError>()),
-      );
+      final round = await generateRound(choice, files, Random(1));
+      expect(round, isA<QuestionRound>());
     });
   });
 

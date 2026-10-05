@@ -86,11 +86,16 @@ String notesScore(
 /// Partitura de ritmo: [figures] numa altura só ([pitch]), em compassos
 /// completos de [time]. Colcheias seguidas saem ligadas por barra (em pares;
 /// em 6/8, em grupos de três). [bpm] vira a indicação de andamento.
+///
+/// Com [withRestIds], as pausas também ganham `id` (`zn…`): é o que o
+/// `count-beats` (I07) destaca (a pausa conta como pergunta). Sem ele, só
+/// as notas têm `id` (o i-ésimo evento de nota; pausa não conta).
 String rhythmScore(
   List<Figure> figures, {
   String time = '4/4',
   Pitch? pitch,
   int? bpm,
+  bool withRestIds = false,
 }) {
   final note = pitch ?? Pitch.parse('C4');
   final length = measureEighths(time);
@@ -105,6 +110,7 @@ String rhythmScore(
         'a figura ${figure.wire} atravessa a barra do compasso $time',
       );
     }
+    final index = withRestIds ? noteIndex++ : (figure.rest ? null : noteIndex++);
     current.add(
       _Event(
         duration: figure.eighths,
@@ -120,7 +126,7 @@ String rhythmScore(
             ? 1
             : 0,
         pitch: figure.rest ? null : note,
-        noteIndex: figure.rest ? null : noteIndex++,
+        noteIndex: index,
       ),
     );
     filled += figure.eighths;
@@ -303,7 +309,14 @@ void _writeStaff(
     final pitch = event.pitch;
     final buffer = StringBuffer();
     if (pitch == null) {
-      buffer.write('<note><rest/>');
+      // Pausa com `id` (I07, `count-beats` com `withRestIds`): o Verovio
+      // preserva e a tela destaca; sem `id`, pausa invisível como antes.
+      final restIndex = event.noteIndex;
+      if (restIndex != null) {
+        buffer.write('<note id="${roundNoteId(restIndex)}"><rest/>');
+      } else {
+        buffer.write('<note><rest/>');
+      }
     } else {
       final id = roundNoteId(event.noteIndex!);
       buffer.write('<note id="$id"><pitch><step>${pitch.step}</step>');
@@ -490,4 +503,110 @@ bool _canFinish(List<Figure> allowed, int remaining) {
     }
   }
   return reachable[remaining];
+}
+
+// ---------------------------------------------------------------------------
+// I07 — `count-beats`: quantos tempos vale a figura.
+
+// Tempos que [figure] vale em [time]: semínima = 1 em 4/4, 3/4, 2/4 e C;
+// em 6/8 a colcheia vale 1.
+double beatsOfFigure(Figure figure, String time) {
+  if (time == '6/8') return figure.eighths.toDouble();
+  return figure.eighths / 2.0;
+}
+
+/// Rótulo do botão de [beats] tempos ("½", "1", "1½", "2", "3", "4", "6").
+String beatLabel(double beats) {
+  if ((beats - 0.5).abs() < 1e-9) return '½';
+  if ((beats - 1.5).abs() < 1e-9) return '1½';
+  if ((beats - 2.5).abs() < 1e-9) return '2½';
+  if ((beats - 3.5).abs() < 1e-9) return '3½';
+  if (beats == beats.roundToDouble()) return '${beats.round()}';
+  return '$beats';
+}
+
+/// Valores distintos das [allowed] em tempos de [time], ordenados, com os
+/// rótulos para os botões. Pausas valem igual.
+List<(double, String)> beatOptions(
+  List<Figure> allowed,
+  String time,
+) {
+  final seen = <String, double>{};
+  for (final figure in allowed) {
+    final beats = beatsOfFigure(figure, time);
+    seen.putIfAbsent(beatLabel(beats), () => beats);
+  }
+  final entries = seen.entries.toList()
+    ..sort((a, b) => a.value.compareTo(b.value));
+  return [for (final e in entries) (e.value, e.key)];
+}
+
+/// Sorteia [count] figuras de [allowed] que preenchem compassos completos
+/// de [time] (colcheias em pares, ao menos uma nota por compasso). Mesma
+/// [rng] semente, mesma lista.
+List<Figure> pickCountBeatsFigures(
+  List<Figure> allowed, {
+  required int count,
+  String time = '4/4',
+  Random? rng,
+}) {
+  if (!figuresTileMeasure(allowed, time)) {
+    throw ArgumentError(
+      'as figuras ${allowed.map((f) => f.wire).join(', ')} não preenchem '
+      'um compasso $time',
+    );
+  }
+  final random = rng ?? Random();
+  final length = measureEighths(time);
+  for (var attempt = 0; attempt < 200; attempt++) {
+    final result = <Figure>[];
+    var filled = 0;
+    var hasNote = false;
+    var guard = 0;
+    while (result.length < count && guard++ < 500) {
+      final remaining = length - filled;
+      final fits = [
+        for (final f in allowed)
+          if (figureSlot(f) <= remaining &&
+              _canFinish(allowed, remaining - figureSlot(f)))
+            f,
+      ];
+      if (fits.isEmpty) break; // recomeça a tentativa
+      final figure = fits[random.nextInt(fits.length)];
+      if (figure.eighths == 1) {
+        // Par de colcheias: conta como duas perguntas; só vale se couberem
+        // as duas no `count` restante (senão tenta outra figura).
+        if (result.length + 2 > count) continue;
+        result.add(figure);
+        result.add(figure);
+      } else {
+        result.add(figure);
+      }
+      if (!figure.rest) hasNote = true;
+      filled += figureSlot(figure);
+      if (filled == length) {
+        if (!hasNote) break; // compasso só de pausas: recomeça
+        filled = 0;
+        hasNote = false;
+      }
+    }
+    if (result.length == count && filled == 0) return result;
+  }
+  // Reserva: compassos via `pickFigures` até cobrir o `count` (o último
+  // compasso pode passar do `count`; corta só se continuar completo —
+  // na prática o laço acima acerta em poucas tentativas).
+  final fallback = <Figure>[];
+  var measures = 1;
+  while (fallback.length < count && measures < count + 4) {
+    fallback.clear();
+    fallback.addAll(
+      pickFigures(allowed, measures: measures, time: time, rng: random),
+    );
+    if (fallback.length == count) return fallback;
+    measures++;
+  }
+  throw StateError(
+    'não deu para sortear $count figuras de '
+    '${allowed.map((f) => f.wire).join(', ')} em $time',
+  );
 }

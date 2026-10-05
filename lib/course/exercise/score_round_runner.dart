@@ -3,16 +3,61 @@ import 'dart:ui' show Color;
 
 import 'package:score_bridge/score_bridge.dart';
 
+import '../../audio/metronome.dart';
 import '../../audio/score_audio_scheduler.dart';
 import '../../audio/sound_engine.dart';
 import '../../midi/midi_input_service.dart';
 import '../../music/performance_track.dart';
+import '../../practice/hand.dart';
 import '../../practice/practice_colors.dart';
 import '../../practice/practice_controller.dart';
 import '../../render/score_renderer.dart';
+import '../../trail/trail_path.dart';
 import '../format/course_model.dart';
 import '../score/lesson_score.dart';
 import 'exercise_round.dart';
+
+/// Intervalo de passagem única para [measures] (compassos **escritos**,
+/// base 1, inclusivos) em [timeline]: primeira ocorrência de cada um, com
+/// os saltos do caminho como vãos (J01/J08). `null` é a partitura toda.
+({({double startMs, double endMs}) range, List<({double startMs, double endMs})> jumps})
+exerciseRange(ScoreTimeline timeline, MeasureRange? measures) {
+  if (measures == null) {
+    return (
+      range: (
+        startMs: timeline.measures.first.startMs.toDouble(),
+        endMs: timeline.measures.last.endMs.toDouble(),
+      ),
+      jumps: const [],
+    );
+  }
+  final path = TrailPath.fromTimeline(timeline);
+  final count = path.measureCount;
+  if (measures.from < 1 ||
+      measures.to < measures.from ||
+      measures.to > count) {
+    throw StateError(
+      'compassos ${measures.from}-${measures.to} fora da partitura '
+      '(a peça tem $count compassos)',
+    );
+  }
+  final first = measures.from - 1;
+  final last = measures.to - 1;
+  final range = (
+    startMs: path.logical[first].startMs,
+    endMs: path.logical[last].endMs,
+  );
+  final jumps = <({double startMs, double endMs})>[];
+  for (final jump in path.jumps) {
+    if (jump > first && jump <= last) {
+      jumps.add((
+        startMs: path.logical[jump - 1].endMs,
+        endMs: path.logical[jump].startMs,
+      ));
+    }
+  }
+  return (range: range, jumps: jumps);
+}
 
 /// O executor, sem tela, de uma [ScoreRound]: renderiza a partitura, monta o
 /// treino de **passagem única** (a mesma que a trilha usa, J04) sobre a
@@ -37,6 +82,7 @@ class ScoreRoundRunner {
     this.pendingColor = kPracticePendingColor,
     this.autoTick = true,
     this.onWaitTarget,
+    this.metronomeOn,
   });
 
   final MidiInputService midiInput;
@@ -52,6 +98,10 @@ class ScoreRoundRunner {
 
   /// `false` nos testes: quem anda o relógio chama `scheduler.pump()`.
   final bool autoTick;
+
+  /// Metrônomo da rodada com tempo (`rhythm` sempre ligado; `play-score`
+  /// em tempo real, o das configurações). `null`: ligado só com tempo real.
+  final bool? metronomeOn;
 
   /// Modo espera: instante (ms musicais) da nota pendente, ou `null` — a
   /// tela repassa ao `ScorePlayer.waitTarget` para virar a página.
@@ -107,7 +157,37 @@ class ScoreRoundRunner {
       track: track,
       autoTick: autoTick,
     );
-    if (round.mode == PlayMode.realtime) scheduler.setSpeed(round.speed);
+    final realtime = round.mode == PlayMode.realtime;
+    if (realtime) {
+      // Contagem e metrônomo precisam das batidas (T04); o `play-score` em
+      // tempo real usa o das configurações, o `rhythm` sempre ligado.
+      scheduler.beats = metronomeBeats(timeline);
+      scheduler.metronomeOn = metronomeOn ?? true;
+      // `bpm` do `play-score`: a velocidade 1,0 passa a ser esse `bpm` —
+      // converte para a velocidade relativa ao andamento do arquivo
+      // (o primeiro `tempo` do timemap; 120 sem ele).
+      final override = round.bpm;
+      if (override != null) {
+        double? fileTempo;
+        for (final entry in timeline.entries) {
+          if (entry.tempo != null) {
+            fileTempo = entry.tempo;
+            break;
+          }
+        }
+        final base = fileTempo ?? 120.0;
+        scheduler.setSpeed(round.speed * override / base);
+      } else {
+        scheduler.setSpeed(round.speed);
+      }
+    } else {
+      scheduler.metronomeOn = metronomeOn ?? false;
+    }
+
+    final resolved = exerciseRange(timeline, round.measures);
+    // Partitura de uma pauta só ignora a mão (`play-score` com `hand`):
+    // a pauta é do aluno.
+    final Hand hand = track.staves.length <= 1 ? Hand.direita : round.hand;
 
     final done = Completer<RoundResult?>();
     final practice = PracticeController(
@@ -115,18 +195,14 @@ class ScoreRoundRunner {
       track: track,
       scheduler: scheduler,
       controller: controller,
-      hand: round.hand,
+      hand: hand,
       inputLatencyMs: inputLatencyMs,
-      mode: round.mode == PlayMode.wait
-          ? PracticeMode.wait
-          : PracticeMode.realtime,
+      mode: realtime ? PracticeMode.realtime : PracticeMode.wait,
       measureIndexAt: timeline.measureIndexAt,
       passOf: (i) => timeline.measures[i].pass,
-      // A partitura inteira, uma vez só.
-      range: (
-        startMs: timeline.measures.first.startMs.toDouble(),
-        endMs: timeline.measures.last.endMs.toDouble(),
-      ),
+      // Passagem única: a partitura toda ou os compassos do `measures`.
+      range: resolved.range,
+      rangeJumps: resolved.jumps,
       // No modo espera o aviso chega de dentro da notificação do passo
       // (`WaitModeSession.current`), e encerrar a rodada descarta esse mesmo
       // notificador: o encerramento espera a notificação acabar.
@@ -149,14 +225,15 @@ class ScoreRoundRunner {
   }
 
   /// Começa a rodada e devolve o resultado quando o aluno chega ao fim da
-  /// partitura; `null` se [cancel] antes disso.
+  /// partitura; `null` se [cancel] antes disso. Com tempo real, com um
+  /// compasso de contagem (como a trilha com tempo).
   Future<RoundResult?> start() {
     final practice = _practice;
     final done = _done;
     if (practice == null || done == null) {
       throw StateError('chame load() antes de start()');
     }
-    practice.start();
+    practice.start(countIn: practice.mode == PracticeMode.realtime);
     return done.future;
   }
 

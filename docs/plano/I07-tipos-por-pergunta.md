@@ -1,6 +1,6 @@
 # I07 — Tipos por pergunta: `find-key`, `name-note`, `count-beats`, `choice`
 
-**Repo:** zywny · **Depende de:** I03, I09 · **Decisão necessária:** não
+**Repo:** zywny · **Status:** concluído · **Depende de:** I03, I09 · **Decisão necessária:** não
 (D-LIC-SEM-TECLADO: `find-key` exige MIDI; os outros três respondem por
 botões e funcionam sem teclado)
 
@@ -91,4 +91,46 @@ das lições (I10).
 
 ## Notas de execução
 
-(vazio)
+Concluído. `just analyze` limpo; `just test` limpo (571 passando, 4
+pulados/manuais, com a `libverovio.so` real).
+
+**O que existe**
+
+- `lib/course/exercise/question_session.dart` — `QuestionSession` Dart pura:
+  `answerChoice`/`answerPitch`, `tick(now)` para o `time-limit` (com
+  relógio injetável), `current`, `result()` (`hits` de primeira /
+  `total`). Errou: não conta como de primeira e segue esperando;
+  estourou: conta como erro, revela a certa por 1,5 s (respostas no pisca
+  ignoradas) e avança. `find-key` `any` compara `% 12`, `exact` a altura.
+- `lib/course/exercise/question_kinds.dart` — `FindKeyKind`,
+  `NameNoteKind`, `CountBeatsKind`, `ChoiceKind` (registro em
+  `exerciseKinds`); mesma semente, mesma rodada. `name-note`/`count-beats`
+  com partitura (`notesScore`/`rhythmScore` com `withRestIds`) e
+  `highlightId` (`zn…`); `choice` com uma pergunta, opções na ordem do
+  autor, `image` ou `abc`.
+- `lib/course/score/round_score.dart` — `rhythmScore(..., withRestIds)`
+  (pausas com `id` para o `count-beats` destacar), `beatsOfFigure`,
+  `beatLabel` ("½", "1", "1½", "2", ...; em 6/8 a colcheia vale 1),
+  `beatOptions` e `pickCountBeatsFigures` (sorteio exato de `count`
+  figuras que preenchem compassos, colcheias em pares).
+- `lib/course/ui/question_body.dart` — corpo da `QuestionRound` na
+  `ExerciseScreen`: nome grande (`find-key`, com teclado pequeno marcando
+  o dó central no `exact`), partitura com a da vez em "esperada" e as
+  anteriores em certo/errado, botões ≥ 56 dp em fileira (`Wrap`), teclado
+  do computador (1–7 e C–B) no desktop/Web, `time-limit` com revelação em
+  verde e "Tente de novo" no erro.
+- Aluno simulado (`test/support/simulated_student.dart`):
+  `answerQuestions(session, {wrongEvery, late})`.
+- Testes: `test/question_session_test.dart` (critério 1),
+  `test/exercise_questions_test.dart` (critério 2, 4 tipos + `any`/`exact`
+  + `time-limit`),
+  `test/exercise_question_screens_test.dart` (critério 3, sem teclado os
+  de botão abrem e aprovam, `find-key` pede o teclado).
+
+**Escolhas onde o I00/I07 não diziam**: `QuestionRound` carrega
+`scoreBytes`/`fileName` (e `imagePath` na `choice`); `count-beats` conta
+o par de colcheias como duas perguntas; botões em `Wrap` (fileira no
+celular deitado, quebra se precisar); `anyOctave` no `Question`.
+
+**Manual (critério 4, pendente)**: no celular deitado, botões numa
+fileira, nota destacada legível, `find-key` com o teclado MIDI.
