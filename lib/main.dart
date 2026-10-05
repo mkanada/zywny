@@ -16,6 +16,7 @@ import 'audio/score_audio_scheduler.dart';
 import 'audio/sound_engine.dart';
 import 'audio/sound_engine_debug_panel.dart';
 import 'audio/soundfont_store.dart';
+import 'course/built_in_course.dart';
 import 'layout_options.dart';
 import 'layout_panel.dart';
 import 'library/piece.dart';
@@ -93,6 +94,7 @@ class MyApp extends StatelessWidget {
         enabled: splash,
         child: LibraryScreen(
           loadCatalog: loadCatalog,
+          loadCourses: loadBuiltInCourses,
           scoreBuilder: (context, opened) => LibraryTermScope(
             term: opened.term,
             numbered: opened.numbered,

@@ -125,6 +125,12 @@ flutter:
     - assets/soundfonts/TimGM6mb.sf2
     - assets/mockup/partitura_padrao.png
     - assets/mockup/partitura_grande.png
+    # I10 — curso inicial embutido (D-LIC-INICIAL): lido pelo mesmo leitor
+    # de uma pasta de terceiros, via AssetCourseFiles. Cada subpasta entra
+    # porque o bundler de assets lista diretórios sem recursão.
+    - assets/cursos/iniciacao/
+    - assets/cursos/iniciacao/lessons/
+    - assets/cursos/iniciacao/media/
   fonts:
     # Tipos da splash e do ícone (artefato "Zywny — Ícone e Splash"); OFL.
     - family: Cormorant Garamond
