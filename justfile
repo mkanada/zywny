@@ -96,6 +96,11 @@ chaves:
 pacote-hinos *ARGS:
     tool/build_hymn_assets.py {{ARGS}}
 
+# Uso privado, fora do git; as partituras vêm de `tool/fetch_classics.py`.
+# Gera dist/classicos.zywny (as 43 peças do B09), cifrado e assinado com keys/.
+pacote-classicos *ARGS:
+    tool/build_classics.py {{ARGS}}
+
 # APK de release (arm64 só, para instalar direto no celular). Rode antes
 # `just native-android native-audio-android assets`, ao menos uma vez.
 build-apk:
@@ -146,6 +151,11 @@ build-web:
 # Teste de fumaça da Web no Chromium headless (W03/W04) — roda `build-web`.
 web-smoke: build-web
     node tool/web_smoke/smoke.mjs
+
+# Publica a versão Web no GitHub Pages (https://mkanada.github.io/zywny/):
+# compila com `--base-href /zywny/` e troca o branch gh-pages do origin.
+publicar-web:
+    tool/publish_web.sh
 
 # Refaz .so e assets depois que o verovio_flutter_bridge mudar.
 rebuild-deps: native assets

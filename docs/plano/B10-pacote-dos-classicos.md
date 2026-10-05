@@ -50,3 +50,33 @@ catálogo, e os testes de widget cobrem isso com pacotes sintéticos
 (`library_vocabulary_test.dart`) — só falta o conteúdo; (2) o passo 3 (pacote
 pequeno em `test/fixtures/`) deixou de existir: o B08 não usa fixture
 versionado (ver lá).
+
+**Feito (2026-10-04).** `tool/build_classics.py` (`just pacote-classicos`) gera
+`dist/classicos.zywny`: 43 peças, 0,9 MB, manifesto `classicos` /
+"Clássicos para piano", não numerada, termo "peça"/f, `o` = catálogo (BWV,
+Op., K.…; vazio em Satie, Joplin e Rimski), créditos com o musetrainer/library
+(não OpenScore: a fonte mudou no B09). Títulos e compositores vêm da tabela
+do script, não do XML.
+
+Dificuldade: o `classificar-dificuldade.py` do Hymn_Grabber importado como
+módulo (`medir` + `classificar`), sem mudar nada lá; os 43 formam o acervo do
+quintil. A introdução copiada (`1i`) não aparece nos clássicos, então não
+atrapalha. Níveis distribuídos 9/9/8/9/8.
+
+Conferência à mão (aceite 1) — **o classificador erra com peça rápida de
+ritmo uniforme**: ele foi pesado para hinos (síncopa e variedade pesam mais
+que velocidade; salto cromático conta zero).
+- Minueto em Sol: nível 1 — certo.
+- Maple Leaf Rag: nível 5 — plausível (saltos e extensão).
+- Prelúdio Op. 28 nº 4: nível 4 — alto para um professor (lento; pesa a
+  densidade dos acordes), aceitável.
+- Sonata K. 545, 1º mov.: nível 1 — baixo (escalas rápidas).
+- O Voo do Besouro: nível 1 — **errado**: velocidade 9,3 ataques/s, 81 % de
+  semicolcheias, mas ritmo 36 e saltos 0.
+Também suspeitos: Tocata e Fuga (3) e 5ª Sinfonia (4) parecem baixos. Ajuste
+pendente de decisão do usuário: pesos próprios para os clássicos (opção no
+classificador) ou nível corrigido à mão em poucas peças.
+
+Aceite 2: já coberto no B09 (`render.tsv`: as 43 renderizam e têm trilha).
+Aceite 3 (manual, celular): pendente.
+

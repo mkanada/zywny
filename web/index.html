@@ -18,7 +18,8 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Estude partituras ao piano com o teclado MIDI.">
+  <meta name="theme-color" content="#5A1E2B">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -51,6 +52,18 @@
       const requestMIDIAccess = navigator.requestMIDIAccess.bind(navigator);
       navigator.requestMIDIAccess = (options) =>
           requestMIDIAccess({...options, sysex: false});
+    }
+  </script>
+  <!--
+    PWA: o sw.js guarda o app para abrir sem internet (só na versão
+    publicada; ver web/sw.js e tool/publish_web.sh).
+  -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((e) =>
+            console.warn('service worker não registrou:', e));
+      });
     }
   </script>
   <script src="flutter_bootstrap.js" async></script>

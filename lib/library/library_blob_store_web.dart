@@ -93,8 +93,24 @@ class IndexedDbLibraryBlobStore implements LibraryBlobStore {
   );
 
   @override
-  Future<void> put(String id, Uint8List bytes) =>
-      _run<void>('readwrite', (s) => s.put(bytes.toJS, id.toJS), (_) {});
+  Future<void> put(String id, Uint8List bytes) async {
+    await _run<void>('readwrite', (s) => s.put(bytes.toJS, id.toJS), (_) {});
+    unawaited(_askPersistence());
+  }
+
+  /// Pede ao navegador para não apagar o IndexedDB quando faltar espaço —
+  /// sem isso, a biblioteca instalada pode sumir sozinha. O Chrome decide em
+  /// silêncio (app instalado como PWA conta a favor); o Firefox pergunta, por
+  /// isso o pedido vem só aqui, logo depois de a pessoa instalar um pacote.
+  static Future<void> _askPersistence() async {
+    try {
+      final storage = web.window.navigator.storage;
+      if ((await storage.persisted().toDart).toDart) return;
+      await storage.persist().toDart;
+    } catch (_) {
+      // Sem a API (ou recusado): segue como armazenamento comum.
+    }
+  }
 
   @override
   Future<void> delete(String id) =>

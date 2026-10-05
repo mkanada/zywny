@@ -52,7 +52,7 @@ arquivo, cobertura incerta); Mutopia (acervo bom, mas LilyPond/MIDI, sem
 conversão para MusicXML). Escolha: **adiar**. Quando retomar, decidir a fonte
 de novo (D-BIB-FONTE reaberta) antes de montar a lista.
 
-## Proposta de curadoria (2026-10-04) — aguardando aprovação do usuário
+## Proposta de curadoria (2026-10-04) — aprovada: A + B (43 peças)
 
 **Fonte (decisão do usuário):** [musetrainer/library](https://github.com/musetrainer/library), clone `9128876f61` (29/11/2024), 69 `.mxl`. Baixados e extraídos por `tool/fetch_classics.py` para `~/IdeaProjects/zywny_classicos/` (`xml/`, `metadados.tsv`).
 
@@ -149,3 +149,5 @@ de novo (D-BIB-FONTE reaberta) antes de montar a lista.
 | `The_Entertainer_-_Scott_Joplin.mxl` | duplicata (a de 1902 declara domínio público) |
 
 **Pedido:** aprovar (ou cortar/acrescentar) esta lista — A (34) + B (9) = 43 peças. Depois disso o B10 monta `dist/classicos.zywny`.
+
+**Aprovado (2026-10-04):** o usuário escolheu A + B, as 43 peças, sem cortes. Segue no B10.
