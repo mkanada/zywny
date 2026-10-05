@@ -1,6 +1,6 @@
 # I03 — Motor de exercícios: rodada, critérios e `play-notes`
 
-**Repo:** zywny · **Depende de:** I02 · **Decisão necessária:** não
+**Repo:** zywny · **Status:** concluído · **Depende de:** I02 · **Decisão necessária:** não
 
 ## Objetivo
 
@@ -106,4 +106,66 @@ Tela (I09), tipos por pergunta (I07), tempo real/`rhythm`/`play-score`
 
 ## Notas de execução
 
-(vazio)
+Concluído em 2026-10-04. `just test` (514) e `just analyze` limpos. Os
+testes de rodada **rodaram com a libverovio real** (nenhum foi pulado); sem a
+`libverovio.so` eles pulam, como os do `vsb_render_test.dart`.
+
+**O que existe** (`lib/course/exercise/`, sem `main.dart` nem widgets — um
+teste confere os imports):
+
+- `exercise_round.dart` — `ExerciseRound` (`ScoreRound`, `QuestionRound` +
+  `Question` como casca para o I07), `RoundResult(hits, total, speed)` com
+  `percent` (para baixo, `total == 0` = 100) e `speedPercent` (com folga
+  contra binário: 0,75 → 75).
+- `exercise_kind.dart` — `ExerciseKind<T>`, o registro `exerciseKinds`,
+  `generateRound(spec, files, rng)` (tipo sem implementação lança
+  `UnimplementedError`), `notesOf` e `PlayNotesKind`. `generate` é `Future`
+  (alguns tipos leem `file:`).
+- `pass_check.dart` — `PassCheck.evaluate(spec, history)` → `PassVerdict`
+  (`roundPassed`, `streak`, `exercisePassed`, `reason`); `roundPasses`;
+  `speedApplies` (só `rhythm` e `play-score` com `mode: realtime`).
+- `score_round_runner.dart` — `ScoreRoundRunner`: `load(round, {widthPx})`
+  renderiza e monta tudo; `start()` devolve o `RoundResult` (ou `null` se
+  `cancel()`); expõe `document`, `controller`, `track`, `timeline`,
+  `scheduler` e `practice` para a tela do I09. `dispose()` solta tudo; `load`
+  de novo no mesmo executor funciona.
+- Apoio de teste: `test/support/practice_fakes.dart` (`FakeSoundEngine`,
+  `FakeMidiInput`, copiados do `practice_controller_test.dart`, que continua
+  com as suas), `simulated_student.dart` (`playScoreRound`),
+  `course_helpers.dart` (`oneLessonCourse`, `specFrom(corpoDoExercicio)`) e
+  `LibverovioRenderer` em `render_helper.dart`.
+
+**Decisões e fatos que os passos seguintes devem saber**
+
+- A rodada é uma **passagem única** do `PracticeController` sobre a partitura
+  inteira: `range` = do início do primeiro compasso ao fim do último
+  (`ScoreTimeline.measures`). `hits`/`total` vêm do `stageResult` (passos
+  tocados de primeira / passos concluídos) — nada foi reescrito. Para
+  `measures` (I08), troque o `range` e passe os saltos (`rangeJumps`).
+- O `onRangeDone` encerra num `scheduleMicrotask`, como o `_startTrailStage`.
+- `play-notes`: `Hand.ambas` com `clef: grand`; senão `Hand.direita` (pauta 1).
+  O app não toca a outra mão.
+- `ScoreRound.pitches` e `noteIds` guardam o sorteio (alturas que soam e os
+  ids `zn1…`); o teste confere que o `midi.json` renderizado é igual a
+  `pitches`, inclusive com tom, acidentes, clave de fá e duas pautas.
+- Aluno simulado: `wrongEvery: n` aperta uma tecla errada (A0–B0) antes de
+  cada n-ésimo passo. Com 12 notas, `wrongEvery: 4` dá 9/12 = 75% e `5`
+  dá 10/12 = 83% (ambos reprovam com o limiar 90).
+- `PassVerdict.reason`: "82% de 90%", "faltou andamento: 50% de 100%",
+  "80% de 85%; faltou andamento: 50% de 100%" (os dois juntos), "2 de 3
+  rodadas seguidas", e, aprovado, "100% (mínimo 90%)" ou "3 rodadas
+  seguidas". Histórico vazio: "nenhuma rodada ainda" (ou "0 de N rodadas
+  seguidas").
+- O executor recebe as configurações por parâmetro (`inputLatencyMs`,
+  `rhythmToleranceMs`, as três cores); quem lê o `AppSettings` e a latência
+  calibrada (`_loadInputLatency`) é a tela (I09).
+
+**Não feito**
+
+- **Próxima rodada adiantada (`prefetch`, item 5)**: era condicional a o
+  render passar de 300 ms no celular, e o celular não foi medido (I02). No
+  Linux o render leva ~25 ms, então não faz sentido agora. Se a medição no
+  aparelho passar de 300 ms, o ponto de entrada é `ScoreRoundRunner.load`
+  (renderizar a rodada seguinte enquanto a atual roda).
+- As lições 2–5 do curso inicial ainda não existem (são do I10); o teste usa
+  o `minimo/`.

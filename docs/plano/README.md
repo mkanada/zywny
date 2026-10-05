@@ -366,7 +366,7 @@ zywny
 | [I00](I00-licoes-e-curso-inicial.md) | Lições de terceiros e curso inicial: formato, tipos, testes e índice (passos I01–I13) | — | D-LIC | especificação (decisões tomadas) |
 | [I01](I01-formato-e-validador.md) | Lições: especificação v1, leitor e validador (Dart puro), `zywny_course validate` | — | D-LIC | **concluído** |
 | [I02](I02-partituras-das-licoes.md) | Lições: ABC no Verovio, cabeçalho ABC, gerador de MusicXML das rodadas, tempo de render | I01 | D-LIC | **concluído** (falta medir no celular) |
-| [I03](I03-motor-de-exercicios.md) | Lições: motor de exercícios, `pass`, `play-notes`, aluno simulado | I02 | — | pendente |
+| [I03](I03-motor-de-exercicios.md) | Lições: motor de exercícios, `pass`, `play-notes`, aluno simulado | I02 | — | **concluído** |
 | [I04](I04-pacote-de-curso.md) | Lições: pacote de curso assinado, instalar, guardar, remover | I01, I09 | D-LIC | pendente |
 | [I05](I05-leitor-de-licao.md) | Lições: leitor de lição (markdown seguro e marcas de conteúdo) | I01, I02 | D-LIC | pendente |
 | [I06](I06-teclado-da-tela.md) | Lições: teclado da tela | — | D-LIC | dispensado (sem teclado na tela) |

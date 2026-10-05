@@ -292,7 +292,7 @@ Tomadas pelo usuário em 2026-10-04.
 | --- | --- | --- | --- | --- |
 | [I01](I01-formato-e-validador.md) | Especificação v1 para professores, leitor e validador (Dart puro), `zywny_course validate` | — | — (fixtures quebradas) | **concluído** |
 | [I02](I02-partituras-das-licoes.md) | Partituras: ABC no Verovio (alcance), cabeçalho ABC, gerador de MusicXML das rodadas, tempo de render | I01 | — | **concluído** (falta medir no celular) |
-| [I03](I03-motor-de-exercicios.md) | Motor de exercícios: rodada, `pass`, `play-notes` em modo espera, aluno simulado | I02 | 2–5 (só exercícios `play-notes`) | pendente |
+| [I03](I03-motor-de-exercicios.md) | Motor de exercícios: rodada, `pass`, `play-notes` em modo espera, aluno simulado | I02 | 2–5 (só exercícios `play-notes`) | **concluído** |
 | [I04](I04-pacote-de-curso.md) | Pacote de curso: `.zywny` assinado, instalar, guardar, remover, `just pacote-curso` | I01, I09 | — | pendente |
 | [I05](I05-leitor-de-licao.md) | Leitor de lição: markdown seguro, imagem, as quatro marcas de conteúdo, nomes das notas | I01, I02 | 1–5 (texto) | pendente |
 | [I06](I06-teclado-da-tela.md) | Teclado da tela como entrada de notas | — | — | **dispensado** (D-LIC-SEM-TECLADO) |
