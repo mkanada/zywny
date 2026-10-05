@@ -119,6 +119,14 @@ const kScoreExtensions = ['.musicxml'];
 KeyDef _clef() =>
     KeyDef(ValueType.option, values: _wires(Clef.values), fallback: 'treble');
 
+/// `grand` não existe na marca `zywny-score`: o ABC não desenha duas pautas e
+/// com `file:` a pauta vem do `.musicxml`.
+const _scoreClef = KeyDef(
+  ValueType.option,
+  values: ['treble', 'bass'],
+  fallback: 'treble',
+);
+
 const _caption = KeyDef(ValueType.text);
 const _key = KeyDef(ValueType.keyName);
 const _time = KeyDef(ValueType.timeSignature);
@@ -148,7 +156,7 @@ final kContentMarkKeys = <String, Map<String, KeyDef>>{
   'score': {
     'abc': _abc,
     'file': const KeyDef(ValueType.path, extensions: kScoreExtensions),
-    'clef': _clef(),
+    'clef': _scoreClef,
     'key': _key,
     'time': _time,
     'highlight': const KeyDef(ValueType.noteList),

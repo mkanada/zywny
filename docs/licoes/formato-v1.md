@@ -169,7 +169,7 @@ caption: O Sol na segunda linha
 | --- | --- | --- |
 | `abc` | ABC em linha (veja "Partituras") | — |
 | `file` | `.musicxml` da pasta | — |
-| `clef` | `treble`, `bass` ou `grand` (as duas pautas) | `treble` |
+| `clef` | `treble` ou `bass` | `treble` |
 | `key` | tom (veja "Tons e fórmulas de compasso") | sem armadura |
 | `time` | fórmula de compasso | `4/4` |
 | `highlight` | lista de notas para destacar | nenhuma |
@@ -304,6 +304,14 @@ pass: {accuracy: 100, rounds: 3}
 `accidentals` só vale com **sorteio**. Numa lista fixa, escreva a nota com `#`
 ou `b` (`F#4`).
 
+Com `key`, o sorteio usa as notas **do tom**: em Sol (`key: G`), um Fá sorteado
+é um Fá sustenido (a armadura vale e nenhum sustenido é escrito). Com
+`accidentals` diferente de `none`, em média metade das notas sorteadas é uma
+tecla preta (sustenido, bemol ou qualquer dos dois, conforme o valor), e o
+resto são as naturais — assim o aluno vê o bequadro quando uma nota volta ao
+natural dentro do mesmo compasso. Nunca saem E#, B#, Cb nem Fb. Um acidente
+vale até a barra, como na partitura de verdade.
+
 ### `name-note`
 
 | Chave | Valor | Padrão |
@@ -339,7 +347,7 @@ pass: {accuracy: 85, speed: 100}
 | `figures` | figuras do sorteio (veja abaixo) | — |
 | `measures` | quantos compassos sorteados, de 1 a 8 | `4` |
 | `abc` | o ritmo escrito por você | — |
-| `bpm` | andamento, de 30 a 240 | `80` |
+| `bpm` | andamento por tempo (em 6/8, a semínima pontuada), de 30 a 240 | `80` |
 | `note` | a altura tocada (só no sorteio) | `C4` |
 
 Com `abc`, `figures`, `measures` e `note` não valem (o ritmo é o escrito). Cada
@@ -450,12 +458,42 @@ Há duas maneiras:
   com `X:`, é um ABC completo e `clef`, `key` e `time` ficam proibidos.
 - **Arquivo `.musicxml`** da pasta (`file:`).
 
+No ABC de **corpo** (sem `X:`), cada letra sem número vale **uma semínima**
+(`L:1/4`): `C D E F|` são quatro semínimas; `C2` é uma mínima, `C/2` uma
+colcheia. Sem `time`, a pauta sai sem fórmula de compasso. O `play-score` e
+o `choice` não têm `clef`, `key` nem `time`: escreva um ABC **completo**
+(com `X:`, `M:` e `K:`) quando precisar de armadura ou de compasso.
+
 Os cursos **não são transpostos** pelo zywny: a partitura aparece como você
 escreveu.
 
-> O alcance do leitor de ABC (ligaduras, quiálteras, duas vozes) está sendo
-> medido no passo I02; limites que apareçam serão escritos aqui. Para duas
-> pautas de verdade, use um `.musicxml`.
+### O que o ABC do zywny entende
+
+Medido com o leitor de ABC embutido (o mesmo no Linux, no Android e na Web).
+O que está em **limite** não funciona e, quando dá para detectar, o validador
+avisa.
+
+| Recurso | Como escrever | Funciona? |
+| --- | --- | --- |
+| Notas e oitavas | `C,` (grave), `C`, `c`, `c'` (agudo) | sim |
+| Figuras e `L:` | `C2`, `C/2`, `C3/2`; `L:1/8` | sim |
+| Pausas | `z`, `z2`, `z4` | sim |
+| Ponto | `C3/2 D/2` | sim |
+| Ligadura de valor | `C2- C2` | sim (uma nota só no toque, com a duração somada) |
+| Quiáltera de colcheias | `L:1/8` e `(3CDE` | sim |
+| **Quiáltera de semínimas ou maiores** | `(3CDE` com `L:1/4` | **limite**: o `(3` é ignorado, sem erro, e o tempo sai errado — use colcheias ou um `.musicxml` |
+| Acidentes e bequadro | `^C _E =E` | sim (valem até a barra) |
+| Armaduras | `K:G`, `K:Bb`, `K:Am` | sim |
+| Compassos | `M:2/4`, `3/4`, `4/4`, `6/8`, `C` | sim |
+| Anacruse | primeiro compasso curto | sim |
+| Repetição | `\|: … :\|` | sim (o trecho toca duas vezes) |
+| Clave de fá | `K:C clef=bass` | sim |
+| **Clave no meio da linha** | `[K:bass]` | **limite**: vira o tom de Si; use `K:C clef=bass` no cabeçalho |
+| Acorde | `[CEG]` | sim |
+| Letra | `w:` | sim (é só desenhada) |
+| Andamento | `Q:1/4=60` | sim |
+| **Duas vozes ou duas pautas** | `V:1`, `V:2`, `%%score {1 2}` | **limite**: as vozes saem uma depois da outra, na mesma pauta, e o tempo erra. O validador recusa. Para duas pautas, use um `.musicxml` |
+| Corpo sem cabeçalho num `abc:` com `X:` | só `C D E F` | **limite**: o ABC completo precisa de `X:` e `K:` (o app só monta o cabeçalho no corpo **sem** `X:`) |
 
 ## 10. Receitas
 

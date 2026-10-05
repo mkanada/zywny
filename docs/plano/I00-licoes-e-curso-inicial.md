@@ -138,7 +138,7 @@ Regras do formato:
 
 | Marca | Mostra | Chaves |
 | --- | --- | --- |
-| `zywny-score` | Uma partitura pequena, com toque para ouvir | `abc` **ou** `file`; `clef` (`treble`\|`bass`\|`grand`), `key`, `time`, `highlight` (notas), `caption` |
+| `zywny-score` | Uma partitura pequena, com toque para ouvir | `abc` **ou** `file`; `clef` (`treble`\|`bass`; sem `grand`: o ABC não faz duas pautas, I02), `key`, `time`, `highlight` (notas), `caption` |
 | `zywny-keyboard` | O teclado desenhado, com teclas marcadas | `from`, `to` (faixa, padrão C3–C5), `mark` (notas), `names` (`true`\|`false`), `caption` |
 | `zywny-audio` | Um tocador | `file` (`.ogg`/`.mp3` da pasta), `caption` |
 | `zywny-video` | Um cartão que abre o vídeo no navegador (D-LIC-VIDEO) | `link` (`https://…`), `caption` |
@@ -291,7 +291,7 @@ Tomadas pelo usuário em 2026-10-04.
 | Passo | Título | Depende de | Lições do curso inicial que fecha | Status |
 | --- | --- | --- | --- | --- |
 | [I01](I01-formato-e-validador.md) | Especificação v1 para professores, leitor e validador (Dart puro), `zywny_course validate` | — | — (fixtures quebradas) | **concluído** |
-| [I02](I02-partituras-das-licoes.md) | Partituras: ABC no Verovio (alcance), cabeçalho ABC, gerador de MusicXML das rodadas, tempo de render | I01 | — | pendente |
+| [I02](I02-partituras-das-licoes.md) | Partituras: ABC no Verovio (alcance), cabeçalho ABC, gerador de MusicXML das rodadas, tempo de render | I01 | — | **concluído** (falta medir no celular) |
 | [I03](I03-motor-de-exercicios.md) | Motor de exercícios: rodada, `pass`, `play-notes` em modo espera, aluno simulado | I02 | 2–5 (só exercícios `play-notes`) | pendente |
 | [I04](I04-pacote-de-curso.md) | Pacote de curso: `.zywny` assinado, instalar, guardar, remover, `just pacote-curso` | I01, I09 | — | pendente |
 | [I05](I05-leitor-de-licao.md) | Leitor de lição: markdown seguro, imagem, as quatro marcas de conteúdo, nomes das notas | I01, I02 | 1–5 (texto) | pendente |

@@ -1,0 +1,6 @@
+lessons/01-a.md:7: erro: o ABC tem várias vozes (1, 2), e o leitor de ABC do zywny não as toca juntas (elas saem uma depois da outra). Para duas pautas ou vozes, use um arquivo `.musicxml`.
+lessons/01-a.md:19: erro: `clef` aceita treble, bass; recebi `grand`.
+lessons/01-a.md:26: erro: estas `figures` não preenchem um compasso 4/4 sem sobra (colcheias saem em pares) e com ao menos uma nota: junte uma figura que complete o compasso.
+lessons/01-a.md:33: erro: `figures` só tem pausas: o aluno não teria o que tocar.
+lessons/01-a.md:40: erro: o ABC tem várias vozes (1, 2), e o leitor de ABC do zywny não as toca juntas (elas saem uma depois da outra). Para duas pautas ou vozes, use um arquivo `.musicxml`.
+lessons/01-a.md:51: erro: estas `figures` não preenchem um compasso 4/4 sem sobra (colcheias saem em pares) e com ao menos uma nota: junte uma figura que complete o compasso.

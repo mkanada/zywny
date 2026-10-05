@@ -3,6 +3,7 @@ import 'package:yaml/yaml.dart';
 import 'course_issue.dart';
 import 'course_model.dart';
 import 'field_reader.dart';
+import 'figure_rules.dart';
 import 'lesson_scanner.dart';
 import 'note_name.dart';
 import 'suggest.dart';
@@ -343,6 +344,17 @@ bool _figuresFit(
       );
       return false;
     }
+  }
+  if (!figuresTileMeasure(figures, time)) {
+    issues.error(
+      f.lineOf('figures'),
+      figures.every((x) => x.rest)
+          ? '`figures` só tem pausas: o aluno não teria o que tocar.'
+          : 'estas `figures` não preenchem um compasso $time sem sobra '
+                '(colcheias saem em pares) e com ao menos uma nota: junte '
+                'uma figura que complete o compasso.',
+    );
+    return false;
   }
   return true;
 }

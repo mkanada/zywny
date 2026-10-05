@@ -1,5 +1,6 @@
 import 'package:yaml/yaml.dart';
 
+import 'abc_limits.dart';
 import 'course_issue.dart';
 import 'course_model.dart';
 import 'note_name.dart';
@@ -364,7 +365,10 @@ class FieldReader {
           '(`"5-12"`), contando do 1.',
         );
       case ValueType.abc:
-        if (value is String && value.trim().isNotEmpty) return value;
+        if (value is String && value.trim().isNotEmpty) {
+          final problem = abcProblem(value);
+          return problem == null ? value : bad(problem);
+        }
         return bad(
           '`$key` precisa ser o texto ABC (use `|` para várias '
           'linhas).',
