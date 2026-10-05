@@ -83,8 +83,9 @@ por professores; o zywny mostra o conteúdo, roda os exercícios e confere os
 critérios de aceite) tem especificação em
 [I00-licoes-e-curso-inicial.md](I00-licoes-e-curso-inicial.md). O primeiro
 curso nesse formato, o **curso inicial** (teclado, pauta, claves, acidentes,
-tempos), é o teste de aceite da plataforma. As decisões D-LIC-\* estão lá,
-abertas; os arquivos dos passos I01–I13 são escritos depois delas.
+tempos), é o teste de aceite da plataforma. As decisões D-LIC-\* foram
+tomadas em 2026-10-04 (chaves do formato em inglês, só cursos assinados pelo
+usuário, sem teclado na tela) — quem executa um passo I lê também o I00.
 
 A fase **Q** (transpor para ler sem acidentes: a partitura vai para um tom
 sem sustenidos nem bemóis e o app diz quanto ajustar no TRANSPOSE do teclado
@@ -266,7 +267,7 @@ zywny
 | D-ORDEM | A seta da ordenação: direção real ("↑" crescente) ou a regra do artboard ("↓" = direção padrão da chave)? | U14 (só a seta) | Direção real | **decidida**: direção real (U14) |
 | D-SALTO | Trilha em músicas cujo caminho sem repetições tem salto (casas de 1ª/2ª vez, vários ritornelos): salto no agendador ou usar a última passagem? | J08 | **decidida (a)**: salto no agendador (generaliza o loop para vãos; sessões pré-filtradas sem os vãos) — a via (b) resgatava só 15/115 saltos (o resto é intro+casas e ritornelos seguidos); medição refeita: 0 hinos sem trilha — ver [J08](J08-saltos-no-caminho.md) | **decidida** |
 | D-BIB | Bibliotecas instaláveis: distribuição, app vazio, origem, Web, fonte dos clássicos, remover, atualizar, migrar, termo, extensão | fase B | — | **decidida** (2026-10-04): as 14 decisões D-BIB-* no [B00](B00-bibliotecas-instalaveis.md) |
-| D-LIC | Lições de terceiros: sintaxe das marcas, idioma, confiança, vídeo, notação, autoria, curso inicial, nomes, sem teclado, entrada | fase I | ver o [I00](I00-licoes-e-curso-inicial.md) | **aberta** (10 decisões D-LIC-\*) |
+| D-LIC | Lições de terceiros: sintaxe das marcas, idioma, confiança, vídeo, notação, autoria, curso inicial, nomes, sem teclado, entrada | fase I | — | **decidida** (2026-10-04): as 10 decisões D-LIC-\* no [I00](I00-licoes-e-curso-inicial.md) |
 | D-TRP | Transpor sem acidentes: alvo, direção, tom do som do app, escopo, progresso, conferência, nomes, lições | fase Q | — | **decidida** (2026-10-04): as 8 decisões D-TRP-\* no [Q00](Q00-transpor-sem-acidentes.md) |
 | D-BIB-CIFRA | Pacote `.zywny` cifrado e assinado; privada gera, pública sob controle do usuário, chaves fora do git | fase B | — | **decidida** (2026-10-04): ver o B00 "O envelope" |
 
@@ -362,7 +363,20 @@ zywny
 | [B08](B08-app-sem-hinos-embutidos.md) | Bibliotecas: o app sem hinos embutidos | B05, B06, B07 | D-BIB | concluído (aceite manual pendente) |
 | [B09](B09-curadoria-dos-classicos.md) | Bibliotecas: curadoria dos clássicos (musetrainer/library) | — | lista aprovada pelo usuário | proposta pronta (43 peças), **aguardando aprovação** |
 | [B10](B10-pacote-dos-classicos.md) | Bibliotecas: pacote dos clássicos | B02, B09 | D-BIB | pendente (espera a aprovação do B09) |
-| [I00](I00-licoes-e-curso-inicial.md) | Lições de terceiros e curso inicial: formato, tipos, testes e índice (passos I01–I13) | — | D-LIC | proposta, **aguardando decisões** |
+| [I00](I00-licoes-e-curso-inicial.md) | Lições de terceiros e curso inicial: formato, tipos, testes e índice (passos I01–I13) | — | D-LIC | especificação (decisões tomadas) |
+| [I01](I01-formato-e-validador.md) | Lições: especificação v1, leitor e validador (Dart puro), `zywny_course validate` | — | D-LIC | pendente |
+| [I02](I02-partituras-das-licoes.md) | Lições: ABC no Verovio, cabeçalho ABC, gerador de MusicXML das rodadas, tempo de render | I01 | D-LIC | pendente |
+| [I03](I03-motor-de-exercicios.md) | Lições: motor de exercícios, `pass`, `play-notes`, aluno simulado | I02 | — | pendente |
+| [I04](I04-pacote-de-curso.md) | Lições: pacote de curso assinado, instalar, guardar, remover | I01, I09 | D-LIC | pendente |
+| [I05](I05-leitor-de-licao.md) | Lições: leitor de lição (markdown seguro e marcas de conteúdo) | I01, I02 | D-LIC | pendente |
+| [I06](I06-teclado-da-tela.md) | Lições: teclado da tela | — | D-LIC | dispensado (sem teclado na tela) |
+| [I07](I07-tipos-por-pergunta.md) | Lições: tipos por pergunta (`find-key`, `name-note`, `count-beats`, `choice`) | I03, I09 | D-LIC | pendente |
+| [I08](I08-tipos-com-tempo.md) | Lições: tipos com tempo (`rhythm`, `play-score`) | I03, I09 | — | pendente |
+| [I09](I09-telas-e-progresso.md) | Lições: progresso, telas do curso, da lição e do exercício, entrada | I03, I05 | D-LIC | pendente |
+| [I10](I10-curso-inicial.md) | Lições: o curso inicial completo, embutido | I05, I07, I08 | D-LIC | pendente |
+| [I11](I11-testes-da-plataforma.md) | Lições: cobertura, aluno simulado, cursos quebrados | I10 | — | pendente |
+| [I12](I12-autoria-e-rascunho.md) | Lições: `validate --render` e modo rascunho (desktop e Web) | I05, I09 | D-LIC | pendente |
+| [I13](I13-conferencia.md) | Lições: conferência (`just telas`, Web, celular, lição de fora) | todos os I | — | pendente |
 | [Q00](Q00-transpor-sem-acidentes.md) | Transpor sem acidentes: as três alturas, a tabela de intervalos, a conferência no teclado e índice (passos Q01–Q08) | — | D-TRP | especificação (decisões tomadas) |
 | [Q01](Q01-verovio-transpondo.md) | Transpor: medir o Verovio transpondo (`.vsb`, repetições, determinismo, faixa) | — | — | pendente |
 | [Q02](Q02-calculo-da-transposicao.md) | Transpor: `Transposition` e `PitchFrame` (cálculo puro) | — | D-TRP | pendente |
