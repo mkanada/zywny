@@ -113,4 +113,80 @@ vídeo dentro do app (D-LIC-VIDEO); teclado tocável (D-LIC-SEM-TECLADO).
 
 ## Notas de execução
 
-(vazio)
+Concluído em 2026-10-05. `just analyze` limpo; `just test` limpo (529
+passando, 4 pulados/manuais, com a `libverovio.so` real — nenhum teste de
+lição pulado).
+
+**O que existe**
+
+- `lib/course/note_names.dart` — `NoteNaming` (`latin`|`letters`),
+  `noteLabel(Pitch, naming, {withOctave})` ("Dó", "Fá♯", "Si♭4" / "C", "F♯",
+  "B♭4"), `pitchFromMidi`/`midiLabel`. `AppSettings.noteNaming` (chave
+  `ui_note_naming`, padrão `latin`); o interruptor nas configurações é do I09.
+- `lib/course/ui/markdown_view.dart` — AST do `markdown` (dart-lang 7.3.1,
+  Dart puro) → widgets, estilos do tema (títulos em `serifDisplay`, corpo 16
+  sp altura 1,4). `html`/`inlineHtml` e tabelas viram texto literal, nunca
+  interpretados. Links: `url_launcher` 6.3.3 (`LaunchMode.externalApplication`),
+  só `https://` (resto recusado em silêncio); imagens: bytes da `CourseFiles`
+  (`Image.memory`), legenda = texto alternativo.
+- `lib/course/ui/score_mark_view.dart` — partitura pequena: bytes do I02 com
+  `lessonScoreOptions(largura)`, `ScoreView` (contínuo, sem rolagem própria —
+  a rolagem é a da lição), `highlight` pinta as notas daquelas alturas na cor
+  de destaque, legenda embaixo. Toque = ouvir do começo
+  (`ScoreAudioScheduler` + `PerformanceTrack`, o sintetizador do app, mesmo
+  caminho do "ouvir o trecho" U03); tocar de novo para (sem parada
+  automática). Altura estimada enquanto renderiza; erro vira a caixa "Não
+  consegui desenhar esta partitura" com arquivo e linha. O `SoundEngine` vem
+  pronto de quem chama (app ou teclado MIDI, de `AppSettings.output`).
+- `lib/midi/piano_keyboard.dart` generalizado: faixa (`lowest`/`highest`,
+  padrão A0–C8), `marked` com cor própria, `names: true` escreve o nome na
+  tecla branca marcada (`noteLabel`). O monitor chama com 88 teclas, sem
+  mudança visível (teste "desenha igual a antes"). Altura proporcional à
+  largura (`KeyboardMarkView`, ~6,35 por tecla branca, como um teclado real).
+- `lib/course/ui/lesson_audio.dart` + `audio_mark_view.dart` — tocador
+  compacto (play/pausa, barra, tempo, legenda); `SingleAudioPlay` garante um
+  só por vez na lição. Escolha medida abaixo: **`audioplayers` (`BytesSource`)**,
+  sem restrição a `.mp3` (`.ogg` e `.mp3` valem na v1).
+- `lib/course/ui/video_mark_view.dart` — cartão com ícone, legenda e domínio
+  ("youtube.com"); toque abre fora do app, sem miniatura (seria rede sem toque).
+- `lib/course/ui/exercise_card.dart` — `ExerciseCard(spec, state, onStart)`:
+  título, pedido em uma linha, meta, estado e "Precisa do teclado" (tipos MIDI
+  sem teclado). `onStart` só chega como callback (o I09 navega).
+- `lib/course/ui/lesson_view.dart` — título + blocos na ordem, ~640 dp
+  centralizados no desktop/Web.
+- Entrada provisória (item 9, o mais barato): **`lib/lesson_debug_main.dart`**
+  (fora do `main.dart`, que compila para a Web e não pode importar `dart:io`):
+  `flutter run -d linux --no-enable-impeller -t lib/lesson_debug_main.dart
+  --dart-entrypoint-args="--licao <pasta> <id>"`. O I09 substitui pelas telas.
+- Fixture `test/fixtures/cursos/licao-i05/` (válida; um aviso de HTML de
+  propósito) com `.mp3` e `.ogg` reais (seno 440 Hz, 0,5 s, gerados com ffmpeg).
+- Testes: `test/note_names_test.dart` (12 sons, duas grafias, oitava,
+  ♯/♭) e `test/lesson_view_test.dart` (tudo aparece, HTML como texto, link no
+  abridor falso, sem-teclado, retrato 390×844 sem estouro, monitor igual).
+
+**`flutter_markdown` (conferido no pub.dev na hora, como pede o passo)**:
+descontinuado pelo time do Flutter em 2025 (6 anos sem release relevante;
+a página sugere `flutter_markdown_plus` como substituto) — não usado, como
+o passo manda. Anotado também no topo de `markdown_view.dart`.
+
+**Áudio nas quatro plataformas (escolha do pacote)**
+
+| Plataforma | `.ogg` | `.mp3` | A partir de bytes | O que pediu |
+| --- | --- | --- | --- | --- |
+| Linux (Pop!_OS, GStreamer 1.24.2) | sim | sim | sim (`BytesSource`) | nada: `libgstogg`/`libgstvorbis`/`libav` já instalados |
+| Android (ExoPlayer) | sim | sim | sim | nada (bytes locais, sem permissão) |
+| Web | sim (Chrome/Edge) | sim (incl. Safari) | sim (Blob `audio/ogg`/`audio/mpeg`) | nada |
+| Windows (Media Foundation) | sim | sim | sim | nada (sem build Windows neste passo) |
+
+Medido por capability dos backends do `audioplayers` 6.8.1 + `gst-inspect-1.0`
+no Pop!_OS (a partitura toca pelo sintetizador, não por aqui — isto é só o
+`zywny-audio`). Nenhum `.ogg` mudo em nenhuma plataforma: a especificação
+continua com `.ogg`/`.mp3` (I01), sem restrição.
+
+**Manual (critério 4, parcialmente)**: a fixture abre no teste de widget em
+retrato 390×844 sem estouro; partitura renderizada de verdade (midi.json com
+as alturas), toque-para-ouvir e áudio cobertos com motor/tocador falsos. Falta
+abrir a lição 2 de verdade no Linux, na Web e no celular físico (sem aparelho
+conectado neste passo, como no I02) — roteiro: `lib/lesson_debug_main.dart`
+com `--licao <pasta> <id>` no desktop, `just web-smoke` + navegador na Web,
+`just run-android` no aparelho.

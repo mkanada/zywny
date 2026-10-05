@@ -64,6 +64,16 @@ dependencies:
   cryptography: ^2.9.0
   yaml: ^3.1.4
   meta: ^1.19.0
+  # I05 — Leitor de lição: AST do markdown (Dart puro; o app desenha os
+  # widgets aqui — `flutter_markdown` está descontinuado pelo time do
+  # Flutter desde 2025, ver pub.dev, então não é usado).
+  markdown: ^7.3.1
+  # I05 — links do texto e cartão de vídeo abrem fora do app.
+  url_launcher: ^6.3.3
+  # I05 — `zywny-audio`: toca `.ogg`/`.mp3` a partir de bytes nas quatro
+  # plataformas (na Web não há arquivo). Escolha medida em I05, ver
+  # `lib/course/ui/lesson_audio_choice.md`.
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
