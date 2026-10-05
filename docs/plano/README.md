@@ -42,7 +42,7 @@ saídas temporárias em `compare/out/`, não alterar `View`/`SvgDeviceContext`,
 a spec `docs/formato/especificacao-v1.md` é atualizada junto com o formato).
 O plano **daquele** repo usa os prefixos F/S/R/A/E/P (+ G, ver abaixo); os
 passos deste plano usam prefixos próprios (X, N, C, K, M, T, W, V, J, L,
-U, B, I) para não colidir.
+U, B, I, Q) para não colidir.
 
 A fase **J** (trilha de estudo: a música em trechos, com etapas que se
 desbloqueiam como fases de um jogo) tem especificação própria em
@@ -85,6 +85,13 @@ critérios de aceite) tem especificação em
 curso nesse formato, o **curso inicial** (teclado, pauta, claves, acidentes,
 tempos), é o teste de aceite da plataforma. As decisões D-LIC-\* estão lá,
 abertas; os arquivos dos passos I01–I13 são escritos depois delas.
+
+A fase **Q** (transpor para ler sem acidentes: a partitura vai para um tom
+sem sustenidos nem bemóis e o app diz quanto ajustar no TRANSPOSE do teclado
+para a música voltar a soar no tom original) tem especificação em
+[Q00-transpor-sem-acidentes.md](Q00-transpor-sem-acidentes.md) — quem
+executa um passo Q lê também esse arquivo. As decisões D-TRP-\* foram
+tomadas em 2026-10-04 (progresso **separado por tom**).
 
 ## Convenções
 
@@ -260,6 +267,7 @@ zywny
 | D-SALTO | Trilha em músicas cujo caminho sem repetições tem salto (casas de 1ª/2ª vez, vários ritornelos): salto no agendador ou usar a última passagem? | J08 | **decidida (a)**: salto no agendador (generaliza o loop para vãos; sessões pré-filtradas sem os vãos) — a via (b) resgatava só 15/115 saltos (o resto é intro+casas e ritornelos seguidos); medição refeita: 0 hinos sem trilha — ver [J08](J08-saltos-no-caminho.md) | **decidida** |
 | D-BIB | Bibliotecas instaláveis: distribuição, app vazio, origem, Web, fonte dos clássicos, remover, atualizar, migrar, termo, extensão | fase B | — | **decidida** (2026-10-04): as 14 decisões D-BIB-* no [B00](B00-bibliotecas-instalaveis.md) |
 | D-LIC | Lições de terceiros: sintaxe das marcas, idioma, confiança, vídeo, notação, autoria, curso inicial, nomes, sem teclado, entrada | fase I | ver o [I00](I00-licoes-e-curso-inicial.md) | **aberta** (10 decisões D-LIC-\*) |
+| D-TRP | Transpor sem acidentes: alvo, direção, tom do som do app, escopo, progresso, conferência, nomes, lições | fase Q | — | **decidida** (2026-10-04): as 8 decisões D-TRP-\* no [Q00](Q00-transpor-sem-acidentes.md) |
 | D-BIB-CIFRA | Pacote `.zywny` cifrado e assinado; privada gera, pública sob controle do usuário, chaves fora do git | fase B | — | **decidida** (2026-10-04): ver o B00 "O envelope" |
 
 ## Riscos conhecidos
@@ -355,6 +363,15 @@ zywny
 | [B09](B09-curadoria-dos-classicos.md) | Bibliotecas: curadoria dos clássicos (musetrainer/library) | — | lista aprovada pelo usuário | proposta pronta (43 peças), **aguardando aprovação** |
 | [B10](B10-pacote-dos-classicos.md) | Bibliotecas: pacote dos clássicos | B02, B09 | D-BIB | pendente (espera a aprovação do B09) |
 | [I00](I00-licoes-e-curso-inicial.md) | Lições de terceiros e curso inicial: formato, tipos, testes e índice (passos I01–I13) | — | D-LIC | proposta, **aguardando decisões** |
+| [Q00](Q00-transpor-sem-acidentes.md) | Transpor sem acidentes: as três alturas, a tabela de intervalos, a conferência no teclado e índice (passos Q01–Q08) | — | D-TRP | especificação (decisões tomadas) |
+| [Q01](Q01-verovio-transpondo.md) | Transpor: medir o Verovio transpondo (`.vsb`, repetições, determinismo, faixa) | — | — | pendente |
+| [Q02](Q02-calculo-da-transposicao.md) | Transpor: `Transposition` e `PitchFrame` (cálculo puro) | — | D-TRP | pendente |
+| [Q03](Q03-guardar-e-renderizar.md) | Transpor: guardar por música, chave geral, render transposto | Q01, Q02 | D-TRP | pendente |
+| [Q04](Q04-progresso-por-tom.md) | Transpor: progresso separado por tom | Q03 | D-TRP | pendente |
+| [Q05](Q05-as-alturas-no-app.md) | Transpor: casador na altura escrita, som no tom original | Q02, Q03 | D-TRP | pendente |
+| [Q06](Q06-conferencia-no-teclado.md) | Transpor: conferência no teclado | Q05 | D-TRP | pendente |
+| [Q07](Q07-lembretes-e-detector.md) | Transpor: lembrete de voltar a 0 e detector de deslocamento | Q05 | — | pendente |
+| [Q08](Q08-tela-e-aceite.md) | Transpor: gaveta, selo, lista dos 12 tons e aceite manual | Q04, Q06, Q07 | D-TRP | pendente |
 
 Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
 Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em
