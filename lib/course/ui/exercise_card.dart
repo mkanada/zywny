@@ -80,6 +80,7 @@ class ExerciseCard extends StatelessWidget {
     required this.state,
     required this.onStart,
     this.hasKeyboard = true,
+    this.notice,
   });
 
   final ExerciseSpec spec;
@@ -88,6 +89,10 @@ class ExerciseCard extends StatelessWidget {
 
   /// `false` sem teclado MIDI conectado: os tipos MIDI pedem o teclado.
   final bool hasKeyboard;
+
+  /// Aviso de lição bloqueada ("Depois de: ..."): o exercício roda, mas o
+  /// cartão avisa que a ordem sugerida pede outra lição antes (I09).
+  final String? notice;
 
   @override
   Widget build(BuildContext context) {
@@ -145,6 +150,21 @@ class ExerciseCard extends StatelessWidget {
                   child: Text(
                     'Precisa do teclado',
                     style: TextStyle(fontSize: 13, color: kOkColor),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (notice case final notice?) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.lock_outline, size: 16, color: kInkCaption),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    notice,
+                    style: const TextStyle(fontSize: 13, color: kInkCaption),
                   ),
                 ),
               ],

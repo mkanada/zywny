@@ -3,8 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../audio/engine_opener.dart';
+import '../audio/sound_engine.dart';
+import '../course/course_progress.dart';
+import '../course/loaded_course.dart';
+import '../course/ui/course_flow.dart';
+import '../course/ui/courses_screen.dart';
+import '../course/ui/course_screen.dart' show openLessonScreen;
 import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
+import '../midi/midi_input_service.dart';
 import '../settings/app_settings.dart';
 import '../settings/general_settings_panel.dart';
 import '../settings/piece_settings.dart';
@@ -81,6 +89,8 @@ class LibraryScreen extends StatefulWidget {
     this.appSettings,
     this.pieceSettings,
     this.trailProgress,
+    this.loadCourses,
+    this.courseProgress,
   });
 
   /// Constrói a tela de partitura do hino aberto (`ScoreHomePage`).
@@ -101,6 +111,13 @@ class LibraryScreen extends StatefulWidget {
   /// Resumos da trilha por hino (J09); os testes injetam com dados.
   final TrailProgressStore? trailProgress;
 
+  /// Cursos para a entrada de cursos (I09, D-LIC-ENTRADA); `null` (padrão)
+  /// esconde a entrada — o embutido chega no I10, os testes injetam fixture.
+  final Future<List<LoadedCourse>> Function()? loadCourses;
+
+  /// Progresso dos cursos; os testes injetam com dados.
+  final CourseProgressStore? courseProgress;
+
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
 }
@@ -120,6 +137,64 @@ class _LibraryScreenState extends State<LibraryScreen> {
       widget.pieceSettings ?? PieceSettingsStore();
   late final TrailProgressStore _trail =
       widget.trailProgress ?? TrailProgressStore();
+
+  /// Cursos (I09): carregados uma vez; `[]` sem provedor (até o I10).
+  late final Future<List<LoadedCourse>> _courses = _loadCourses();
+  late final CourseProgressStore _courseProgress =
+      widget.courseProgress ?? CourseProgressStore();
+
+  /// Entrada MIDI do fluxo de cursos (só ele usa); o carimbo sai do
+  /// cronômetro do app (a latência calibrada compensa o resto).
+  final Stopwatch _courseClock = Stopwatch()..start();
+  late final MidiInputService _courseMidi = FlutterMidiInputService(
+    nowSeconds: () => _courseClock.elapsedMicroseconds / 1e6,
+  );
+
+  /// Motor de som do fluxo de cursos (um só, memoizado); descartado com a
+  /// biblioteca.
+  SoundEngine? _courseEngine;
+  Future<SoundEngine?>? _courseEngineOpening;
+
+  Future<SoundEngine?> _ensureCourseEngine() async {
+    final existing = _courseEngine;
+    if (existing != null) return existing;
+    return _courseEngineOpening ??= openAppSoundEngine().then((engine) {
+      _courseEngineOpening = null;
+      if (engine != null) _courseEngine = engine;
+      return engine;
+    });
+  }
+
+  Future<List<LoadedCourse>> _loadCourses() async {
+    final load = widget.loadCourses;
+    if (load == null) return const [];
+    try {
+      return await load();
+    } on Object {
+      return const [];
+    }
+  }
+
+  CourseScreenDeps _courseDeps() => CourseScreenDeps(
+    settings: _settings,
+    deviceManager: _midi,
+    midiInput: _courseMidi,
+    progress: _courseProgress,
+    ensureEngine: _ensureCourseEngine,
+  );
+
+  void _openCourses(List<LoadedCourse> courses) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => CoursesScreen(
+          courses: courses,
+          progress: _courseProgress,
+          onOpen: (context, course) =>
+              openCourseScreen(context, course, progress: _courseProgress, deps: _courseDeps()),
+        ),
+      ),
+    );
+  }
 
   SortState _sort = const SortState();
   String _query = '';
@@ -148,8 +223,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _listScroll.dispose();
     _searchController.dispose();
     _midi.dispose();
+    _courseMidi.dispose();
+    unawaited(_courseEngine?.dispose());
     if (widget.progress == null) _progress.dispose();
     if (widget.trailProgress == null) _trail.dispose();
+    if (widget.courseProgress == null) _courseProgress.dispose();
     if (widget.appSettings == null) _settings.dispose();
     super.dispose();
   }
@@ -343,83 +421,144 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _content(AsyncSnapshot<PieceCatalog> snapshot) {
     final catalog = snapshot.data;
+    final catalogError = snapshot.hasError;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _header(catalog),
         const SizedBox(height: 14),
-        if (catalog != null && !catalog.hasLibrary)
-          Expanded(child: _noLibraryCard())
-        else ...[
-          _searchField(catalog?.numbered ?? true),
-          const SizedBox(height: 14),
-          if (catalog != null) ...[
-            if (_continuing(catalog) case final piece?) ...[
-              _continueCard(piece, catalog.term),
-              const SizedBox(height: 14),
-            ] else if (_progressLoaded) ...[
-              // Primeiro uso: o mesmo lugar do "Continuar" diz por onde começar.
-              _startCard(catalog.term),
-              const SizedBox(height: 14),
-            ],
-            _sortChips(catalog.numbered),
-            const SizedBox(height: 4),
-            Expanded(child: _list(catalog)),
-          ] else
-            Expanded(
-              child: Center(
-                child: snapshot.hasError
-                    ? const Text(
-                        'Não consegui abrir a biblioteca.\n'
-                        'Instale-a de novo pelas configurações.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: kInkCaption),
-                      )
-                    : const CircularProgressIndicator(),
-              ),
-            ),
-        ],
+        Expanded(
+          child: FutureBuilder<List<LoadedCourse>>(
+            future: _courses,
+            builder: (context, coursesSnapshot) {
+              final courses =
+                  coursesSnapshot.data ?? const <LoadedCourse>[];
+              if (catalog != null && !catalog.hasLibrary) {
+                return _noLibraryCard(courses);
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (courses.isNotEmpty) ...[
+                    _coursesRow(courses),
+                    const SizedBox(height: 14),
+                  ],
+                  if (catalog == null)
+                    Expanded(
+                      child: Center(
+                        child: catalogError
+                            ? const Text(
+                                'Não consegui abrir a biblioteca.\n'
+                                'Instale-a de novo pelas configurações.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: kInkCaption),
+                              )
+                            : const CircularProgressIndicator(),
+                      ),
+                    )
+                  else ...[
+                    _searchField(catalog.numbered),
+                    const SizedBox(height: 14),
+                    if (_continuing(catalog) case final piece?) ...[
+                      _continueCard(piece, catalog.term),
+                      const SizedBox(height: 14),
+                    ] else if (_progressLoaded) ...[
+                      // Primeiro uso: o mesmo lugar do "Continuar" diz por onde começar.
+                      _startCard(catalog.term),
+                      const SizedBox(height: 14),
+                    ],
+                    _sortChips(catalog.numbered),
+                    const SizedBox(height: 4),
+                    Expanded(child: _list(catalog)),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
       ],
     );
   }
 
+  /// Linha compacta "Cursos" entre o cabeçalho e a busca (D-LIC-ENTRADA):
+  /// o curso em andamento (linha "Cursos · título · X de Y").
+  Widget _coursesRow(List<LoadedCourse> courses) {
+    final first = courses.first;
+    final counts = _courseProgress[first.id].lessonCounts(first.course);
+    return _CoursesRowCard(
+      title: courses.length == 1
+          ? first.course.title
+          : '${courses.length} cursos',
+      subtitle:
+          'Cursos · ${counts.done} de ${counts.total} '
+          '${counts.total == 1 ? 'lição' : 'lições'}',
+      onTap: () => _openCourses(courses),
+    );
+  }
+
   /// Sem nenhuma biblioteca (primeiro uso, ou depois de remover a última):
-  /// como instalar uma. Nenhuma palavra sobre onde baixar (D-BIB-DIST).
-  Widget _noLibraryCard() {
+  /// o cartão do curso inicial (I09, D-LIC-ENTRADA) acima do de instalar.
+  /// Nenhuma palavra sobre onde baixar (D-BIB-DIST).
+  Widget _noLibraryCard(List<LoadedCourse> courses) {
     return Center(
       child: SingleChildScrollView(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-          decoration: BoxDecoration(
-            color: kSurface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: kBorderSoft),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Instale uma biblioteca de músicas',
-                textAlign: TextAlign.center,
-                style: serifDisplay(fontSize: 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (courses.isNotEmpty) ...[
+              _InitialCourseCard(
+                onStart: () {
+                  final first = courses.first;
+                  final progress = _courseProgress[first.id];
+                  final next = [
+                    for (final lesson in first.course.lessons)
+                      if (!progress.lessonDone(lesson)) lesson,
+                  ].firstOrNull ?? first.course.lessons.first;
+                  openLessonScreen(
+                    context,
+                    first,
+                    next,
+                    deps: _courseDeps(),
+                  );
+                },
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'O zywny não traz músicas. Elas chegam em bibliotecas: '
-                'arquivos .zywny que você abre aqui. Uma delas fica em uso '
-                'por vez, e você troca nas configurações.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: kInkCaption, height: 1.4),
-              ),
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: () => unawaited(_installLibrary()),
-                icon: const Icon(Icons.folder_open),
-                label: const Text('Abrir arquivo…'),
-              ),
+              const SizedBox(height: 12),
             ],
-          ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+              decoration: BoxDecoration(
+                color: kSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: kBorderSoft),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Instale uma biblioteca de músicas',
+                    textAlign: TextAlign.center,
+                    style: serifDisplay(fontSize: 22),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'O zywny não traz músicas. Elas chegam em bibliotecas: '
+                    'arquivos .zywny que você abre aqui. Uma delas fica em uso '
+                    'por vez, e você troca nas configurações.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: kInkCaption, height: 1.4),
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: () => unawaited(_installLibrary()),
+                    icon: const Icon(Icons.folder_open),
+                    label: const Text('Abrir arquivo…'),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -817,6 +956,113 @@ class _LibraryScreenState extends State<LibraryScreen> {
           onTap: () => unawaited(_open(piece)),
         );
       },
+    );
+  }
+}
+
+/// Linha "Cursos" da biblioteca: compacta, com o curso em andamento.
+class _CoursesRowCard extends StatelessWidget {
+  const _CoursesRowCard({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: kSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: kBorderSoft),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.school_outlined, color: kAccentDark),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: kInkCaption,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: kInkCaption),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cartão do curso inicial na tela sem biblioteca: "Comece pelo curso
+/// inicial" com o botão "Começar", que abre direto na primeira lição aberta.
+class _InitialCourseCard extends StatelessWidget {
+  const _InitialCourseCard({required this.onStart});
+
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorderSoft),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Comece pelo curso inicial',
+            textAlign: TextAlign.center,
+            style: serifDisplay(fontSize: 22),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Aprenda a ler partitura do zero, no seu teclado.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: kInkCaption, height: 1.4),
+          ),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: onStart,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Começar'),
+          ),
+        ],
+      ),
     );
   }
 }

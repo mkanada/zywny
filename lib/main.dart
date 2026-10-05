@@ -10,11 +10,11 @@ import 'package:score_bridge/score_bridge.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'audio/audio_playback_clock.dart';
+import 'audio/engine_opener.dart';
 import 'audio/metronome.dart';
 import 'audio/score_audio_scheduler.dart';
 import 'audio/sound_engine.dart';
 import 'audio/sound_engine_debug_panel.dart';
-import 'audio/sound_engine_factory.dart';
 import 'audio/soundfont_store.dart';
 import 'layout_options.dart';
 import 'layout_panel.dart';
@@ -1712,11 +1712,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   String get _outputKey => _output == SoundOutput.midiKeyboard ? 'midi' : 'app';
 
   Future<void> _loadInputLatency() async {
-    final device = _midiDeviceManager.connected.value;
-    final ms = device == null
-        ? null
-        : await _midiDeviceManager.inputLatencyMs(device.id, _outputKey);
-    if (mounted) setState(() => _inputLatencyMs = ms ?? 0);
+    final ms = await calibratedInputLatency(_midiDeviceManager, _output);
+    if (mounted) setState(() => _inputLatencyMs = ms);
   }
 
   Future<void> _openCalibration() async {
@@ -2004,12 +2001,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Abre o motor e pede um soundfont ao usuário; `null` se o motor não
   /// abriu (sem dispositivo de áudio) ou o usuário cancelou o `.sf2`.
-  Future<SoundEngine?> _pickEngineWithSoundFont() async {
-    final engine = createSoundEngine();
-    await engine.start();
-    await engine.loadSoundFont(await _soundFonts.load());
-    return engine;
-  }
+  /// Corpo em `lib/audio/engine_opener.dart` (I09, risco 4 do I00): a tela
+  /// do exercício usa o mesmo.
+  Future<SoundEngine?> _pickEngineWithSoundFont() =>
+      openAppSoundEngine(soundFonts: _soundFonts);
 
   /// Troca o `.sf2` (o TimGM6mb embutido é o padrão): guarda o escolhido e,
   /// se o motor do app já está aberto, recarrega nele na hora.

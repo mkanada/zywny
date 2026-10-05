@@ -42,6 +42,7 @@ class LessonView extends StatelessWidget {
     this.openLink,
     this.audioPlayerFactory,
     this.audioCoordinator,
+    this.exerciseNotice,
   });
 
   final Lesson lesson;
@@ -74,6 +75,9 @@ class LessonView extends StatelessWidget {
 
   /// Para teste ou para dividir a coordenação "um só por vez" com o pai.
   final SingleAudioPlay? audioCoordinator;
+
+  /// Aviso de lição bloqueada, repassado aos cartões de exercício (I09).
+  final String? exerciseNotice;
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +153,7 @@ class LessonView extends StatelessWidget {
               exerciseStates[block.spec.id] ??
               const ExerciseCardState(passed: false),
           hasKeyboard: hasKeyboard,
+          notice: exerciseNotice,
           onStart: () => onExerciseStart?.call(block.spec),
         );
     }

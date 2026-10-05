@@ -131,4 +131,50 @@ Os tipos por pergunta (I07) e com tempo (I08); instalar curso por arquivo
 
 ## Notas de execução
 
-(vazio)
+Concluído em 2026-10-06. `just analyze` limpo; `just test` limpo (542
+passando, 4 pulados/manuais, com a `libverovio.so` real).
+
+**O que existe**
+
+- `lib/course/course_progress.dart` — `ExerciseRecord(passed, streak,
+  bestPercent, lastAt)`, `CourseProgress(courseId, records, doneLessons,
+  lastLessonId)` com `recordAttempt` (selo nunca sai, melhor % só sobe,
+  `streak` cruza sessões), `lessonDone` (todos aprovados; sem exercício:
+  "Concluir"/leitura até o fim), `lessonOpen`/`missingFor` (`requires`),
+  contagens; `CourseProgressStore` (`course_progress:<id>`, como o
+  `TrailProgressStore`) e `MemoryCourseProgressStore` (rascunho/testes).
+  Órfãos ficam guardados e são ignorados (voltam com o id).
+- `lib/course/loaded_course.dart` — `LoadedCourse(course, files, origin:
+  builtIn|installed|draft)` + faixa de rascunho (I12 usa).
+- Telas (`lib/course/ui/`): `CoursesScreen` (cartão por curso, "X de Y",
+  "Continuar"), `CourseScreen` (apresentação recolhível + lições com
+  feita/aberta/bloqueada e "abrir assim mesmo"), `LessonScreen`
+  (`LessonView` + "Próxima lição ›", `lastLessonId`, "Concluir" e fim de
+  leitura para lições sem exercício), `ExerciseScreen` (paisagem no
+  celular; barra com título/"rodada N"/meta/sair; porta com teclado via
+  U15; `ScoreRound` do I03 + `ScorePlayer` com o relógio de áudio, como a
+  partitura; painel U12 com `reason`, erros na pauta, Outra rodada/Voltar —
+  aprovado vira Voltar; `switch` no tipo pronto para I07/I08).
+- `lib/audio/engine_opener.dart` — `openAppSoundEngine`,
+  `calibratedInputLatency`, `soundOutputKey` (extração fiel de `main.dart`,
+  risco 4 do I00: o exercício não mora na `ScoreHomePage`).
+- Biblioteca: item "Cursos" entre cabeçalho e busca + cartão "Comece pelo
+  curso inicial" sem biblioteca (D-LIC-ENTRADA); provedor `loadCourses`
+  injetável (o embutido chega no I10).
+- Configurações: "Nomes das notas: Dó-Ré-Mi / C-D-E" (chave do I05).
+- Testes: `course_progress_test` (grava/relê, `requires`, órfão, selo,
+  `rounds: 3`) e `course_screens_test` (7 widgets: estados, bloqueio,
+  sem-teclado, rodada 100% com aluno simulado + progresso, entrada com e
+  sem biblioteca). `main.dart`: 3318 → 3313 linhas (só a extração).
+
+**Escolhas onde o I00/I09 não diziam**: `doneLessons` no progresso (4º
+campo, para lições sem exercício); `lastLessonId` gravado ao abrir;
+"Continuar" = última aberta não feita, senão primeira não feita; progresso
+de lição bloqueada conta (a trava é sugestão); sem som, o exercício não
+abre; `loadCourses` padrão vazio até o I10.
+
+**Pegas dos testes (valem para I07/I08)**: `pumpEventQueue` não volta no
+relógio falso do widget test (o aluno simulado ganhou um driver com
+`tester.pump`); FFI só no `setUpAll` (documento pronto injetado);
+`scrollUntilVisible` exige um `Scrollable` só (o `ScoreView` interno conta);
+`touchLesson` no `initState` precisa de pós-frame.
