@@ -63,7 +63,21 @@ Future<void> main(List<String> args) async {
   // score_bridge and has to be registered before the first paint —
   // otherwise the engine falls back to a system serif without warning.
   await loadScoreFonts();
-  runApp(MyApp(debugMode: args.contains('--debug'), splash: true));
+  runApp(
+    MyApp(
+      debugMode: args.contains('--debug'),
+      splash: true,
+      initialDraftPath: _cursoArg(args),
+    ),
+  );
+}
+
+/// `just curso <pasta>` (I12): abre o app direto no rascunho da pasta.
+String? _cursoArg(List<String> args) {
+  final i = args.indexOf('--curso');
+  if (i < 0 || i + 1 >= args.length) return null;
+  final path = args[i + 1].trim();
+  return path.isEmpty ? null : path;
 }
 
 class MyApp extends StatelessWidget {
@@ -72,6 +86,7 @@ class MyApp extends StatelessWidget {
     this.debugMode = false,
     this.splash = false,
     this.loadCatalog,
+    this.initialDraftPath,
   });
 
   final bool debugMode;
@@ -82,6 +97,9 @@ class MyApp extends StatelessWidget {
   /// De onde vêm as músicas da biblioteca; sem isto, a biblioteca instalada
   /// e em uso. Os testes trocam por uma lista própria.
   final Future<PieceCatalog> Function()? loadCatalog;
+
+  /// I12: abre direto no rascunho da pasta (`just curso <pasta>`).
+  final String? initialDraftPath;
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +113,7 @@ class MyApp extends StatelessWidget {
         child: LibraryScreen(
           loadCatalog: loadCatalog,
           loadCourses: loadBuiltInCourses,
+          initialDraftPath: initialDraftPath,
           scoreBuilder: (context, opened) => LibraryTermScope(
             term: opened.term,
             numbered: opened.numbered,

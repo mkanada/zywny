@@ -110,4 +110,63 @@ Android; assinar no app.
 
 ## Notas de execução
 
-(vazio)
+Concluído em código; aceite manual pendente (critério 4: `just curso` no
+Linux, pasta na Web Chrome, `.zip` no Firefox — e `showDirectoryPicker` no
+Chrome Android, a conferir).
+
+`just analyze` limpo; `just test` limpo (664 passando, 4 pulados, com a
+`libverovio.so` real).
+
+**O que existe**
+
+- `validate --render` (`tool/zywny_course.dart` +
+  `lib/course/format/course_render_check.dart`, Dart puro sem Flutter):
+  para cada `zywny-score`, `choice` com `abc` e exercício com `abc`/`file`,
+  carrega no Verovio (com o cabeçalho do I02 no corpo) e confere que
+  carregou, tem nota no timemap, o MIDI não está vazio e o `measures` cabe
+  (contado no MEI). Erro na linha da marca ("A partitura não renderiza (o
+  Verovio disse: …)"). Usa direto `package:verovio` (só `ffi`, sem Flutter —
+  conferido no pubspec do pacote), com a `.so` e os dados do bridge; sem
+  eles: aviso único "--render indisponível" e código 0. `just
+  curso-validar validate <pasta> --render` (atalho `just curso-validar
+  --render <pasta>`).
+- `test/fixtures/cursos/erro-render/esperado.txt` atualizado para a
+  mensagem real ("MIDI vazio"); `course_validator_test` testa o `--render`
+  de verdade (subprocesso) + o `readCourse` puro sem erro.
+- Rascunho (`lib/course/draft/`): `CourseDraftController` (recarrega,
+  mantém progresso da sessão e lição), `CourseIssuesScreen` (erros primeiro,
+  Recarregar no topo), `CourseDraftScreen` (problemas ou curso),
+  `DraftBanner` ("Rascunho · não verificado · \<pasta\>" + Recarregar),
+  `draft_folder.dart` (import condicional: pasta no desktop via
+  `file_selector`, `showDirectoryPicker` na Web Chrome/Edge, `.zip` sem
+  envelope no Firefox/Safari — o instalador continua recusando, teste do I04
+  rodando), `WebDirectoryCourseFiles` (handle guardado, relê sem pedir).
+  `CourseScreen`/`LessonScreen` com faixa + Recarregar + tira "N avisos" +
+  `Ctrl+R` no desktop; rascunho primeiro na lista com "rascunho".
+  `just curso <pasta>` (`--curso` no `main`, como o `--debug`).
+- `test/course_draft_test.dart` (critério 1, 4 testes) + rótulo "rascunho"
+  na lista.
+- Especificação: `formato-v1.md` §12 ("Como ver sua lição") e §13 ("Como
+  publicar").
+
+**Achado que mudou o I02 (bug real, corrigido aqui)**
+
+O leitor de ABC do Verovio só emite notas de compassos **fechados**: sem a
+barra final, a pauta sai vazia (0 notas no MEI) e o MIDI vazio — medido com
+a `.so` real (`C D E F G` sem `|` → 0 notas; com `|` → 5 notas). Todo `abc:`
+de corpo do curso inicial estava sem barra (ex.: `"C D E F G"`), ou seja:
+desenhava pauta vazia e o "toque para ouvir" era mudo. O `abcSource`
+agora fecha o último compasso (`|` se não terminar em `|`, `]` ou `:`);
+ABC completo (`X:`) passa intacto (responsabilidade do autor, o `--render`
+cobra). Com isso, `just curso-validar --render assets/cursos/iniciacao`
+passa; sem isso, falhava em todas as partituras de corpo. Teste novo
+("barra final não duplica") e expectativas atualizadas.
+
+**Desvios do plano**
+
+- O `Recarregar` do `.zip` (Web sem a API) pede o arquivo de novo (o plano
+  manda); o da pasta/handle relê sem pedir (o `CourseFiles` é vivo).
+- A posição de rolagem no Recarregar é a do Flutter (mesma lista, mesma
+  chave); a lição é mantida pelo `lessonId` do controlador (senão, a lista).
+- `showDirectoryPicker` no Chrome Android não conferido (sem aparelho):
+  se não houver, cai no `.zip` — anotar no manual.

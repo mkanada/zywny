@@ -183,8 +183,16 @@ analyze:
 
 # Valida uma pasta de curso (I01): `just curso-validar validate <pasta>`.
 # Sai com 1 se houver erro; imprime `arquivo:linha: erro|aviso: mensagem`.
+# Com `--render` (I12), confere também que toda partitura renderiza:
+# `just curso-validar validate <pasta> --render` (ou o atalho
+# `just curso-validar --render <pasta>`).
 curso-validar *ARGS:
     dart run tool/zywny_course.dart {{ARGS}}
+
+# Abre uma pasta de curso como rascunho no Linux (I12): edite a lição no
+# editor, Recarregue no app (ou Ctrl+R) e veja a mudança no lugar.
+curso *ARGS:
+    flutter run -d linux --no-enable-impeller {{lib_key}} --dart-entrypoint-args="--curso {{ARGS}}"
 
 # Atualiza o grafo de contexto do graft/ (ver AGENTS.md).
 graft:

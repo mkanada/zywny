@@ -543,3 +543,54 @@ O validador diz o arquivo e a linha. As mensagens mais comuns:
 - `` um `abc` com `X:` já traz o cabeçalho: tire `clef`… `` — Com ABC completo, o cabeçalho é seu.
 - `` `H4` não é uma nota… `` — Notas vão de `C` a `B`, com `#` ou `b`, e a oitava.
 - (aviso) `` HTML não é interpretado e aparece como texto. `` — Use markdown em vez de HTML.
+
+## 12. Como ver sua lição (rascunho)
+
+Você escreve a pasta num editor e vê o resultado **no app**, sem pacote e
+sem assinatura. O rascunho é a única porta para conteúdo sem assinatura, e
+ela não guarda nada: fechar o app (ou a aba) apaga o curso, e o progresso
+do rascunho fica só na memória.
+
+**No computador (Linux e Windows):** nas configurações, seção Cursos,
+"Abrir pasta de curso (rascunho)…". A faixa "Rascunho · não verificado"
+fica no topo, com **Recarregar** (ou `Ctrl+R`): edite a lição no editor,
+recarregue e veja a mudança no lugar, sem refazer os exercícios. Pela linha
+de comando: `just curso minha-pasta`.
+
+**Na Web (Chrome ou Edge):** o mesmo "Abrir pasta…", escolhendo a pasta. O
+navegador guarda a permissão na sessão: Recarregar relê sem pedir a pasta
+de novo. **Nos outros navegadores (Firefox, Safari):** escolha o `.zip` da
+pasta (só os arquivos, sem assinar); Recarregar pede o arquivo de novo.
+
+**No celular (Android):** não há rascunho. Veja pelo computador ou pela Web
+no próprio celular.
+
+Com erros, a tela mostra a lista do validador (arquivo, linha, mensagem —
+erros primeiro) com Recarregar no topo. Só avisos: o curso abre e uma tira
+recolhível mostra "N avisos".
+
+Antes de mandar, confira na linha de comando:
+
+```
+dart run tool/zywny_course.dart validate minha-pasta
+dart run tool/zywny_course.dart validate minha-pasta --render
+```
+
+O `--render` carrega toda partitura no Verovio e confere que tem ao menos
+uma nota, que o MIDI não está vazio e que o `measures` cabe na partitura.
+Erro na linha da marca: "A partitura não renderiza (o Verovio disse: …)".
+Termine o corpo do `abc` com `|` (a barra fecha o compasso; sem ela a pauta
+sai vazia e muda).
+
+## 13. Como publicar
+
+Quando a lição estiver pronta, mande **a pasta** para o usuário (não o
+`.zip`, não o `.zywny`). Quem publica é ele: gera o pacote assinado com a
+chave dele e instala no app.
+
+```
+just pacote-curso minha-pasta
+```
+
+O comando valida antes; sem pacote de curso inválido. O app instalado nunca
+instala curso sem assinatura: só o que o usuário assinou.

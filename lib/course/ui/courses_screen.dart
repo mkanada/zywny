@@ -151,7 +151,9 @@ class _CourseCard extends StatelessWidget {
               Text(course.title, style: serifDisplay(fontSize: 20)),
               const SizedBox(height: 2),
               Text(
-                'por ${course.author}',
+                loaded.isDraft
+                    ? 'rascunho · por ${course.author}'
+                    : 'por ${course.author}',
                 style: const TextStyle(fontSize: 13, color: kInkCaption),
               ),
               const SizedBox(height: 10),

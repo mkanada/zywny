@@ -301,7 +301,7 @@ Tomadas pelo usuário em 2026-10-04.
 | [I09](I09-telas-e-progresso.md) | Progresso por curso, `requires`, telas do curso, da lição e do exercício, entrada na biblioteca | I03, I05 | — | **concluído** (2026-10-06; manual no aparelho pendente) |
 | [I10](I10-curso-inicial.md) | Curso inicial completo: as 10 lições revisadas, mídia, embutido no app | I05, I07, I08 | 1–10 | **concluído** (2026-10-06; código + conteúdo; manual no aparelho pendente, critérios 4–5) |
 | [I11](I11-testes-da-plataforma.md) | Testes da plataforma: cobertura do formato, aluno simulado em todo exercício, cursos quebrados | I10 | — | **concluído** (2026-10-06; código; sem manual — o passo não pede aparelho) |
-| [I12](I12-autoria-e-rascunho.md) | Autoria: `validate --render` e modo rascunho (desktop e Web) com Recarregar | I05, I09 | — | pendente |
+| [I12](I12-autoria-e-rascunho.md) | Autoria: `validate --render` e modo rascunho (desktop e Web) com Recarregar | I05, I09 | — | **concluído** (código; manual Linux/Web pendente, ver notas do I12) |
 | [I13](I13-conferencia.md) | Conferência: `just telas`, `just web-smoke`, aceite no celular, a lição escrita por alguém de fora | todos os I | — | pendente |
 
 Ordem sugerida: I01 → I02 → I03 (a primeira lição já roda num teste) → I05

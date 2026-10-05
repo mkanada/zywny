@@ -44,7 +44,18 @@ String abcSource(
     ..writeln('L:$unit');
   if (time != null) header.writeln('M:$time');
   header.writeln('K:${key ?? 'C'} clef=${clef.wire}');
-  final text = body.trim();
+  var text = body.trim();
+  // O leitor de ABC do Verovio só emite notas de compassos fechados: sem a
+  // barra final, a pauta sai vazia e o MIDI vazio (medido no I12). O corpo
+  // é um fragmento, não uma peça com barras do autor — fecha o último
+  // compasso. ABC completo (`X:`) passa intacto: lá a responsabilidade é
+  // do autor (o `--render` cobra).
+  if (text.isNotEmpty &&
+      !text.endsWith('|') &&
+      !text.endsWith(']') &&
+      !text.endsWith(':')) {
+    text = '$text|';
+  }
   return '$header$text\n';
 }
 

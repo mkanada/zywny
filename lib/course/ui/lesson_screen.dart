@@ -5,11 +5,14 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../audio/sound_engine.dart';
 import '../../ui/theme.dart';
 import '../course_progress.dart';
+import '../draft/course_issues_screen.dart' show DraftBanner;
 import '../format/course_model.dart';
 import '../loaded_course.dart';
 import 'course_flow.dart';
@@ -25,6 +28,9 @@ class LessonScreen extends StatefulWidget {
     required this.progress,
     required this.deps,
     this.lockedTitles,
+    this.draftLabel,
+    this.draftLoading = false,
+    this.onDraftReload,
   });
 
   final LoadedCourse loaded;
@@ -35,6 +41,11 @@ class LessonScreen extends StatefulWidget {
   /// Títulos que faltam (lição aberta "assim mesmo"): faixa de aviso e aviso
   /// nos cartões; o exercício roda normalmente.
   final List<String>? lockedTitles;
+
+  /// I12: rascunho — faixa com Recarregar (mesma da tela do curso).
+  final String? draftLabel;
+  final bool draftLoading;
+  final VoidCallback? onDraftReload;
 
   @override
   State<LessonScreen> createState() => _LessonScreenState();
@@ -69,7 +80,9 @@ class _LessonScreenState extends State<LessonScreen> {
     final lesson = _lesson;
     final locked = widget.lockedTitles;
     final next = _nextLesson(course, lesson);
-    return Scaffold(
+    final reload = widget.onDraftReload;
+    final isDraft = widget.loaded.isDraft || widget.draftLabel != null;
+    Widget scaffold = Scaffold(
       backgroundColor: kLibraryBg,
       appBar: AppBar(
         backgroundColor: kPanelSideBg,
@@ -113,7 +126,18 @@ class _LessonScreenState extends State<LessonScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (widget.loaded.isDraft) const _DraftLine(),
+                      if (isDraft && reload != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: DraftBanner(
+                            label:
+                                widget.draftLabel ?? widget.loaded.files.label,
+                            onReload: reload,
+                            loading: widget.draftLoading,
+                          ),
+                        )
+                      else if (widget.loaded.isDraft)
+                        const _DraftLine(),
                       if (locked != null && locked.isNotEmpty)
                         _LockedLine(titles: locked),
                       LessonView(
@@ -159,6 +183,23 @@ class _LessonScreenState extends State<LessonScreen> {
         ),
       ),
     );
+    if (isDraft && reload != null && !kIsWeb) {
+      final platform = defaultTargetPlatform;
+      final desktop =
+          platform == TargetPlatform.linux ||
+          platform == TargetPlatform.windows ||
+          platform == TargetPlatform.macOS;
+      if (desktop) {
+        scaffold = CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.keyR, control: true):
+                reload,
+          },
+          child: scaffold,
+        );
+      }
+    }
+    return scaffold;
   }
 
   /// Lição sem exercício lida até o fim: concluída sem tocar em nada.
@@ -188,6 +229,9 @@ class _LessonScreenState extends State<LessonScreen> {
           lessonId: next.id,
           progress: widget.progress,
           deps: widget.deps,
+          draftLabel: widget.draftLabel,
+          draftLoading: widget.draftLoading,
+          onDraftReload: widget.onDraftReload,
         ),
       ),
     );

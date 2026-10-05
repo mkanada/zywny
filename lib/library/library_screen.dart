@@ -8,6 +8,10 @@ import '../audio/sound_engine.dart';
 import '../course/course_installer.dart';
 import '../course/course_progress.dart';
 import '../course/course_store.dart';
+import '../course/draft/course_draft.dart';
+import '../course/draft/course_draft_screen.dart';
+import '../course/draft/draft_folder.dart';
+import '../course/format/course_files.dart';
 import '../course/loaded_course.dart';
 import '../course/ui/course_flow.dart';
 import '../course/ui/courses_screen.dart';
@@ -94,6 +98,7 @@ class LibraryScreen extends StatefulWidget {
     this.loadCourses,
     this.courseProgress,
     this.courseStore,
+    this.initialDraftPath,
   });
 
   /// Constrói a tela de partitura do hino aberto (`ScoreHomePage`).
@@ -125,6 +130,9 @@ class LibraryScreen extends StatefulWidget {
   /// Cursos instalados de pacotes `.zywny` (I04); os testes injetam.
   final CourseStore? courseStore;
 
+  /// I12 (`just curso <pasta>`): abre direto no rascunho da pasta.
+  final String? initialDraftPath;
+
   /// O seletor de arquivos `.zywny` (biblioteca ou curso, I04); os testes
   /// trocam por um falso.
 
@@ -154,6 +162,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
   late final CourseStore _coursesStore = widget.courseStore ?? CourseStore();
   late final CourseProgressStore _courseProgress =
       widget.courseProgress ?? CourseProgressStore();
+
+  /// I12: a pasta aberta como rascunho (some ao fechar o app). `null` sem
+  /// rascunho. O progresso é o do controlador (só memória).
+  CourseDraftController? _draft;
 
   /// Entrada MIDI do fluxo de cursos (só ele usa); o carimbo sai do
   /// cronômetro do app (a latência calibrada compensa o resto).
@@ -223,6 +235,53 @@ class _LibraryScreenState extends State<LibraryScreen> {
           deps: _courseDeps(),
           pickPackage: widget.pickLibraryFile,
           onLibraryInstalled: _reloadCatalog,
+          draftController: _draft,
+        ),
+      ),
+    );
+  }
+
+  /// I12: abre o rascunho (a tela com faixa + Recarregar). Com [path] (o
+  /// `just curso`), sem pedir a pasta; sem ele, pede ao usuário.
+  Future<void> _openDraft({String? path}) async {
+    if (path != null) {
+      final controller = CourseDraftController(
+        loadFiles: () => openDraftFolder(path),
+      );
+      _draft?.dispose();
+      _draft = controller;
+      await controller.reload();
+      if (!mounted) return;
+      _openDraftScreen(controller);
+      return;
+    }
+    final picked = await pickDraftCourseFiles();
+    if (picked == null || !mounted) return;
+    // `.zip` sem envelope (Web sem a API): Recarregar pede o arquivo de
+    // novo; pasta/handle: relê sem pedir (o próprio `CourseFiles` é vivo).
+    var current = picked;
+    final controller = CourseDraftController(
+      loadFiles: () async {
+        if (current is ZipCourseFiles) {
+          final again = await pickDraftCourseFiles();
+          if (again != null) current = again;
+        }
+        return current;
+      },
+    );
+    _draft?.dispose();
+    _draft = controller;
+    await controller.reload();
+    if (!mounted) return;
+    _openDraftScreen(controller);
+  }
+
+  void _openDraftScreen(CourseDraftController controller) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => CourseDraftScreen(
+          controller: controller,
+          deps: _courseDeps(),
         ),
       ),
     );
@@ -248,6 +307,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _lockPortrait();
     unawaited(_loadProgress());
     unawaited(_settingsLoaded);
+    final initial = widget.initialDraftPath;
+    if (initial != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_openDraft(path: initial));
+      });
+    }
   }
 
   @override
@@ -257,6 +322,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _midi.dispose();
     _courseMidi.dispose();
     unawaited(_courseEngine?.dispose());
+    _draft?.dispose();
     if (widget.progress == null) _progress.dispose();
     if (widget.trailProgress == null) _trail.dispose();
     if (widget.courseProgress == null) _courseProgress.dispose();
@@ -395,6 +461,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
             libraryStore: _libraries,
             pickLibraryFile: widget.pickLibraryFile,
             courseStore: _coursesStore,
+            onOpenDraft: draftPickerAvailable
+                ? () {
+                    Navigator.of(context).pop();
+                    unawaited(_openDraft());
+                  }
+                : null,
           ),
         ),
       ),
@@ -999,6 +1071,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
 /// A lista de cursos viva (I04): abre o embutido e os instalados; instalar
 /// outro atualiza a lista sem sair da tela. O estado mora aqui para a
 /// `LibraryScreen` não recarregar o resto junto.
+///
+/// I12: o rascunho aparece primeiro, com o rótulo "rascunho", e some ao
+/// fechar o app (o controlador morre com a `LibraryScreen`).
 class _LiveCoursesScreen extends StatefulWidget {
   const _LiveCoursesScreen({
     required this.initial,
@@ -1008,6 +1083,7 @@ class _LiveCoursesScreen extends StatefulWidget {
     required this.deps,
     required this.pickPackage,
     required this.onLibraryInstalled,
+    this.draftController,
   });
 
   /// O embutido (não muda enquanto a rota está aberta).
@@ -1018,6 +1094,7 @@ class _LiveCoursesScreen extends StatefulWidget {
   final CourseScreenDeps deps;
   final Future<Uint8List?> Function() pickPackage;
   final VoidCallback onLibraryInstalled;
+  final CourseDraftController? draftController;
 
   @override
   State<_LiveCoursesScreen> createState() => _LiveCoursesScreenState();
@@ -1049,20 +1126,87 @@ class _LiveCoursesScreenState extends State<_LiveCoursesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<LoadedCourse>>(
-      future: _courses,
-      builder: (context, snapshot) => CoursesScreen(
-        courses: snapshot.data ?? widget.initial,
-        progress: widget.progress,
-        onOpen: (context, course) => openCourseScreen(
-          context,
-          course,
+    final draft = widget.draftController;
+    if (draft == null) {
+      return FutureBuilder<List<LoadedCourse>>(
+        future: _courses,
+        builder: (context, snapshot) => CoursesScreen(
+          courses: snapshot.data ?? widget.initial,
           progress: widget.progress,
-          deps: widget.deps,
+          onOpen: (context, course) => openCourseScreen(
+            context,
+            course,
+            progress: widget.progress,
+            deps: widget.deps,
+          ),
+          onInstall: () => unawaited(_install()),
         ),
-        onInstall: () => unawaited(_install()),
-      ),
+      );
+    }
+    return ListenableBuilder(
+      listenable: draft,
+      builder: (context, _) {
+        final draftLoaded = draft.loaded;
+        return FutureBuilder<List<LoadedCourse>>(
+          future: _courses,
+          builder: (context, snapshot) {
+            final rest = snapshot.data ?? widget.initial;
+            final courses = draftLoaded == null
+                ? rest
+                : [draftLoaded, ...rest];
+            return CoursesScreen(
+              courses: courses,
+              // O progresso do rascunho é o da sessão; os demais, o disco.
+              progress: _DraftAwareProgress(
+                draftId: draftLoaded?.id,
+                draftProgress: draft.progress,
+                fallback: widget.progress,
+              ),
+              onOpen: (context, course) {
+                if (draftLoaded != null && course.id == draftLoaded.id) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (context) => CourseDraftScreen(
+                        controller: draft,
+                        deps: widget.deps,
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                openCourseScreen(
+                  context,
+                  course,
+                  progress: widget.progress,
+                  deps: widget.deps,
+                );
+              },
+              onInstall: () => unawaited(_install()),
+            );
+          },
+        );
+      },
     );
+  }
+}
+
+/// O progresso da lista com rascunho: o id do rascunho sai da sessão, o
+/// resto do disco (I12).
+class _DraftAwareProgress extends CourseProgressStore {
+  _DraftAwareProgress({
+    required this.draftId,
+    required this.draftProgress,
+    required this.fallback,
+  });
+
+  final String? draftId;
+  final MemoryCourseProgressStore draftProgress;
+  final CourseProgressStore fallback;
+
+  @override
+  CourseProgress operator [](String courseId) {
+    if (courseId == draftId) return draftProgress[courseId];
+    return fallback[courseId];
   }
 }
 

@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny/course/format/course_reader.dart';
 import 'package:zywny/course/format/directory_course_files.dart';
 
+import 'support/render_helper.dart' show verovioAvailable;
+
 /// Cada pasta de `test/fixtures/cursos/` tem um `esperado.txt` com a saída
 /// exata do validador (o que o professor vai ver).
 ///
@@ -26,24 +28,39 @@ void main() {
 
   for (final course in courses) {
     final name = course.path.split('/').last;
-    // `erro-render` só vale com o `--render` do I12 (Verovio): o `readCourse`
-    // puro não dá erro aqui (ABC sem notas passa no validador). Pulado até o
-    // I12, onde a fixture passa a valer.
-    final skipRender = name == 'erro-render'
-        ? '--render do I12 ainda não existe (ABC sem notas)'
-        : null;
+    if (name == 'erro-render') {
+      // I12: só vale com o `--render` (Verovio): o `readCourse` puro não dá
+      // erro aqui (ABC sem notas passa no validador). Testa a linha de
+      // comando de verdade, que usa o Verovio por FFI.
+      test('$name: o --render dá a mensagem esperada', () async {
+        final expected = File('${course.path}/esperado.txt').readAsStringSync();
+        final run = await Process.run('dart', [
+          'run',
+          'tool/zywny_course.dart',
+          'validate',
+          course.path,
+          '--render',
+        ]);
+        expect(run.stdout, expected);
+        expect(run.exitCode, 1);
+      }, skip: verovioAvailable ? false : 'libverovio.so ausente');
+      test('$name: sem --render não há erro (só o formato)', () async {
+        final result = await readCourse(DirectoryCourseFiles(course));
+        expect(result.issues, isEmpty);
+        expect(result.course, isNotNull);
+      });
+      continue;
+    }
     test('$name: a saída do validador é a esperada', () async {
       final expected = File('${course.path}/esperado.txt').readAsStringSync();
       final result = await readCourse(DirectoryCourseFiles(course));
       final actual = [for (final issue in result.issues) '$issue\n'].join();
       expect(actual, expected);
       expect(result.course == null, result.hasErrors);
-      if (name.startsWith('erro-') &&
-          !name.contains('lista') &&
-          name != 'erro-render') {
+      if (name.startsWith('erro-') && !name.contains('lista')) {
         expect(result.hasErrors, isTrue);
       }
-    }, skip: skipRender);
+    });
   }
 
   test('lib/course/format não importa Flutter', () {

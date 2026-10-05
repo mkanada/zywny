@@ -25,7 +25,7 @@ void main() {
           final abc = abcSource('C D', clef: clef, key: key, time: '3/4');
           expect(
             abc,
-            'X:1\nT:lesson\nL:1/4\nM:3/4\nK:$key clef=${clef.wire}\nC D\n',
+            'X:1\nT:lesson\nL:1/4\nM:3/4\nK:$key clef=${clef.wire}\nC D|\n',
           );
         }
       }
@@ -38,8 +38,14 @@ void main() {
       expect(abcSource('C', unit: '1/8'), contains('\nL:1/8\n'));
     });
 
-    test('o corpo é aparado e termina em quebra de linha', () {
-      expect(abcSource('\n  C D E  \n\n'), endsWith('clef=treble\nC D E\n'));
+    test('o corpo é aparado, fecha o compasso e termina em quebra de linha', () {
+      expect(abcSource('\n  C D E  \n\n'), endsWith('clef=treble\nC D E|\n'));
+    });
+
+    test('barra final não duplica', () {
+      expect(abcSource('C D E|'), endsWith('C D E|\n'));
+      expect(abcSource('C D E||'), endsWith('C D E||\n'));
+      expect(abcSource('C D E|]'), endsWith('C D E|]\n'));
     });
 
     test('ABC com X: passa intacto, mesmo com clef/key/time', () {
