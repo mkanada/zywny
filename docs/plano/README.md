@@ -42,7 +42,7 @@ saídas temporárias em `compare/out/`, não alterar `View`/`SvgDeviceContext`,
 a spec `docs/formato/especificacao-v1.md` é atualizada junto com o formato).
 O plano **daquele** repo usa os prefixos F/S/R/A/E/P (+ G, ver abaixo); os
 passos deste plano usam prefixos próprios (X, N, C, K, M, T, W, V, J, L,
-U, B) para não colidir.
+U, B, I) para não colidir.
 
 A fase **J** (trilha de estudo: a música em trechos, com etapas que se
 desbloqueiam como fases de um jogo) tem especificação própria em
@@ -77,6 +77,14 @@ são só ponteiros: o trabalho de verdade está detalhado e é executado **lá**
 como **G01** e **G02** (fase nova do plano do bridge, letra escolhida por
 não colidir com nenhum prefixo dos dois planos). N02 mantém aqui só o
 passo zywny-side de verificação (`just native`, rodar o app).
+
+A fase **I** (lições de terceiros: cursos em markdown com marcas, escritos
+por professores; o zywny mostra o conteúdo, roda os exercícios e confere os
+critérios de aceite) tem especificação em
+[I00-licoes-e-curso-inicial.md](I00-licoes-e-curso-inicial.md). O primeiro
+curso nesse formato, o **curso inicial** (teclado, pauta, claves, acidentes,
+tempos), é o teste de aceite da plataforma. As decisões D-LIC-\* estão lá,
+abertas; os arquivos dos passos I01–I13 são escritos depois delas.
 
 ## Convenções
 
@@ -251,6 +259,7 @@ zywny
 | D-ORDEM | A seta da ordenação: direção real ("↑" crescente) ou a regra do artboard ("↓" = direção padrão da chave)? | U14 (só a seta) | Direção real | **decidida**: direção real (U14) |
 | D-SALTO | Trilha em músicas cujo caminho sem repetições tem salto (casas de 1ª/2ª vez, vários ritornelos): salto no agendador ou usar a última passagem? | J08 | **decidida (a)**: salto no agendador (generaliza o loop para vãos; sessões pré-filtradas sem os vãos) — a via (b) resgatava só 15/115 saltos (o resto é intro+casas e ritornelos seguidos); medição refeita: 0 hinos sem trilha — ver [J08](J08-saltos-no-caminho.md) | **decidida** |
 | D-BIB | Bibliotecas instaláveis: distribuição, app vazio, origem, Web, fonte dos clássicos, remover, atualizar, migrar, termo, extensão | fase B | — | **decidida** (2026-10-04): as 14 decisões D-BIB-* no [B00](B00-bibliotecas-instalaveis.md) |
+| D-LIC | Lições de terceiros: sintaxe das marcas, idioma, confiança, vídeo, notação, autoria, curso inicial, nomes, sem teclado, entrada | fase I | ver o [I00](I00-licoes-e-curso-inicial.md) | **aberta** (10 decisões D-LIC-\*) |
 | D-BIB-CIFRA | Pacote `.zywny` cifrado e assinado; privada gera, pública sob controle do usuário, chaves fora do git | fase B | — | **decidida** (2026-10-04): ver o B00 "O envelope" |
 
 ## Riscos conhecidos
@@ -345,6 +354,7 @@ zywny
 | [B08](B08-app-sem-hinos-embutidos.md) | Bibliotecas: o app sem hinos embutidos | B05, B06, B07 | D-BIB | concluído (aceite manual pendente) |
 | [B09](B09-curadoria-dos-classicos.md) | Bibliotecas: curadoria dos clássicos (musetrainer/library) | — | lista aprovada pelo usuário | proposta pronta (43 peças), **aguardando aprovação** |
 | [B10](B10-pacote-dos-classicos.md) | Bibliotecas: pacote dos clássicos | B02, B09 | D-BIB | pendente (espera a aprovação do B09) |
+| [I00](I00-licoes-e-curso-inicial.md) | Lições de terceiros e curso inicial: formato, tipos, testes e índice (passos I01–I13) | — | D-LIC | proposta, **aguardando decisões** |
 
 Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
 Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em
