@@ -292,32 +292,28 @@ Future<void> _libraryReady(WidgetTester tester) async {
 }
 
 /// Toca na pastilha de ordenação [label], rolando a fila até ela (as
-/// últimas ficam fora da tela, e a fila só constrói o que está perto).
+/// últimas ficam fora da tela, e a fila só constrói o que está perto). Em
+/// paisagem a biblioteca tem as seis à vista, sem fila para rolar.
 Future<void> _sortBy(WidgetTester tester, String label) async {
   final chip = find.textContaining(label);
-  final row = find.descendant(
-    of: find.byWidgetPredicate(
-      (w) => w is ListView && w.scrollDirection == Axis.horizontal,
-    ),
-    matching: find.byType(Scrollable),
+  final rowList = find.byWidgetPredicate(
+    (w) => w is ListView && w.scrollDirection == Axis.horizontal,
   );
-  await tester.scrollUntilVisible(
-    chip,
-    label == 'Número' ? -120 : 120,
-    scrollable: row,
-  );
+  if (_has(rowList)) {
+    await tester.scrollUntilVisible(
+      chip,
+      label == 'Número' ? -120 : 120,
+      scrollable: find.descendant(
+        of: rowList,
+        matching: find.byType(Scrollable),
+      ),
+    );
+  }
   await _wait(tester, 300);
   await _tap(tester, chip);
 }
 
 Future<void> _openPieceFromList(WidgetTester tester) async {
-  // Em paisagem a lista da biblioteca fica sem altura (o topo é fixo): o
-  // toque no hino só cabe em retrato.
-  if (_kForcedOrientation == 'paisagem') {
-    final size = tester.view.physicalSize;
-    tester.view.physicalSize = Size(size.shortestSide, size.longestSide);
-    await _wait(tester, 800);
-  }
   await _until(tester, () => _has(find.text(_kHymnTitle)), what: 'o hino');
   await tester.tap(find.text(_kHymnTitle).last, warnIfMissed: false);
   _forceOrientation(tester, score: true);

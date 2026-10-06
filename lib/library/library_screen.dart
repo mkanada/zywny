@@ -81,6 +81,20 @@ class OpenedPiece {
   final TrailProgressStore trailProgress;
 }
 
+/// Abaixo desta altura, com a janela mais larga que alta, a biblioteca vira
+/// duas colunas (um celular deitado tem ~390–430 dp; um tablet ou uma janela
+/// de desktop passa disso e fica como no retrato).
+const _kSideBySideMaxHeight = 600.0;
+
+/// Largura máxima do corpo em duas colunas (em retrato, 720).
+const _kSideBySideMaxWidth = 1000.0;
+
+/// Largura da coluna da esquerda (cursos, "Continuar", ordenação): 37% do
+/// corpo, entre estes limites. Com 300 as seis pastilhas fecham em duas
+/// linhas num celular de 844 dp.
+const _kShortcutsMinWidth = 264.0;
+const _kShortcutsMaxWidth = 304.0;
+
 /// Tela inicial, em retrato — artboard `CelularBiblioteca.dc.html` do
 /// artefato "zywny — interface de estudo", com os hinos embutidos no lugar
 /// das partituras de exemplo. Não há "abrir arquivo": o app não importa
@@ -333,6 +347,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String _query = '';
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _listScroll = ScrollController();
+  final GlobalKey _listKey = GlobalKey(debugLabel: 'library-list');
 
   /// O histórico já foi lido: antes disso não se sabe se é o primeiro uso, e
   /// o cartão de começo não pode piscar para quem já estudou (U16).
@@ -541,22 +556,36 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  /// Celular deitado: a janela é mais larga que alta e baixa. Aí o topo
+  /// empilhado (título, cursos, busca, "Continuar", ordenação) ocupava a
+  /// altura inteira e a lista ficava com zero (O1); a biblioteca passa a duas
+  /// colunas. Lê a janela, e não o corpo: com o teclado virtual aberto o corpo
+  /// encolhe, e um celular em pé não pode trocar de arranjo no meio da busca.
+  static bool _sideBySide(Size window) =>
+      window.width > window.height && window.height < _kSideBySideMaxHeight;
+
   Widget _body() {
+    final sideBySide = _sideBySide(MediaQuery.sizeOf(context));
     return SizedBox.expand(
       child: SafeArea(
         bottom: false,
         child: Center(
           // Numa janela larga (desktop) a lista não se esparrama: fica na
-          // medida de leitura de um celular deitado.
+          // medida de leitura de um celular deitado (e, em duas colunas, de
+          // um celular deitado com folga).
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
+            constraints: BoxConstraints(
+              maxWidth: sideBySide ? _kSideBySideMaxWidth : 720,
+            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: FutureBuilder<PieceCatalog>(
                 future: _catalog,
                 builder: (context, snapshot) => ListenableBuilder(
                   listenable: Listenable.merge([_progress, _trail]),
-                  builder: (context, _) => _content(snapshot),
+                  builder: (context, _) => sideBySide
+                      ? _contentSideBySide(snapshot)
+                      : _content(snapshot),
                 ),
               ),
             ),
@@ -590,18 +619,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     const SizedBox(height: 14),
                   ],
                   if (catalog == null)
-                    Expanded(
-                      child: Center(
-                        child: catalogError
-                            ? const Text(
-                                'Não consegui abrir a biblioteca.\n'
-                                'Instale-a de novo pelas configurações.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: kInkCaption),
-                              )
-                            : const CircularProgressIndicator(),
-                      ),
-                    )
+                    Expanded(child: _catalogWaiting(catalogError))
                   else ...[
                     _searchField(catalog.numbered),
                     const SizedBox(height: 14),
@@ -623,6 +641,119 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// A biblioteca em duas colunas, para o celular deitado: à esquerda o
+  /// título e os atalhos (cursos, "Continuar" ou "Comece por aqui",
+  /// ordenação), que rolam se a fonte for grande; à direita a busca, com
+  /// engrenagem e teclado no canto, e a lista na altura inteira. A lista
+  /// nunca divide a altura com o topo, então não há como zerá-la.
+  Widget _contentSideBySide(AsyncSnapshot<PieceCatalog> snapshot) {
+    final catalog = snapshot.data;
+    final catalogError = snapshot.hasError;
+    return FutureBuilder<List<LoadedCourse>>(
+      future: _courses,
+      builder: (context, coursesSnapshot) {
+        final courses = coursesSnapshot.data ?? const <LoadedCourse>[];
+        final noLibrary = catalog != null && !catalog.hasLibrary;
+        final bottomInset = MediaQuery.paddingOf(context).bottom;
+        return LayoutBuilder(
+          builder: (context, box) => Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: (box.maxWidth * 0.37).clamp(
+                  _kShortcutsMinWidth,
+                  _kShortcutsMaxWidth,
+                ),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: bottomInset),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Da altura da barra da direita: os dois topos alinham.
+                      SizedBox(
+                        height: 48,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _headerTitle(catalog),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (noLibrary) ...[
+                        // Sem biblioteca, o curso inicial é o caminho: fica
+                        // aqui, e o cartão de instalar, na direita.
+                        if (courses.isNotEmpty) _initialCourseCard(courses),
+                      ] else ...[
+                        if (courses.isNotEmpty) ...[
+                          _coursesRow(courses),
+                          const SizedBox(height: 12),
+                        ],
+                        if (catalog != null) ...[
+                          if (_continuing(catalog) case final piece?) ...[
+                            _continueCard(piece, catalog.term),
+                            const SizedBox(height: 12),
+                          ] else if (_progressLoaded) ...[
+                            _startCard(catalog.term),
+                            const SizedBox(height: 12),
+                          ],
+                          _sortChips(catalog.numbered, wrapped: true),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        if (catalog != null && !noLibrary)
+                          Expanded(child: _searchField(catalog.numbered))
+                        else
+                          const Spacer(),
+                        const SizedBox(width: 4),
+                        ..._headerActions(),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: noLibrary
+                          // No alto, na linha do cartão do curso inicial: os 6
+                          // dp são a folga a mais sob o título, à esquerda.
+                          ? SingleChildScrollView(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: _installCard(),
+                            )
+                          : catalog == null
+                          ? _catalogWaiting(catalogError)
+                          : _list(catalog),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// O catálogo ainda abre (roda) ou não abriu (erro).
+  Widget _catalogWaiting(bool error) {
+    return Center(
+      child: error
+          ? const Text(
+              'Não consegui abrir a biblioteca.\n'
+              'Instale-a de novo pelas configurações.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: kInkCaption),
+            )
+          : const CircularProgressIndicator(),
     );
   }
 
@@ -653,60 +784,64 @@ class _LibraryScreenState extends State<LibraryScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (courses.isNotEmpty) ...[
-              _InitialCourseCard(
-                onStart: () {
-                  final first = courses.first;
-                  final progress = _courseProgress[first.id];
-                  final next =
-                      [
-                        for (final lesson in first.course.lessons)
-                          if (!progress.lessonDone(lesson)) lesson,
-                      ].firstOrNull ??
-                      first.course.lessons.first;
-                  openLessonScreen(context, first, next, deps: _courseDeps());
-                },
-              ),
+              _initialCourseCard(courses),
               const SizedBox(height: 12),
             ],
-            Container(
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-              decoration: BoxDecoration(
-                color: kSurface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: kBorderSoft),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Instale uma biblioteca de músicas',
-                    textAlign: TextAlign.center,
-                    style: serifDisplay(fontSize: 22),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'O zywny não traz músicas. Elas chegam em bibliotecas: '
-                    'arquivos .zywny que você abre aqui. Uma delas fica em uso '
-                    'por vez, e você troca nas configurações.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: kInkCaption,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  FilledButton.icon(
-                    onPressed: () => unawaited(_installLibrary()),
-                    icon: const Icon(Icons.folder_open),
-                    label: const Text('Abrir arquivo…'),
-                  ),
-                ],
-              ),
-            ),
+            _installCard(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _initialCourseCard(List<LoadedCourse> courses) {
+    return _InitialCourseCard(
+      onStart: () {
+        final first = courses.first;
+        final progress = _courseProgress[first.id];
+        final next =
+            [
+              for (final lesson in first.course.lessons)
+                if (!progress.lessonDone(lesson)) lesson,
+            ].firstOrNull ??
+            first.course.lessons.first;
+        openLessonScreen(context, first, next, deps: _courseDeps());
+      },
+    );
+  }
+
+  Widget _installCard() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorderSoft),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Instale uma biblioteca de músicas',
+            textAlign: TextAlign.center,
+            style: serifDisplay(fontSize: 22),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'O zywny não traz músicas. Elas chegam em bibliotecas: '
+            'arquivos .zywny que você abre aqui. Uma delas fica em uso '
+            'por vez, e você troca nas configurações.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: kInkCaption, height: 1.4),
+          ),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: () => unawaited(_installLibrary()),
+            icon: const Icon(Icons.folder_open),
+            label: const Text('Abrir arquivo…'),
+          ),
+        ],
       ),
     );
   }
@@ -721,6 +856,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Widget _header(PieceCatalog? catalog) {
+    return Row(
+      children: [
+        Expanded(child: _headerTitle(catalog)),
+        ..._headerActions(),
+      ],
+    );
+  }
+
+  /// Nome e contagem numa linha só: um nome comprido de biblioteca corta a
+  /// contagem primeiro, depois a si mesmo — nunca estoura.
+  Widget _headerTitle(PieceCatalog? catalog) {
     final title = switch (catalog) {
       final c? when c.hasLibrary => c.libraryName,
       _ => 'Músicas',
@@ -728,37 +874,32 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final count = catalog == null || !catalog.hasLibrary
         ? ''
         : catalog.term.count(catalog.pieces.length);
-    return Row(
-      children: [
-        // Nome e contagem numa linha só: um nome comprido de biblioteca
-        // corta a contagem primeiro, depois a si mesmo — nunca estoura.
-        Expanded(
-          child: Text.rich(
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: title, style: serifDisplay(fontSize: 30)),
+          if (count.isNotEmpty)
             TextSpan(
-              children: [
-                TextSpan(text: title, style: serifDisplay(fontSize: 30)),
-                if (count.isNotEmpty)
-                  TextSpan(
-                    text: '  $count',
-                    style: const TextStyle(fontSize: 13, color: kInkCaption),
-                  ),
-              ],
+              text: '  $count',
+              style: const TextStyle(fontSize: 13, color: kInkCaption),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        IconButton(
-          tooltip: 'Configurações gerais',
-          onPressed: () => unawaited(_openSettings()),
-          color: kIconQuiet,
-          icon: const Icon(Icons.settings_outlined),
-        ),
-        // Engrenagem e teclado juntos, no canto.
-        MidiStatusPill(deviceManager: _midi),
-      ],
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
+
+  /// Engrenagem e teclado juntos, no canto.
+  List<Widget> _headerActions() => [
+    IconButton(
+      tooltip: 'Configurações gerais',
+      onPressed: () => unawaited(_openSettings()),
+      color: kIconQuiet,
+      icon: const Icon(Icons.settings_outlined),
+    ),
+    MidiStatusPill(deviceManager: _midi),
+  ];
 
   Widget _searchField(bool numbered) {
     OutlineInputBorder border(Color color) => OutlineInputBorder(
@@ -993,11 +1134,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (_listScroll.hasClients) _listScroll.jumpTo(0);
   }
 
-  Widget _sortChips(bool numbered) {
+  /// As pastilhas de ordenação. [wrapped] (duas colunas, celular deitado):
+  /// as seis à vista, quebrando em linhas, sem rolagem nem esmaecido.
+  Widget _sortChips(bool numbered, {bool wrapped = false}) {
     final keys = [
       for (final k in SortKey.values)
         if (numbered || k != SortKey.number) k,
     ];
+    _SortChip chipFor(SortKey key) => _SortChip(
+      label: '${labelFor(key)}${_sort.arrowFor(key)}',
+      selected: _sort.key == key,
+      onTap: () => setState(() => _sort = _sort.toggled(key)),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1011,47 +1159,47 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 36,
-          child: NotificationListener<ScrollMetricsNotification>(
-            onNotification: (n) {
-              _updateMoreChips(n.metrics);
-              return false;
-            },
-            child: NotificationListener<ScrollNotification>(
+        if (wrapped)
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [for (final key in keys) chipFor(key)],
+          )
+        else
+          SizedBox(
+            height: 36,
+            child: NotificationListener<ScrollMetricsNotification>(
               onNotification: (n) {
                 _updateMoreChips(n.metrics);
                 return false;
               },
-              // Um esmaecido na borda direita enquanto houver pastilhas
-              // fora da tela: "Recentes" e "Pontuação" têm pista.
-              child: ShaderMask(
-                blendMode: BlendMode.dstIn,
-                shaderCallback: (rect) => LinearGradient(
-                  colors: [
-                    Colors.black,
-                    Colors.black,
-                    _moreChips ? Colors.transparent : Colors.black,
-                  ],
-                  stops: const [0, 0.88, 1],
-                ).createShader(rect),
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: keys.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, i) {
-                    final key = keys[i];
-                    return _SortChip(
-                      label: '${labelFor(key)}${_sort.arrowFor(key)}',
-                      selected: _sort.key == key,
-                      onTap: () => setState(() => _sort = _sort.toggled(key)),
-                    );
-                  },
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (n) {
+                  _updateMoreChips(n.metrics);
+                  return false;
+                },
+                // Um esmaecido na borda direita enquanto houver pastilhas
+                // fora da tela: "Recentes" e "Pontuação" têm pista.
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (rect) => LinearGradient(
+                    colors: [
+                      Colors.black,
+                      Colors.black,
+                      _moreChips ? Colors.transparent : Colors.black,
+                    ],
+                    stops: const [0, 0.88, 1],
+                  ).createShader(rect),
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: keys.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) => chipFor(keys[i]),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -1086,6 +1234,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
     final now = DateTime.now();
     return ListView.builder(
+      // Girar o aparelho muda a lista de lugar na árvore (uma coluna ou o
+      // corpo inteiro): com a chave, ela vai junto e mantém a rolagem.
+      key: _listKey,
       controller: _listScroll,
       // 600 linhas iguais: altura fixa deixa a rolagem e a barra exatas.
       itemExtent: 64,
@@ -1661,13 +1812,17 @@ class _SortChip extends StatelessWidget {
         child: Container(
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              color: selected ? Colors.white : kInk,
+          // Do tamanho do texto: num `Wrap` (celular deitado) um `alignment`
+          // no Container esticaria cada pastilha à largura da coluna.
+          child: Center(
+            widthFactor: 1,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                color: selected ? Colors.white : kInk,
+              ),
             ),
           ),
         ),
