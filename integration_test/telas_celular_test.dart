@@ -127,6 +127,42 @@ bool _has(Finder finder) => finder.evaluate().isNotEmpty;
 bool _landscape(WidgetTester tester) =>
     tester.view.physicalSize.width > tester.view.physicalSize.height;
 
+/// `--dart-define=ZYWNY_TELAS_ORIENTACAO=retrato|paisagem` fotografa todas
+/// as telas numa orientação só, mesmo as que o app trava na outra (a
+/// partitura só vira paisagem): o tamanho da tela é fixado no Flutter, não
+/// no Android. Vazio, cada tela sai na orientação em que o app a mostra.
+const _kForcedOrientation = String.fromEnvironment('ZYWNY_TELAS_ORIENTACAO');
+
+/// Na passagem em retrato, as telas da partitura não saem (ver
+/// [_forceOrientation]).
+bool _skipShots = false;
+
+/// A tela está na orientação [landscape] — sempre, com a orientação forçada.
+bool _oriented(WidgetTester tester, {required bool landscape}) =>
+    _kForcedOrientation.isNotEmpty || _landscape(tester) == landscape;
+
+/// Fixa o tamanho da tela na orientação forçada (nada, sem ela). As barras
+/// do sistema viram margens fixas: a de status no topo em retrato; nada em
+/// paisagem, como a partitura imersiva.
+void _forceOrientation(WidgetTester tester, {bool score = false}) {
+  if (_kForcedOrientation.isEmpty) return;
+  final size = tester.view.physicalSize;
+  final long = size.longestSide;
+  final short = size.shortestSide;
+  final dpr = tester.view.devicePixelRatio;
+  // A partitura no celular só existe em paisagem (não grava a página numa
+  // caixa em retrato): na passagem em retrato ela abre deitada e não é
+  // fotografada.
+  _skipShots = score && _kForcedOrientation == 'retrato';
+  final portrait = _kForcedOrientation == 'retrato' && !score;
+  tester.view.physicalSize = portrait ? Size(short, long) : Size(long, short);
+  final padding = portrait
+      ? FakeViewPadding(top: 24 * dpr, bottom: 16 * dpr)
+      : FakeViewPadding.zero;
+  tester.view.padding = padding;
+  tester.view.viewPadding = padding;
+}
+
 /// Deixa o app andar por [ms] de relógio de verdade, quadro a quadro.
 Future<void> _wait(WidgetTester tester, [int ms = 600]) async {
   final end = DateTime.now().add(Duration(milliseconds: ms));
@@ -180,7 +216,11 @@ Future<void> _startExercise(WidgetTester tester, String title) async {
 /// externo (a lição e o curso têm roláveis aninhados e o padrão do
 /// `scrollUntilVisible` exige um só); se o mesmo texto sair duas vezes,
 /// vale o primeiro. Sem rolável na tela, falha explicando o que procurava.
-Future<void> _scrollTo(WidgetTester tester, Finder finder, [double dy = 400]) async {
+Future<void> _scrollTo(
+  WidgetTester tester,
+  Finder finder, [
+  double dy = 400,
+]) async {
   if (find.byType(Scrollable).evaluate().isEmpty) {
     fail('sem rolável na tela ao procurar $finder');
   }
@@ -189,11 +229,18 @@ Future<void> _scrollTo(WidgetTester tester, Finder finder, [double dy = 400]) as
   // `dragUntilVisible` rolar até construir a linha (`ListView.builder`).
   final target = n == 1 ? finder : (n > 1 ? finder.first : finder);
   final scrollable = find.byType(Scrollable).first;
-  await tester.scrollUntilVisible(target, dy, scrollable: scrollable);
+  try {
+    await tester.scrollUntilVisible(target, dy, scrollable: scrollable);
+  } on StateError {
+    // A tela voltou rolada para além do alvo (a lição guarda a posição):
+    // procura no outro sentido.
+    await tester.scrollUntilVisible(target, -dy, scrollable: scrollable);
+  }
   await _wait(tester, 800);
 }
 
 Future<void> _shot(WidgetTester tester, String name) async {
+  if (_skipShots) return;
   await tester.pump();
   final boundary =
       _shotKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
@@ -209,6 +256,21 @@ Future<void> _shot(WidgetTester tester, String name) async {
   debugPrint('tela: $name');
 }
 
+/// Escreve [text] na busca como o teclado virtual faria: o `enterText`
+/// não chega ao campo no aparelho (o binding de integração não registra o
+/// teclado de teste), e o `onChanged` da biblioteca só ouve digitação.
+Future<void> _typeSearch(WidgetTester tester, String text) async {
+  tester
+      .state<EditableTextState>(find.byType(EditableText).first)
+      .updateEditingValue(
+        TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: text.length),
+        ),
+      );
+  await tester.pump();
+}
+
 Future<void> _launch(WidgetTester tester, {required bool splash}) =>
     tester.pumpWidget(
       RepaintBoundary(
@@ -220,7 +282,9 @@ Future<void> _launch(WidgetTester tester, {required bool splash}) =>
 Future<void> _libraryReady(WidgetTester tester) async {
   await _until(
     tester,
-    () => !_landscape(tester) && _has(find.textContaining(' hinos')),
+    () =>
+        _oriented(tester, landscape: false) &&
+        _has(find.textContaining(' hinos')),
     what: 'biblioteca',
   );
   // As fontes do google_fonts chegam pela rede na primeira vez.
@@ -247,14 +311,23 @@ Future<void> _sortBy(WidgetTester tester, String label) async {
 }
 
 Future<void> _openPieceFromList(WidgetTester tester) async {
+  // Em paisagem a lista da biblioteca fica sem altura (o topo é fixo): o
+  // toque no hino só cabe em retrato.
+  if (_kForcedOrientation == 'paisagem') {
+    final size = tester.view.physicalSize;
+    tester.view.physicalSize = Size(size.shortestSide, size.longestSide);
+    await _wait(tester, 800);
+  }
+  await _until(tester, () => _has(find.text(_kHymnTitle)), what: 'o hino');
   await tester.tap(find.text(_kHymnTitle).last, warnIfMissed: false);
+  _forceOrientation(tester, score: true);
 }
 
 Future<void> _scoreReady(WidgetTester tester) async {
   await _until(
     tester,
     () =>
-        _landscape(tester) &&
+        _oriented(tester, landscape: true) &&
         _has(find.byType(ScoreView)) &&
         _has(find.byType(TrailTitleChip)),
     what: 'partitura com a trilha',
@@ -324,6 +397,7 @@ void _popRoute(WidgetTester tester) =>
 
 Future<void> _backToLibrary(WidgetTester tester) async {
   await _tap(tester, find.byTooltip('Voltar à biblioteca'));
+  _forceOrientation(tester);
   await _libraryReady(tester);
 }
 
@@ -565,10 +639,12 @@ Future<void> _seedHistory() async {
   // já se chamaram `ritmoD` um dia.
   final plan = _plan;
   final seg0 = [
-    for (final s in plan?.stages ?? const []) if (s.segment == 0) s,
+    for (final s in plan?.stages ?? const [])
+      if (s.segment == 0) s,
   ];
   final seg1 = [
-    for (final s in plan?.stages ?? const []) if (s.segment == 1) s,
+    for (final s in plan?.stages ?? const [])
+      if (s.segment == 1) s,
   ];
   final List<String> first;
   final String resumeId;
@@ -626,6 +702,7 @@ void main() {
   WidgetsApp.debugAllowBannerOverride = false;
 
   testWidgets('primeiro uso, sem teclado', (tester) async {
+    _forceOrientation(tester);
     await SharedPreferencesAsync().clear();
     // Emulador limpo não tem biblioteca instalada (o app não traz música):
     // garante a de teste antes de abrir, como as passagens seguintes fazem.
@@ -643,13 +720,13 @@ void main() {
     await _libraryReady(tester);
     await _shot(tester, '02-biblioteca-primeiro-uso');
 
-    await tester.enterText(find.byType(TextField), 'santo');
+    await _typeSearch(tester, 'santo');
     await _wait(tester);
     await _shot(tester, '03-biblioteca-busca');
-    await tester.enterText(find.byType(TextField), 'chopin');
+    await _typeSearch(tester, 'chopin');
     await _wait(tester);
     await _shot(tester, '04-biblioteca-busca-sem-resultado');
-    await tester.enterText(find.byType(TextField), '');
+    await _typeSearch(tester, '');
     FocusManager.instance.primaryFocus?.unfocus();
     await _wait(tester);
 
@@ -681,11 +758,12 @@ void main() {
     await _tap(tester, find.byTooltip('Fechar'));
 
     // Abre o hino: a tela vira para paisagem e o Verovio grava a página.
-    await _until(tester, () => _has(find.text(_kHymnTitle)), what: 'o hino');
     await _openPieceFromList(tester);
     await _until(
       tester,
-      () => _landscape(tester) && _has(find.byType(PhoneTitleBar)),
+      () =>
+          _oriented(tester, landscape: true) &&
+          _has(find.byType(PhoneTitleBar)),
       what: 'tela da partitura',
     );
     await tester.pump(const Duration(milliseconds: 60));
@@ -774,6 +852,7 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 12)));
 
   testWidgets('com histórico e teclado MIDI', (tester) async {
+    _forceOrientation(tester);
     await _seedHistory();
     _keyboard.plug();
     await _launch(tester, splash: false);
@@ -793,6 +872,7 @@ void main() {
     await _shot(tester, '29-teclado-midi-conectado');
     await _tap(tester, find.text('Fechar'));
 
+    _forceOrientation(tester, score: true);
     await tester.tap(find.byTooltip('Continuar estudo'), warnIfMissed: false);
     await _scoreReady(tester);
     await _shot(tester, '30-trilha-retomada');
@@ -904,6 +984,7 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 12)));
 
   testWidgets('cursos da fase I', (tester) async {
+    _forceOrientation(tester);
     // Sem biblioteca (não mexe no blob instalado): a tela direto com o
     // catálogo vazio mostra o cartão do curso inicial.
     _keyboard.unplug();
@@ -975,7 +1056,9 @@ void main() {
     await _tap(tester, find.textContaining('Cursos ·'));
     await _until(
       tester,
-      () => _has(find.text('Cursos')) && _has(find.text('Primeiros passos ao piano')),
+      () =>
+          _has(find.text('Cursos')) &&
+          _has(find.text('Primeiros passos ao piano')),
       what: 'lista de cursos',
       seconds: 30,
     );
@@ -994,6 +1077,7 @@ void main() {
 
     // Lição 2 em retrato: topo, partitura e cartão do exercício. O corpo da
     // lição é RichText (markdown), não Text.
+    await _scrollTo(tester, find.text('A pauta e a clave de sol'));
     await _tap(tester, find.text('A pauta e a clave de sol'));
     await _until(
       tester,
@@ -1006,10 +1090,7 @@ void main() {
     );
     await _wait(tester, 1500);
     await _shot(tester, '52-licao-2-topo');
-    await _scrollTo(
-      tester,
-      find.text('Do Dó ao Sol na clave de sol'),
-    );
+    await _scrollTo(tester, find.text('Do Dó ao Sol na clave de sol'));
     await _shot(tester, '53-licao-2-partitura');
     await _scrollTo(tester, find.text('Toque do Dó ao Sol'));
     await _shot(tester, '54-licao-2-exercicio');
@@ -1023,14 +1104,19 @@ void main() {
     await _wait(tester, 1500);
     await _startExercise(tester, 'Toque do Dó ao Sol');
     _keyboard.unplug();
-    await _until(
-      tester,
-      () => _has(find.text('Conecte o teclado')),
-      what: 'porta do teclado no exercício',
-      seconds: 60,
-    );
-    await _wait(tester, 800);
-    await _shot(tester, '55-exercicio-conecte-o-teclado');
+    // Se a rodada já começou, o exercício não se reconstrói ao perder o
+    // teclado e a porta não aparece: sem ela, segue sem a foto 55.
+    final gateUntil = DateTime.now().add(const Duration(seconds: 30));
+    while (!_has(find.text('Conecte o teclado')) &&
+        DateTime.now().isBefore(gateUntil)) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    if (_has(find.text('Conecte o teclado'))) {
+      await _wait(tester, 800);
+      await _shot(tester, '55-exercicio-conecte-o-teclado');
+    } else {
+      debugPrint('telas: sem a porta do teclado (55)');
+    }
     // De volta à lição, religa para as telas com partitura.
     _popRoute(tester);
     await _wait(tester);
@@ -1057,7 +1143,9 @@ void main() {
     await _wait(tester);
     await _until(
       tester,
-      () => _has(find.text('Apresentação')),
+      () =>
+          _has(find.text('Apresentação')) ||
+          _has(find.text('A pauta e a clave de sol')),
       what: 'tela do curso depois dos pops',
       seconds: 30,
     );
@@ -1074,10 +1162,7 @@ void main() {
       what: 'choice do bequadro',
       seconds: 30,
     );
-    await _scrollTo(
-      tester,
-      find.text('Para que serve o bequadro'),
-    );
+    await _scrollTo(tester, find.text('Para que serve o bequadro'));
     await _shot(tester, '57-licao-8-choice-cartao');
     await _startExercise(tester, 'Para que serve o bequadro');
     await _until(
@@ -1095,9 +1180,19 @@ void main() {
     await _wait(tester);
 
     // play-notes com teclado: antes e depois da rodada (a lista está na
-    // lição 8; rola de volta até a lição 2).
-    await _scrollTo(tester, find.text('A pauta e a clave de sol'));
-    await tester.tap(find.text('A pauta e a clave de sol'), warnIfMissed: false);
+    // lição 8; rola de volta, para cima, até a lição 2).
+    await _scrollTo(tester, find.text('A pauta e a clave de sol'), -400);
+    // Rolando para cima, a linha para rente ao cabeçalho: centraliza antes
+    // do toque.
+    await Scrollable.ensureVisible(
+      tester.element(find.text('A pauta e a clave de sol').first),
+      alignment: 0.5,
+    );
+    await _wait(tester, 500);
+    await tester.tap(
+      find.text('A pauta e a clave de sol'),
+      warnIfMissed: false,
+    );
     await _wait(tester, 1500);
     await _startExercise(tester, 'Toque do Dó ao Sol');
     await _until(

@@ -16,6 +16,22 @@ O roteiro é `integration_test/telas_celular_test.dart`; quem grava os PNGs é
 `test_driver/telas_celular.dart`. Precisa do mesmo preparo do `just build-apk`
 (`.so` do Verovio e do áudio em `jniLibs/`, hinos e `verovio_data.zip`).
 
+### Em retrato e em paisagem
+
+As pastas [`retrato/`](retrato/) e [`paisagem/`](paisagem/) têm as mesmas
+telas numa orientação só (lado a lado em [`../ORIENTACAO.md`](../ORIENTACAO.md);
+análise em [`../../ux/estudo-ux-orientacao.md`](../../ux/estudo-ux-orientacao.md)).
+O roteiro fixa o tamanho da tela no Flutter, não no Android:
+
+    adb push dist/hinos.zywny /data/local/tmp/hinos.zywny
+    TELAS_DIR=docs/telas/celular/retrato just telas \
+        --dart-define=ZYWNY_TEST_LIBRARY=/data/local/tmp/hinos.zywny \
+        --dart-define=ZYWNY_TELAS_ORIENTACAO=retrato
+
+(idem com `paisagem`). A partitura só existe em paisagem: na passagem em
+retrato ela abre deitada e não é fotografada. Em paisagem a biblioteca não
+mostra a lista, e o roteiro gira para retrato só para tocar no hino.
+
 O que as fotos **não** mostram:
 
 - a barra de status e a de navegação do Android (a foto é só da área do

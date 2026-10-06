@@ -4,6 +4,7 @@ Todas as telas do app num só lugar, em ordem de uso. Capturas do app real num c
 
 - Como refazer as fotos e o que elas não mostram: [`celular/README.md`](celular/README.md).
 - Análise de UX a partir delas: [`../ux/estudo-ux-celular.md`](../ux/estudo-ux-celular.md).
+- As mesmas telas em retrato e em paisagem, lado a lado: [`ORIENTACAO.md`](ORIENTACAO.md); análise em [`../ux/estudo-ux-orientacao.md`](../ux/estudo-ux-orientacao.md).
 - Protótipo navegável (não é o app): `lib/mockup/` e `lib/main_mockup.dart` — não entra nas fotos.
 
 Total: 60 telas.
