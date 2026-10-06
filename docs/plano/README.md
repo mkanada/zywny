@@ -380,8 +380,8 @@ zywny
 | [I12](I12-autoria-e-rascunho.md) | Lições: `validate --render` e modo rascunho (desktop e Web) | I05, I09 | D-LIC | **concluído** (código; manual Linux/Web pendente, ver notas do I12) |
 | [I13](I13-conferencia.md) | Lições: conferência (`just telas`, Web, celular, lição de fora) | todos os I | — | em andamento (parte automática concluída: telas + web-smoke verdes; manuais 4–5 com o usuário) |
 | [Q00](Q00-transpor-sem-acidentes.md) | Transpor sem acidentes: as três alturas, a tabela de intervalos, a conferência no teclado e índice (passos Q01–Q08) | — | D-TRP | especificação (decisões tomadas) |
-| [Q01](Q01-verovio-transpondo.md) | Transpor: medir o Verovio transpondo (`.vsb`, repetições, determinismo, faixa) | — | — | pendente |
-| [Q02](Q02-calculo-da-transposicao.md) | Transpor: `Transposition` e `PitchFrame` (cálculo puro) | — | D-TRP | pendente |
+| [Q01](Q01-verovio-transpondo.md) | Transpor: medir o Verovio transpondo (`.vsb`, repetições, determinismo, faixa) | — | — | concluído (469 hinos, 0 problemas; ids mudam a cada render — ver as notas) |
+| [Q02](Q02-calculo-da-transposicao.md) | Transpor: `Transposition` e `PitchFrame` (cálculo puro) | — | D-TRP | concluído |
 | [Q03](Q03-guardar-e-renderizar.md) | Transpor: guardar por música, chave geral, render transposto | Q01, Q02 | D-TRP | pendente |
 | [Q04](Q04-progresso-por-tom.md) | Transpor: progresso separado por tom | Q03 | D-TRP | pendente |
 | [Q05](Q05-as-alturas-no-app.md) | Transpor: casador na altura escrita, som no tom original | Q02, Q03 | D-TRP | pendente |

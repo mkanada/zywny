@@ -103,7 +103,15 @@ duas passarem, avisa.
 **Mudança de tom no meio**: a transposição é uma só para a música inteira (o
 TRANSPOSE do teclado é um só). A segunda armadura pode continuar com
 acidentes. O app não tenta otimizar isso na v1; avisa "a partir do compasso N
-a armadura tem 2♯" se for barato descobrir no `.vsb` (Q01 mede).
+a armadura tem 2♯". **É barato** (Q01): vem do `key` de cada nota no
+`pitchpos.json` + a ordem dos `measureOn` do timemap, sem render a mais
+(40–440 µs por hino). No catálogo são 38 hinos de 469, e em 35 deles a armadura
+que sobra tem **mais** acidentes que a do trecho original (26 chegam a 5 ou
+mais): o aviso importa.
+
+**O catálogo de hinos só tem armaduras de 5♭ a 4♯** (Q01): as linhas +5, ±6 e
+±7 da tabela não aparecem em hino nenhum; foram conferidas por ida e volta
+com um hino em Dó, e valem para outras bibliotecas.
 
 ## Onde a transposição acontece
 
@@ -118,15 +126,22 @@ Passar `{"transpose": "-m3"}` em `VsbRenderRequest.options`
 (`lib/verovio_render.dart` L15) muda de uma vez:
 
 - a cena: armadura, notas, acidentes, cifras;
-- o timemap e o `notes.json` (N01): pitches já na altura **escrita**. O
+- o timemap e o `midi.json` (N01): pitches já na altura **escrita**. O
   documento expandido das repetições (`Toolkit::SetMidiDoc`, L288) é
   importado do MEI já transposto, então também sai transposto — **Q01
-  confere que não transpõe duas vezes**;
+  conferiu que não transpõe duas vezes** (417 hinos com repetição, 152.135
+  notas, todas deslocadas uma vez só);
 - a Web: o worker (`web/verovio_worker.js` L40) passa as mesmas opções ao
   WASM.
 
-Os `xml:id` não mudam. Por isso trilha (J), decorar (L) e destaques
-**funcionam igual** na partitura transposta: são todos por id. O progresso,
+Os `xml:id` são sorteados de novo **a cada render**, com ou sem transposição
+(o app não passa `xmlIdSeed`; Q01 mediu), então nada que o app guarda usa id
+de nota: a trilha (J) guarda por trecho (`t<N>.<fase>`) e os destaques vivem
+numa renderização só. Por isso trilha, decorar (L) e destaques **funcionam
+igual** na partitura transposta: o `midi.json`, o timemap e a cena trazem o
+mesmo número de notas, na mesma ordem, com os mesmos tempos. (Com a mesma
+semente os ids dos elementos musicais ficam iguais entre original e
+transposto; quem precisar disso passa `xmlIdSeed` nas opções.) O progresso,
 porém, é **separado por tom** (D-TRP-PROGRESSO, abaixo).
 
 ## Progresso separado por tom
@@ -222,8 +237,8 @@ Todas tomadas pelo usuário em 2026-10-04.
 
 | Passo | O que entrega | Depende de | Estado |
 | --- | --- | --- | --- |
-| [Q01](Q01-verovio-transpondo.md) | Medir o Verovio transpondo: cena, timemap, `notes.json`, alternates e repetições coerentes em hinos de cada armadura; sem transposição dupla no doc expandido; tempo de render; mudança de armadura no meio | — | pendente |
-| [Q02](Q02-calculo-da-transposicao.md) | Cálculo puro: `Transposition` (intervalo, `k`, armadura resultante, instrução do teclado, faixa) e `PitchFrame` (as conversões); testes de tabela | — | pendente |
+| [Q01](Q01-verovio-transpondo.md) | Medir o Verovio transpondo: cena, timemap, `midi.json`, alternates e repetições coerentes em hinos de cada armadura; sem transposição dupla no doc expandido; tempo de render; mudança de armadura no meio | — | **concluído** (2026-10-06): 469 hinos, 0 problemas; ver as descobertas nas notas |
+| [Q02](Q02-calculo-da-transposicao.md) | Cálculo puro: `Transposition` (intervalo, `k`, armadura resultante, instrução do teclado, faixa) e `PitchFrame` (as conversões); testes de tabela | — | **concluído** (2026-10-06) |
 | [Q03](Q03-guardar-e-renderizar.md) | Guardar e renderizar: `PieceSettings.transpose`, chave geral, `transpose` no render (nativo e Web) | Q01, Q02 | pendente |
 | [Q04](Q04-progresso-por-tom.md) | Progresso por tom: `progressIdFor`, trilha e pontuação com sufixo, biblioteca mostra o tom em uso | Q03 | pendente |
 | [Q05](Q05-as-alturas-no-app.md) | As alturas no app: casador recebe a escrita; agendador, monitor e saída MIDI tocam a soada; comportamento por teclado guardado | Q02, Q03 | pendente |
@@ -234,7 +249,7 @@ Todas tomadas pelo usuário em 2026-10-04.
 ### Critérios de aceite da fase
 
 1. Um hino em Mi♭ abre transposto em Dó: armadura vazia, cifras transpostas,
-   mesmos compassos e mesmos ids que o original.
+   mesmos compassos e as mesmas notas, nos mesmos tempos, que o original.
 2. Com o teclado em +3, tocar as teclas de Dó maior passa no modo espera e no
    tempo real, **nos dois tipos de teclado** (que transpõe a saída MIDI e que
    não transpõe), testados com MIDI falso.
@@ -244,8 +259,10 @@ Todas tomadas pelo usuário em 2026-10-04.
 5. Esquecer o teclado em +3 numa música sem transposição gera o aviso do
    detector em até N notas (teclado que transpõe a saída MIDI) ou o
    lembrete de voltar a 0 (teclado que não transpõe).
-6. Desligar a transposição volta exatamente ao `.vsb` original (mesmo
-   arquivo, byte a byte, se o render for determinístico; Q01 confere).
+6. Desligar a transposição volta à partitura original: mesmo layout, mesmas
+   notas e tempos. (Não é byte a byte: os ids mudam a cada render, como em
+   qualquer re-render; com a mesma semente os membros do `.vsb` saem iguais
+   — Q01.)
 
 ## Riscos
 
@@ -260,8 +277,9 @@ Todas tomadas pelo usuário em 2026-10-04.
   repertório de piano de hoje. Se aparecer, a transposição do app soma à do
   instrumento; Q01 só registra.
 - **Grafia estranha**: transpor por intervalo mantém a grafia relativa, então
-  um Fá♭ no original pode virar um Ré♭♭. É raro em hinos; Q01 conta quantos
-  dobrados aparecem no catálogo.
+  um Fá♭ no original pode virar um Ré♭♭. É raro em hinos: Q01 contou 11 hinos
+  de 469 com dobrados depois de transpor (41 notas; 3 hinos, 6 notas, já tinham
+  no original).
 
 ## Fora de escopo da fase Q
 

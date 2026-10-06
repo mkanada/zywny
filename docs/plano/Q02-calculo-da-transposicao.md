@@ -63,4 +63,60 @@ Guardar, renderizar, tela. Descobrir o comportamento do teclado (Q06).
 
 ## Notas de execução
 
-(vazio)
+### Resultado (2026-10-06): concluído
+
+Arquivos: `lib/music/transposition.dart` (`Transposition`),
+`lib/music/pitch_frame.dart` (`PitchFrame`), `test/transposition_test.dart`
+(33 casos) e `test/pitch_frame_test.dart` (11 casos, entre eles uma conta de
+ponta a ponta por linha da tabela e por tipo de teclado).
+
+**Critérios**
+1. `flutter analyze` sem avisos; `flutter test` inteiro: 730 passaram, 10
+   pulados (os manuais), nenhuma falha. As 14 linhas da tabela (intervalo,
+   `k`, TRANSPOSE, `fifthsDelta`) e os 225 pares de armaduras de −7 a +7 estão
+   cobertos. ✔
+2. Nenhum outro arquivo do app soma semitons por causa da transposição (só
+   os dois acima mencionam "transpos" em `lib/`); nada foi ligado. ✔
+
+**Como o cálculo funciona (e por que o intervalo sai certo em todo par)**
+- Uma transposição é o par (`fifthsDelta`, `semitones`). As quintas decidem a
+  grafia, e `k ≡ 7 · fifthsDelta (mod 12)` deixa só duas escolhas, uma para cada
+  direção. `toFifths` escolhe a de menor |k| (trítono: desce) e troca de
+  direção só se a música (`lowest`/`highest` **do original**) sair de
+  `keyLow..keyHigh`.
+- O nome do intervalo (`interval`) não sai dos semitons: sai da posição na
+  cadeia de quintas (`_ascendingName`): o número vem de `4·c mod 7` e a qualidade
+  de quantas vezes passou de 7 quintas. Descendo, é o ascendente de −`fifthsDelta`
+  com o sinal de menos (`-m3` = descer o `m3` ascendente, que anda −3 quintas).
+  `parse` faz o caminho de volta, e o teste confirma que `parse(t.interval) == t`
+  nos 225 pares e nas duas direções de cada um.
+- `PitchFrame` guarda a tabela de verdade no comentário da classe; `appIsSound`
+  desliga os dois comportamentos do teclado (o TRANSPOSE fica em 0, a recebida é
+  a escrita e ao teclado se manda a soada).
+
+**O que foi além do escrito no passo**
+- `Transposition.fits({lowest, highest, keyLow, keyHigh})`: quando nenhuma
+  direção cabe, `toFifths` devolve a preferida e a tela (Q08) usa `fits` para
+  avisar ("se as duas passarem, avisa", Q00). O objeto continua um valor puro.
+- `Transposition.keyName(fifths)` estático, mais `fromKeyName`/`toKeyName`
+  (aceitam `naming:` — `NoteNaming.latin` por padrão, `letters` se a pessoa
+  escolheu C–D–E). O nome vale para qualquer posição na cadeia: depois de ±7
+  vira dobrado (`Sol♯` para 8♯, `Fá♯♯` para 13).
+- `soundsLike` soletra pela cadeia de quintas, não por semitons: Dó → Mi♭ e
+  não Ré♯ ("a tecla Dó♯ vai soar Mi" em Mi♭→Dó). Os testes conferem a classe de
+  altura do som contra `escrita − k` nas 14 linhas.
+- `==`/`hashCode`/`toString` nas duas classes (valor puro).
+
+**O que o próximo passo precisa saber**
+- `Transposition.parse('P1')` devolve `null` (P1/`-P1` não transpõem; assim
+  também `d1`, `P3`, `m4`, oitava `P8` e tudo composto acima de `d8`): o Q03
+  guarda `'P1'` para "a pessoa escolheu Não" e tem de tratá-lo **antes** de
+  chamar `parse` (anotado no Q03).
+- `parse` devolve o texto canônico em `interval` (`+P4`, `p4` → `P4`; `a4` →
+  `A4`) e aceita o que o Verovio aceita (`+`, `P`/`p`, `A`/`a`, `d`/`D`,
+  repetidos: `AA1`).
+- `toFifths(f, f)` e `toNoAccidentals(0)` devolvem `null`. Os pares de 6♭ ↔ 6♯
+  (`delta` = ±12, `k` = 0) são só uma troca de grafia (`-d2`); não têm outra
+  direção e não devem aparecer na lista dos 12 tons.
+- A faixa vem de quem chama: hinos cabem em A0–C8 em qualquer direção da
+  tabela (Q01), então o Q03 pode passar a faixa do catálogo (27–86).
