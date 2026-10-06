@@ -239,7 +239,7 @@ Todas tomadas pelo usuário em 2026-10-04.
 | --- | --- | --- | --- |
 | [Q01](Q01-verovio-transpondo.md) | Medir o Verovio transpondo: cena, timemap, `midi.json`, alternates e repetições coerentes em hinos de cada armadura; sem transposição dupla no doc expandido; tempo de render; mudança de armadura no meio | — | **concluído** (2026-10-06): 469 hinos, 0 problemas; ver as descobertas nas notas |
 | [Q02](Q02-calculo-da-transposicao.md) | Cálculo puro: `Transposition` (intervalo, `k`, armadura resultante, instrução do teclado, faixa) e `PitchFrame` (as conversões); testes de tabela | — | **concluído** (2026-10-06) |
-| [Q03](Q03-guardar-e-renderizar.md) | Guardar e renderizar: `PieceSettings.transpose`, chave geral, `transpose` no render (nativo e Web) | Q01, Q02 | pendente |
+| [Q03](Q03-guardar-e-renderizar.md) | Guardar e renderizar: `PieceSettings.transpose`, chave geral, `transpose` no render (nativo e Web) | Q01, Q02 | **concluído** (2026-10-06) |
 | [Q04](Q04-progresso-por-tom.md) | Progresso por tom: `progressIdFor`, trilha e pontuação com sufixo, biblioteca mostra o tom em uso | Q03 | pendente |
 | [Q05](Q05-as-alturas-no-app.md) | As alturas no app: casador recebe a escrita; agendador, monitor e saída MIDI tocam a soada; comportamento por teclado guardado | Q02, Q03 | pendente |
 | [Q06](Q06-conferencia-no-teclado.md) | Conferência no teclado: instrução, "toque o Dó", teste de ouvido, teste da entrada MIDI | Q05 | pendente |

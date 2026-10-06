@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, listEquals, setEquals;
+    show defaultTargetPlatform, listEquals, setEquals, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
@@ -33,6 +33,7 @@ import 'midi/midi_monitor.dart';
 import 'midi/midi_monitor_panel.dart';
 import 'midi/midi_out_sound_engine.dart';
 import 'music/performance_track.dart';
+import 'music/transposition.dart';
 import 'practice/app_hand.dart';
 import 'practice/count_in_overlay.dart';
 import 'practice/hand.dart';
@@ -42,6 +43,7 @@ import 'practice/practice_report.dart';
 import 'practice/practice_tools.dart';
 import 'practice/study_mode.dart';
 import 'settings/app_settings.dart';
+import 'settings/effective_transposition.dart';
 import 'settings/general_settings_panel.dart';
 import 'settings/piece_settings.dart';
 import 'splash_screen.dart';
@@ -129,7 +131,17 @@ class MyApp extends StatelessWidget {
 }
 
 class ScoreHomePage extends StatefulWidget {
-  const ScoreHomePage({super.key, this.debugMode = false, this.opened});
+  const ScoreHomePage({
+    super.key,
+    this.debugMode = false,
+    this.opened,
+    this.renderer,
+  });
+
+  /// Quem grava a partitura. Só os testes passam o seu; o app usa o da
+  /// plataforma ([createScoreRenderer]).
+  @visibleForTesting
+  final ScoreRenderer? renderer;
 
   /// O hino que a biblioteca abriu. `null` só nos testes de widget, que
   /// exercitam a tela sem partitura (nada nativo é tocado).
@@ -160,7 +172,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     null => null,
   };
   late final Uint8List? _scoreXml = widget.opened?.scoreXml;
-  final ScoreRenderer _renderer = createScoreRenderer();
+  late final ScoreRenderer _renderer = widget.renderer ?? createScoreRenderer();
   VsbDocument? _document;
   int _pageIndex = 0;
   String _status = 'nenhuma partitura';
@@ -173,6 +185,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// A render was asked for while another was running; it starts as soon as
   /// that one ends, with whatever the options are by then.
   bool _renderQueued = false;
+
+  /// A transposição com que o [_document] foi gravado (`null` = no tom
+  /// original) e a faixa da música **original** lida do `midi.json` dessa
+  /// gravura, em MIDI. Antes da primeira gravura a faixa é a do catálogo;
+  /// com ela, a direção da transposição é conferida contra o teclado (Q03).
+  Transposition? _renderedTransposition;
+  ({int lowest, int highest})? _originalRange;
 
   /// Size of the score box in device pixels, from the [LayoutBuilder] in
   /// [_buildScoreArea]. The page is engraved for exactly this box, so there
@@ -488,6 +507,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         unawaited(_toggleSound());
       }
     }
+    // "Abrir as músicas já sem acidentes" mudou e este hino não tem escolha
+    // própria: a partitura é regravada no outro tom.
+    if (_document != null && _transposition != _renderedTransposition) {
+      unawaited(_renderAndShow());
+    }
     setState(() {});
   }
 
@@ -509,6 +533,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     speed: _speed == 1.0 ? null : _speed,
     hand: _hand == _kDefaultHand ? null : _hand,
     trailMeasures: trailMeasures,
+    transpose: _stored.transpose,
   );
 
   void _flushPieceSettings() {
@@ -639,12 +664,45 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (navigator.canPop()) navigator.pop();
   }
 
+  /// A transposição com que este hino abre agora (fase Q): a escolha dele, ou
+  /// a chave geral. `null` = o tom original — e nesse caso nenhuma opção nova
+  /// vai ao Verovio.
+  Transposition? get _transposition {
+    final piece = widget.opened?.piece;
+    if (piece == null) return null;
+    final range = _originalRange;
+    return effectiveTransposition(
+      piece,
+      _stored,
+      _settings,
+      lowest: range?.lowest ?? kCatalogLowestMidi,
+      highest: range?.highest ?? kCatalogHighestMidi,
+    );
+  }
+
+  /// A nota mais grave e a mais aguda da música **original** em [document],
+  /// que foi gravado com [transposition] (as alturas do `midi.json` já saem
+  /// transpostas). `null` sem notas.
+  static ({int lowest, int highest})? _rangeOf(
+    VsbDocument document,
+    Transposition? transposition,
+  ) {
+    final notes = document.midi?.notes;
+    if (notes == null || notes.isEmpty) return null;
+    final shift = transposition?.semitones ?? 0;
+    return (
+      lowest: notes.map((n) => n.pitch).reduce(math.min) - shift,
+      highest: notes.map((n) => n.pitch).reduce(math.max) - shift,
+    );
+  }
+
   /// Every option that reaches Verovio for the current state: the page size
   /// plus whatever differs from Verovio's defaults.
   Map<String, Object> _effectiveOptions() => {
     'pageWidth': _pageWidth,
     'pageHeight': _pageHeight,
     ...layoutOptionsToSend(_layout),
+    'transpose': ?_transposition?.interval,
     if (widget.debugMode) 'vsbDebug': true,
   };
 
@@ -661,8 +719,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
     final pageWidth = _pageWidth;
     final pageHeight = _pageHeight;
+    final transposition = _transposition;
     final options = {
       ...layoutOptionsToSend(_layout),
+      'transpose': ?transposition?.interval,
       if (widget.debugMode) 'vsbDebug': true,
     };
 
@@ -672,6 +732,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _status = 'gerando .vsb…';
     });
 
+    var wrongDirection = false;
     try {
       final name = _scoreName ?? '';
 
@@ -695,6 +756,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       );
 
       if (!mounted) return;
+      // Com a faixa real da música, a direção da transposição pode mudar (o
+      // hino passaria do teclado): nesse caso grava de novo, no fim.
+      _originalRange = _rangeOf(document, transposition) ?? _originalRange;
+      wrongDirection = _transposition != transposition;
       // A new engraving has new ids (and possibly new pages): drop the
       // playback that belonged to the old one.
       _practice?.dispose();
@@ -730,6 +795,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           _attachAudio(engine, track);
         }
         _document = document;
+        _renderedTransposition = transposition;
         // New options reflow the score: the page we were on may not exist
         // any more.
         _pageIndex = _pageIndex.clamp(0, document.pages.length - 1);
@@ -752,7 +818,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       });
     }
 
-    if (mounted && _renderQueued) {
+    if (mounted && (_renderQueued || wrongDirection)) {
       _renderQueued = false;
       unawaited(_renderAndShow());
     }

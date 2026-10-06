@@ -62,4 +62,59 @@ entra por teste ou pela chave geral.
 
 ## Notas de execução
 
-(vazio)
+### Resultado (2026-10-06): concluído
+
+Arquivos: `lib/settings/piece_settings.dart` (`transpose`, `kTransposeNone`),
+`lib/settings/app_settings.dart` (`transposeByDefault`),
+`lib/settings/effective_transposition.dart` (novo: `effectiveTransposition`,
+`kCatalogLowestMidi`/`kCatalogHighestMidi` = 27/86), `lib/main.dart`.
+Testes: `test/effective_transposition_test.dart` (novo), `test/settings_test.dart`
+(JSON, chave geral e a fiação da tela), `test/vsb_render_test.dart` (render real).
+
+**Critérios**
+1. `PieceSettings`: ida e volta de `-m3` e `P1`, lixo descartado (`P3`, `m4`,
+   `P8`, texto, número; `+p4` vira `P4`; `-P1` é descartado). `effectiveTransposition`:
+   música × chave geral, música sem armadura, `fifths == 0`, escolha que vence
+   a chave, direção pela faixa. ✔
+2. `vsb_render_test.dart`: frase em Mi♭ maior (3♭, com repetição, 16 notas
+   contando as `-rend`) com `-m3`: todas as notas k = −3 abaixo uma vez só,
+   mesmos tempos, pauta/camada/ligadura e timemap, mesmas páginas, armadura da
+   primeira nota com 3 → 0 acidentes. A partitura está escrita no teste (sem
+   depender do Hymn_Grabber). ✔
+3. Sem transposição **nenhuma** opção nova vai ao Verovio: conferido no que a
+   tela pede ao renderizador (`ScoreHomePage(renderer:)`, novo, só para teste;
+   o teste quebra se a opção sair do `_renderAndShow`). No render, o original sem
+   a opção é o que o Q01 mediu; mesma semente → mesmos ids. ✔
+4. `just web-smoke`: passa (15 ok). O smoke não usa `transpose`; conferi o wasm
+   à parte em Node (`vrvToolkit_setOptions` com `{"transpose":"-m3"}` no hino
+   013: aceita, 561 notas, primeira altura 70 → 67). ✔
+
+**Como ficou**
+- O render nativo e o Web **já repassavam** `ScoreRenderRequest.options` ao
+  Verovio sem lista de permitidos (`_renderInIsolate`, `WebScoreRenderer`,
+  `verovio_worker.js`): nada mudou neles; a opção só entra em `main.dart`
+  (`_renderAndShow` e `_effectiveOptions`, o "copiar opções").
+- `_pieceSettingsWith` passa `transpose: _stored.transpose`, senão gravar o
+  andamento apagaria a escolha. O Q08 troca `_stored.transpose` por um campo
+  mutável quando houver tela.
+- A faixa vem do `midi.json` da última gravura (`_originalRange`, já descontado o
+  `k` da gravura); se a direção da chave geral mudar com a faixa real, grava de
+  novo (uma vez: a faixa não muda entre gravuras). **Só vale para a chave geral**:
+  um intervalo escolhido na música nunca troca de direção. Esse re-render **não
+  tem teste** (precisa de uma partitura com nota abaixo de 27 ou acima de 86 e
+  armadura de trítono); a decisão da direção em si está coberta em
+  `effective_transposition_test.dart`.
+- Ligar/desligar a chave geral com um hino aberto regrava o hino
+  (`_onSettingsChanged`, quando a transposição de agora difere da gravada).
+  Sem tela ainda: a chave só muda por código/teste até o Q08.
+
+**O que o próximo passo precisa saber**
+- Até o Q04 o progresso (trilha, pontuação) **é compartilhado** entre tons:
+  com a chave geral ligada a trilha do hino transposto cai na mesma chave do
+  original. Até o Q05 o app **toca a altura escrita** (transposta), não a
+  soada. Por isso a chave geral não deve ser ligada fora de teste.
+- `Piece` sem `fifths`: a chave geral não age; um intervalo guardado vale
+  mesmo assim (não precisa da armadura).
+- O Q04 pode ler `effectiveTransposition(piece, pieceSettings, appSettings)`
+  (já na faixa do catálogo; é um valor puro) para montar o `progressIdFor`.
+

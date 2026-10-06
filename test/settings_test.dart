@@ -4,6 +4,7 @@
 // persistência: o que foi mudado volta numa nova instância (= o app aberto
 // de novo, ou atualizado), e o que foi gravado por outra versão não quebra.
 
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
 
@@ -11,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:score_bridge/score_bridge.dart' show VsbDocument;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -19,11 +21,14 @@ import 'package:zywny/layout_options.dart';
 import 'package:zywny/library/piece.dart';
 import 'package:zywny/library/library_screen.dart';
 import 'package:zywny/main.dart';
+import 'package:zywny/midi/midi_device_manager.dart';
 import 'package:zywny/practice/hand.dart';
 import 'package:zywny/practice/practice_controller.dart';
+import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/settings/app_settings.dart';
 import 'package:zywny/settings/general_settings_panel.dart';
 import 'package:zywny/settings/piece_settings.dart';
+import 'package:zywny/trail/trail_progress.dart';
 import 'package:zywny/trail/trail_stage.dart';
 import 'package:zywny/ui/phone_chrome.dart';
 import 'package:zywny/ui/theme.dart';
@@ -40,14 +45,33 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Piece _piece(int n, String title) => Piece(
+Piece _piece(int n, String title, {int? fifths}) => Piece(
   number: n,
   title: title,
   composer: 'Autor',
+  fifths: fifths,
   titleKey: foldForSearch(title),
   composerKey: 'autor',
   searchKey: foldForSearch('$n $title'),
 );
+
+/// Guarda as opções de cada gravação pedida e devolve sempre a mesma
+/// partitura pronta: o que importa é o que a tela pede ao Verovio.
+class _RecordingRenderer implements ScoreRenderer {
+  _RecordingRenderer()
+    : _document = VsbDocument.fromBytes(
+        File('test/fixtures/erik-satie.vsb').readAsBytesSync(),
+      );
+
+  final VsbDocument _document;
+  final List<Map<String, Object>> options = [];
+
+  @override
+  Future<RenderedScore> render(ScoreRenderRequest request) async {
+    options.add(request.options);
+    return RenderedScore(_document);
+  }
+}
 
 void main() {
   setUp(() {
@@ -151,6 +175,27 @@ void main() {
       expect(settings.soundOn, isFalse);
     });
 
+    test('"abrir sem acidentes" (fase Q): desligado, grava e volta', () async {
+      final first = AppSettings();
+      await first.load();
+      expect(first.transposeByDefault, isFalse);
+      first.transposeByDefault = true;
+      await pumpEventQueue();
+      expect(
+        await SharedPreferencesAsync().getBool('score_transpose_default'),
+        isTrue,
+      );
+
+      final second = AppSettings();
+      await second.load();
+      expect(second.transposeByDefault, isTrue);
+      second.transposeByDefault = false;
+      await pumpEventQueue();
+      final third = AppSettings();
+      await third.load();
+      expect(third.transposeByDefault, isFalse);
+    });
+
     test('avisa quem escuta só quando o valor muda', () {
       final settings = AppSettings();
       var calls = 0;
@@ -214,6 +259,51 @@ void main() {
       );
     });
 
+    test('transpor (fase Q): três estados que voltam ao abrir o app de novo', () async {
+      final store = PieceSettingsStore();
+      // Sem escolha: não ocupa chave e segue a chave geral.
+      expect(const PieceSettings().transpose, isNull);
+      expect(const PieceSettings().toJson().containsKey('tr'), isFalse);
+
+      await store.save('hinos', '013', const PieceSettings(transpose: '-m3'));
+      await store.save(
+        'hinos',
+        '014',
+        const PieceSettings(transpose: kTransposeNone),
+      );
+      const withIt = PieceSettings(transpose: '-m3');
+      expect(withIt.isDefault, isFalse);
+      expect(withIt.toJson()['tr'], '-m3');
+
+      final again = PieceSettingsStore();
+      expect((await again.load('hinos', '013')).transpose, '-m3');
+      // "Não": a escolha existe (vence a chave geral), então a chave é gravada.
+      final none = await again.load('hinos', '014');
+      expect(none.transpose, kTransposeNone);
+      expect(none.isDefault, isFalse);
+      expect(kTransposeNone, 'P1');
+      expect((await again.load('hinos', '015')).transpose, isNull);
+
+      // Tirar a escolha de um hino que só tinha ela apaga a chave.
+      await store.save('hinos', '013', const PieceSettings());
+      expect(
+        await SharedPreferencesAsync().getString('piece_settings_hinos_013'),
+        isNull,
+      );
+    });
+
+    test('transpor: o que não é "P1" nem um intervalo é descartado', () {
+      PieceSettings read(Object? tr) => PieceSettings.fromJson({'tr': tr});
+      expect(read('-m3').transpose, '-m3');
+      expect(read('P1').transpose, 'P1');
+      expect(read('+p4').transpose, 'P4', reason: 'guarda o texto canônico');
+      expect(read('-P1').transpose, isNull, reason: 'não transpõe');
+      for (final junk in ['', 'P3', 'm4', 'P8', 'C', 'tom', 'm3 ', 7, true]) {
+        expect(read(junk).transpose, isNull, reason: '$junk');
+      }
+      expect(PieceSettings.fromJson({}).transpose, isNull);
+    });
+
     test('o que outra versão do app gravou nunca chega torto', () async {
       await SharedPreferencesAsync().setString(
         'piece_settings_hinos_003',
@@ -244,6 +334,123 @@ void main() {
         (await PieceSettingsStore().load('hinos', '004')).isDefault,
         isTrue,
       );
+    });
+  });
+
+  group('transpor (fase Q): o que o hino pede ao Verovio', () {
+    final settings = <AppSettings>[];
+    tearDown(() {
+      for (final s in settings) {
+        s.dispose();
+      }
+      settings.clear();
+    });
+
+    /// Abre a tela de um hino em 3♭ e espera a primeira gravação.
+    Future<_RecordingRenderer> open(
+      WidgetTester tester, {
+      PieceSettings pieceSettings = const PieceSettings(),
+      AppSettings? appSettings,
+      int? fifths = -3,
+    }) async {
+      final app = appSettings ?? AppSettings();
+      settings.add(app);
+      final renderer = _RecordingRenderer();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: ScoreHomePage(
+            renderer: renderer,
+            opened: OpenedPiece(
+              piece: _piece(13, 'Hino', fifths: fifths),
+              scoreXml: Uint8List(1),
+              midiDeviceManager: MidiDeviceManager(),
+              onPracticeScore: (_) {},
+              appSettings: app,
+              pieceSettings: pieceSettings,
+              onPieceSettingsChanged: (_) {},
+              trailProgress: TrailProgressStore(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      return renderer;
+    }
+
+    testWidgets('sem transposição nenhuma opção nova vai ao Verovio', (
+      tester,
+    ) async {
+      final renderer = await open(tester);
+      expect(renderer.options, hasLength(1));
+      expect(renderer.options.single.containsKey('transpose'), isFalse);
+    });
+
+    testWidgets('a chave geral manda o hino em 3♭ para Dó (-m3)', (
+      tester,
+    ) async {
+      final renderer = await open(
+        tester,
+        appSettings: AppSettings()..transposeByDefault = true,
+      );
+      expect(renderer.options, hasLength(1));
+      expect(renderer.options.single['transpose'], '-m3');
+    });
+
+    testWidgets('hino sem armadura no catálogo: a chave geral não age', (
+      tester,
+    ) async {
+      final renderer = await open(
+        tester,
+        fifths: null,
+        appSettings: AppSettings()..transposeByDefault = true,
+      );
+      expect(renderer.options.single.containsKey('transpose'), isFalse);
+    });
+
+    testWidgets('"Não" na música vence a chave geral', (tester) async {
+      final renderer = await open(
+        tester,
+        pieceSettings: const PieceSettings(transpose: kTransposeNone),
+        appSettings: AppSettings()..transposeByDefault = true,
+      );
+      expect(renderer.options.single.containsKey('transpose'), isFalse);
+    });
+
+    testWidgets('o intervalo escolhido na música vale sem a chave geral', (
+      tester,
+    ) async {
+      final renderer = await open(
+        tester,
+        pieceSettings: const PieceSettings(transpose: 'M2'),
+      );
+      expect(renderer.options.single['transpose'], 'M2');
+    });
+
+    testWidgets('ligar e desligar a chave geral regrava o hino aberto', (
+      tester,
+    ) async {
+      final app = AppSettings();
+      final renderer = await open(tester, appSettings: app);
+      expect(renderer.options, hasLength(1));
+
+      app.transposeByDefault = true;
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(renderer.options, hasLength(2));
+      expect(renderer.options.last['transpose'], '-m3');
+
+      // Uma mudança que não é da transposição não regrava.
+      app.haloWidth = 2;
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(renderer.options, hasLength(2));
+
+      app.transposeByDefault = false;
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(renderer.options, hasLength(3));
+      expect(renderer.options.last.containsKey('transpose'), isFalse);
     });
   });
 

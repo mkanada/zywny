@@ -382,7 +382,7 @@ zywny
 | [Q00](Q00-transpor-sem-acidentes.md) | Transpor sem acidentes: as três alturas, a tabela de intervalos, a conferência no teclado e índice (passos Q01–Q08) | — | D-TRP | especificação (decisões tomadas) |
 | [Q01](Q01-verovio-transpondo.md) | Transpor: medir o Verovio transpondo (`.vsb`, repetições, determinismo, faixa) | — | — | concluído (469 hinos, 0 problemas; ids mudam a cada render — ver as notas) |
 | [Q02](Q02-calculo-da-transposicao.md) | Transpor: `Transposition` e `PitchFrame` (cálculo puro) | — | D-TRP | concluído |
-| [Q03](Q03-guardar-e-renderizar.md) | Transpor: guardar por música, chave geral, render transposto | Q01, Q02 | D-TRP | pendente |
+| [Q03](Q03-guardar-e-renderizar.md) | Transpor: guardar por música, chave geral, render transposto | Q01, Q02 | D-TRP | **concluído** (2026-10-06) |
 | [Q04](Q04-progresso-por-tom.md) | Transpor: progresso separado por tom | Q03 | D-TRP | pendente |
 | [Q05](Q05-as-alturas-no-app.md) | Transpor: casador na altura escrita, som no tom original | Q02, Q03 | D-TRP | pendente |
 | [Q06](Q06-conferencia-no-teclado.md) | Transpor: conferência no teclado | Q05 | D-TRP | pendente |
