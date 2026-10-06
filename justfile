@@ -109,8 +109,18 @@ pacote-curso *ARGS:
 
 # APK de release (arm64 só, para instalar direto no celular). Rode antes
 # `just native-android native-audio-android assets`, ao menos uma vez.
+# Sai em build/app/outputs/flutter-apk/app-arm64-v8a-release.apk.
+# - `lib_key`: sem a chave o app não abre nenhuma biblioteca (os hinos
+#   instalados "somem" até um build com ela).
+# - `--split-per-abi`: o versionCode sai 2000 + o do pubspec; o celular já
+#   tem um assim e recusa (downgrade) o APK sem split.
 build-apk:
-    flutter build apk --release {{lib_key}} --target-platform android-arm64
+    flutter build apk --release {{lib_key}} --target-platform android-arm64 --split-per-abi
+
+# Instala o APK do `build-apk` no celular conectado pelo adb (Wi-Fi ou cabo),
+# mantendo os dados.
+instalar-apk:
+    ~/Android/Sdk/platform-tools/adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 
 # Compila a libzywny_audio.so nativa (native/zywny_audio/, K02; não
 # versionada).

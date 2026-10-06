@@ -84,7 +84,11 @@ class _QuestionBodyState extends State<QuestionBody> {
     if (limit != null) {
       _tickTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
         if (!mounted) return;
-        if (_session.tick()) setState(() {});
+        // O estouro e o fim da revelação mudam a pergunta: o destaque da
+        // partitura segue (sem isto a nota da vez ficava na pergunta velha
+        // e a resposta certa da nota destacada contava como erro) e, se era
+        // a última, a rodada termina (antes ficava girando para sempre).
+        if (_session.tick()) _afterAnswer();
       });
     }
   }

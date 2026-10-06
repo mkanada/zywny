@@ -155,5 +155,20 @@ correções:
 - **"Ache a tecla" sem dizer o que foi tocado:** a tecla errada aparece
   com o nome por 2 s ("Você tocou Mi — tente de novo."; mesma nota em
   outra oitava no `octave: exact` é dito assim).
+- **Hinos "sumiram" depois de um APK:** o build saiu sem
+  `ZYWNY_LIBRARY_KEY` (`flutter build` direto em vez de `just build-apk`);
+  nada se perde, um build com a chave os traz de volta. `just build-apk`
+  agora leva `--split-per-abi` (o celular tem versionCode 2004) e há
+  `just instalar-apk`.
+- **"Nomes contra o relógio" dava erro na nota certa:** o estouro do
+  `time-limit` avançava a pergunta sem mover o destaque da partitura; e o
+  estouro da última nunca encerrava a rodada. O cronômetro agora passa por
+  `_afterAnswer` (`question_body.dart`).
+- **Ritmo sem nenhum acerto:** a entrada MIDI do curso carimbava as teclas
+  com um cronômetro próprio, de outra origem que o relógio do motor; no
+  tempo real toda nota caía fora da janela. Agora carimba com o motor em
+  uso (`_courseCurrentEngine`, `library_screen.dart`), como o hino. Aceite
+  no aparelho.
+- **"Ouvir antes" sem metrônomo:** usa o andamento e o metrônomo da rodada.
 - Pendente: "play sem som" na lição 2 — não reproduzido pelo log; rever
   com a saída nova.

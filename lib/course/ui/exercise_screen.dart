@@ -397,10 +397,14 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       track: runner.track,
       autoTick: true,
     );
-    final speed = runner.round.mode == PlayMode.realtime
-        ? (_chosenSpeed ?? runner.round.speed)
-        : 1.0;
+    // Igual à rodada: o mesmo andamento (já com o `bpm` do exercício e a
+    // velocidade escolhida) e o mesmo metrônomo — ouvir sem ele tirava a
+    // referência que o aluno vai ter ao tocar.
+    final realtime = runner.round.mode == PlayMode.realtime;
+    final speed = realtime ? runner.scheduler.speed : 1.0;
     listen.setSpeed(speed);
+    listen.beats = runner.scheduler.beats;
+    listen.metronomeOn = runner.scheduler.metronomeOn;
     final range = exerciseRange(runner.timeline, runner.round.measures).range;
     setState(() {
       _listenScheduler = listen;

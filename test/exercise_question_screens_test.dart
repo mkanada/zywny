@@ -6,6 +6,7 @@
 // termina no relógio falso do widget test.
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
@@ -122,7 +123,10 @@ Future<LoadedCourse> _loadedWith(String exerciseBody) async {
   );
 }
 
-Future<VsbDocument> _renderRound(QuestionRound round) async {
+Future<VsbDocument> _renderRound(QuestionRound round) =>
+    _renderBytes(round.scoreBytes!, round.fileName!);
+
+Future<VsbDocument> _renderBytes(Uint8List bytes, String fileName) async {
   const options = {
     'adjustPageHeight': true,
     'header': 'none',
@@ -136,8 +140,8 @@ Future<VsbDocument> _renderRound(QuestionRound round) async {
   };
   return (await LibverovioRenderer().render(
     ScoreRenderRequest(
-      source: round.scoreBytes!,
-      fileName: round.fileName!,
+      source: bytes,
+      fileName: fileName,
       pageWidth: 800,
       pageHeight: 2000,
       options: options,
@@ -156,6 +160,10 @@ void main() {
   late VsbDocument countBeatsDoc;
 
   late LoadedCourse choiceLoaded;
+
+  // Ritmo (I08): a rodada pré-renderizada, a mesma do `Random(7)` da tela.
+  late LoadedCourse rhythmLoaded;
+  late VsbDocument rhythmDoc;
   late LoadedCourse findKeyLoaded;
 
   setUpAll(() async {
@@ -181,6 +189,18 @@ void main() {
       Random(7),
     ) as QuestionRound;
     countBeatsDoc = await _renderRound(countRound);
+
+    rhythmLoaded = await _loadedWith(
+      'id: r\ntype: rhythm\ntitle: Ritmo\ntime: 4/4\n'
+      'figures: [half, quarter, quarter-rest]\nmeasures: 2\nbpm: 70\n'
+      'note: C4\npass: {accuracy: 85, speed: 100}',
+    );
+    final rhythmRound = await generateRound(
+      rhythmLoaded.course.lessons.single.exercises.single,
+      rhythmLoaded.files,
+      Random(7),
+    ) as ScoreRound;
+    rhythmDoc = await _renderBytes(rhythmRound.bytes, rhythmRound.fileName);
   });
 
   setUp(() {
@@ -245,6 +265,122 @@ void main() {
     expect(find.text('Exercício aprovado!'), findsOneWidget);
     expect(progress['t'].records['n']?.passed, isTrue);
   });
+
+  testWidgets(
+    'name-note: estourou o tempo, o destaque vai para a nota seguinte e a '
+    'última estourada encerra a rodada',
+    (tester) async {
+      // Mesmas notas da partitura pré-renderizada ([C4, D4]), com 1 s.
+      final loaded = await _loadedWith(
+        'id: n\ntype: name-note\ntitle: Nota\nnotes: [C4, D4]\n'
+        'pass: {accuracy: 90, time-limit: 1}\n',
+      );
+      final lesson = loaded.course.lessons.single;
+      final devices = await _makeDevices(connected: false);
+      final midi = FakeMidiInput();
+      final deps = _makeDeps(
+        devices: devices,
+        midi: midi,
+        engine: FakeSoundEngine(),
+        progress: MemoryCourseProgressStore(),
+        rendererFactory: () => _CachedRenderer(nameNoteDoc),
+      );
+      addTearDown(() {
+        midi.dispose();
+        deps.settings.dispose();
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExerciseScreen(
+            loaded: loaded,
+            lesson: lesson,
+            spec: lesson.exercises.single,
+            deps: deps,
+            rng: Random(7),
+          ),
+        ),
+      );
+      for (var i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      ScoreController controller() =>
+          tester.widget<ScoreView>(find.byType(ScoreView)).controller!;
+      expect(controller().colorOf('zn1'), deps.settings.practicePendingColor);
+
+      // O cronômetro da sessão é o relógio de parede: espera de verdade
+      // (1 s de limite + 1,5 s de revelação), andando os timers falsos.
+      Future<void> waitReal(double seconds) async {
+        final until = DateTime.now().add(
+          Duration(milliseconds: (seconds * 1000).round()),
+        );
+        while (DateTime.now().isBefore(until)) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)),
+          );
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+      }
+
+      await waitReal(2.9);
+      // A primeira estourou: errada; a da vez agora é a segunda.
+      expect(controller().colorOf('zn1'), deps.settings.practiceWrongColor);
+      expect(controller().colorOf('zn2'), deps.settings.practicePendingColor);
+
+      // A última também estoura: a rodada termina (sem ficar girando).
+      await waitReal(2.9);
+      await tester.pump();
+      expect(find.textContaining('0 de 2 de primeira'), findsOneWidget);
+    },
+    skip: !verovioAvailable,
+  );
+
+  testWidgets('ritmo: "ouvir antes" toca o metrônomo da rodada', (
+    tester,
+  ) async {
+    final lesson = rhythmLoaded.course.lessons.single;
+    final devices = await _makeDevices(connected: true);
+    final midi = FakeMidiInput();
+    final engine = FakeSoundEngine();
+    final deps = _makeDeps(
+      devices: devices,
+      midi: midi,
+      engine: engine,
+      progress: MemoryCourseProgressStore(),
+      rendererFactory: () => _CachedRenderer(rhythmDoc),
+    );
+    addTearDown(() {
+      midi.dispose();
+      deps.settings.dispose();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExerciseScreen(
+          loaded: rhythmLoaded,
+          lesson: lesson,
+          spec: lesson.exercises.single,
+          deps: deps,
+          rng: Random(7),
+        ),
+      ),
+    );
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    engine.scheduled.clear();
+    await tester.tap(find.byTooltip('Ouvir antes (sem avaliar)'));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    // Cliques do metrônomo: note-on no canal 10 (status 0x99).
+    expect(
+      engine.scheduled.where((m) => m.status == 0x99),
+      isNotEmpty,
+      reason: 'ouvir sem metrônomo',
+    );
+    await tester.tap(find.byTooltip('Parar de ouvir'));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+  }, skip: !verovioAvailable);
 
   testWidgets('count-beats sem teclado abre e roda', (tester) async {
     final loaded = await _loadedWith(

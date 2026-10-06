@@ -169,12 +169,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// rascunho. O progresso é o do controlador (só memória).
   CourseDraftController? _draft;
 
-  /// Entrada MIDI do fluxo de cursos (só ele usa); o carimbo sai do
-  /// cronômetro do app (a latência calibrada compensa o resto).
+  /// Entrada MIDI do fluxo de cursos (só ele usa). O carimbo sai do relógio
+  /// do motor de som em uso, como na `ScoreHomePage`: o tempo real compara
+  /// a tecla com o relógio do motor, e com o cronômetro do app (outra
+  /// origem) toda nota caía fora da janela — o exercício de ritmo não
+  /// acertava nenhuma. Sem motor ainda, o cronômetro.
   final Stopwatch _courseClock = Stopwatch()..start();
   late final MidiInputService _courseMidi = FlutterMidiInputService(
-    nowSeconds: () => _courseClock.elapsedMicroseconds / 1e6,
+    nowSeconds: () =>
+        _courseCurrentEngine?.nowSeconds ??
+        _courseClock.elapsedMicroseconds / 1e6,
   );
+
+  /// O último motor entregue por [_ensureCourseEngine] (o que a lição ou o
+  /// exercício aberto está usando).
+  SoundEngine? _courseCurrentEngine;
 
   /// Motores de som do fluxo de cursos, um por saída (como a `ScoreHomePage`,
   /// M03): o sintetizador do app (memoizado; `.sf2` carregado uma vez) e a
@@ -188,6 +197,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// O motor da saída escolhida nas configurações gerais: com "teclado MIDI"
   /// e um teclado conectado, o som sai nele; senão, no sintetizador do app.
   Future<SoundEngine?> _ensureCourseEngine() async {
+    final engine = await _openCourseEngine();
+    _courseCurrentEngine = engine;
+    return engine;
+  }
+
+  Future<SoundEngine?> _openCourseEngine() async {
     await _settingsLoaded;
     final device = _midi.connected.value;
     if (_settings.output == SoundOutput.midiKeyboard && device != null) {
