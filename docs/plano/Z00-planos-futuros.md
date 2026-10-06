@@ -19,3 +19,15 @@ escala/tom, análogo ao progresso por tom na fase Q (transpor sem acidentes).
 Sequências de arpejos (quebrados, em diferentes tonalidades e andamentos) que o
 usuário toca no teclado. Pode incluir padrões fixos ou gerados, com feedback em
 tempo real sobre acertos e erros nas notas e ritmo.
+
+## Reconhecimento por som de intervalos
+
+O usuário ouve um intervalo (segunda, terça, quarta, quinta, etc.) e identifica
+qual é. Treina o reconhecimento auditivo de distâncias entre notas, fundamental
+para teoria musical e improvisação.
+
+## Reconhecimento por som de acordes
+
+O usuário ouve um acorde (maior, menor, diminuto, aumentado, dominante, etc.) e
+identifica qual é. Desenvolve a capacidade de reconhecer qualidades harmônicas
+apenas pelo som.
