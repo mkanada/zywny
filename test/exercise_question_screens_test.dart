@@ -164,26 +164,22 @@ void main() {
     nameNoteLoaded = await _loadedWith(
       'id: n\ntype: name-note\ntitle: Nota\nnotes: [C4, D4]\n',
     );
-    nameNoteRound =
-        await generateRound(
-              nameNoteLoaded.course.lessons.single.exercises.single,
-              nameNoteLoaded.files,
-              Random(7),
-            )
-            as QuestionRound;
+    nameNoteRound = await generateRound(
+      nameNoteLoaded.course.lessons.single.exercises.single,
+      nameNoteLoaded.files,
+      Random(7),
+    ) as QuestionRound;
     nameNoteDoc = await _renderRound(nameNoteRound);
 
     countBeatsLoaded = await _loadedWith(
       'id: c\ntype: count-beats\ntitle: Tempos\ntime: 4/4\n'
       'figures: [quarter, half]\ncount: 2',
     );
-    final countRound =
-        await generateRound(
-              countBeatsLoaded.course.lessons.single.exercises.single,
-              countBeatsLoaded.files,
-              Random(7),
-            )
-            as QuestionRound;
+    final countRound = await generateRound(
+      countBeatsLoaded.course.lessons.single.exercises.single,
+      countBeatsLoaded.files,
+      Random(7),
+    ) as QuestionRound;
     countBeatsDoc = await _renderRound(countRound);
   });
 
@@ -209,7 +205,9 @@ void main() {
       midi: midi,
       engine: engine,
       progress: progress,
-      rendererFactory: verovioAvailable ? () => _CachedRenderer(nameNoteDoc) : null,
+      rendererFactory: verovioAvailable
+          ? () => _CachedRenderer(nameNoteDoc)
+          : null,
     );
     addTearDown(() {
       midi.dispose();
@@ -377,6 +375,60 @@ void main() {
     await tester.pump();
     expect(find.text('Conecte o teclado'), findsOneWidget);
     expect(find.text('Conectar teclado'), findsOneWidget);
+  });
+
+  testWidgets('find-key: a tecla errada aparece com o nome', (tester) async {
+    Future<void> run(String yaml, int wrong, String expected) async {
+      final loaded = await _loadedWith(yaml);
+      final lesson = loaded.course.lessons.single;
+      final devices = await _makeDevices(connected: true);
+      final midi = FakeMidiInput();
+      final deps = _makeDeps(
+        devices: devices,
+        midi: midi,
+        engine: FakeSoundEngine(),
+        progress: MemoryCourseProgressStore(),
+      );
+      addTearDown(() {
+        midi.dispose();
+        deps.settings.dispose();
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExerciseScreen(
+            key: UniqueKey(),
+            loaded: loaded,
+            lesson: lesson,
+            spec: lesson.exercises.single,
+            deps: deps,
+            rng: Random(1),
+          ),
+        ),
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      midi.press(wrong);
+      await tester.pump();
+      // A nota do teclado falso chega num microtask depois do quadro.
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(find.textContaining(expected), findsOneWidget);
+      // Some sozinha depois de um tempo.
+      await tester.pump(const Duration(milliseconds: 2100));
+      expect(find.textContaining('Você tocou'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    }
+
+    await run(
+      'id: f\ntype: find-key\ntitle: Ache\nnotes: [C4, C4]',
+      64,
+      'Você tocou Mi — tente de novo.',
+    );
+    await run(
+      'id: f\ntype: find-key\ntitle: Ache\nnotes: [C4, C4]\noctave: exact',
+      72,
+      'em outra oitava',
+    );
   });
 
   // Uso das variáveis do `setUpAll` (evita aviso de não usadas quando o

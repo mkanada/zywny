@@ -113,7 +113,9 @@ class _QuestionBodyState extends State<QuestionBody> {
     } else {
       setState(() => _wrongPitch = note.pitch);
       _flashTimer?.cancel();
-      _flashTimer = Timer(const Duration(milliseconds: 500), () {
+      // Mais tempo que o botão errado: o aluno tira os olhos do teclado
+      // para ler qual tecla tocou.
+      _flashTimer = Timer(const Duration(milliseconds: 2000), () {
         if (mounted) setState(() => _wrongPitch = null);
       });
       setState(() {});
@@ -253,12 +255,12 @@ class _QuestionBodyState extends State<QuestionBody> {
           }
           if (_wrongPitch != null || _wrongButton != null) {
             children.add(
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Tente de novo.',
+                  _wrongMessage(question),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: kBadColor,
@@ -277,6 +279,25 @@ class _QuestionBodyState extends State<QuestionBody> {
         },
       ),
     );
+  }
+
+  /// "Você tocou Fá — tente de novo." (tecla errada no `find-key`); no
+  /// botão errado o próprio botão já diz o que foi tocado.
+  String _wrongMessage(Question question) {
+    final played = _wrongPitch;
+    if (played == null) return 'Tente de novo.';
+    final naming = widget.settings.noteNaming;
+    final expected = question.expectedPitch;
+    final sameName =
+        expected != null && (played - expected) % 12 == 0 && played != expected;
+    final label = midiLabel(
+      played,
+      naming,
+      withOctave: !question.anyOctave || sameName,
+    );
+    return sameName
+        ? 'Você tocou $label — é a nota certa, em outra oitava.'
+        : 'Você tocou $label — tente de novo.';
   }
 
   int? _keyToButton(LogicalKeyboardKey key, Question question) {

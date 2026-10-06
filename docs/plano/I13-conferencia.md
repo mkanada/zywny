@@ -152,5 +152,8 @@ correções:
   "novo recorde".
 - **Tela escurecendo no exercício:** `WakelockPlus` enquanto a tela do
   exercício está aberta.
+- **"Ache a tecla" sem dizer o que foi tocado:** a tecla errada aparece
+  com o nome por 2 s ("Você tocou Mi — tente de novo."; mesma nota em
+  outra oitava no `octave: exact` é dito assim).
 - Pendente: "play sem som" na lição 2 — não reproduzido pelo log; rever
   com a saída nova.
