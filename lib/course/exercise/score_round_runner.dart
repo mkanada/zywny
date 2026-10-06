@@ -139,11 +139,16 @@ class ScoreRoundRunner {
   bool get isLoaded => _practice != null;
 
   /// Renderiza [round] e monta o treino, sem começar a tocar. [widthPx] é a
-  /// largura da caixa da partitura em pixels do dispositivo
-  /// (`lessonScoreLayout`).
-  Future<void> load(ScoreRound round, {double widthPx = 1800}) async {
+  /// largura da caixa da partitura em pixels do dispositivo e [heightPx] a
+  /// altura, na mesma medida: a música que não cabe nela segue em outras
+  /// páginas (`lessonScoreLayout`).
+  Future<void> load(
+    ScoreRound round, {
+    double widthPx = 1800,
+    double? heightPx,
+  }) async {
     _release();
-    final layout = lessonScoreLayout(widthPx);
+    final layout = lessonScoreLayout(widthPx, heightPx: heightPx);
     final rendered = await renderer.render(
       ScoreRenderRequest(
         source: round.bytes,

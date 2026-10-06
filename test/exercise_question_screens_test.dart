@@ -80,6 +80,23 @@ class _CachedRenderer implements ScoreRenderer {
       RenderedScore(document);
 }
 
+/// Segura cada render até [release]: a rodada fica "carregando" o tempo
+/// que o teste quiser.
+class _GatedRenderer implements ScoreRenderer {
+  _GatedRenderer(this.document, this.gates);
+
+  final VsbDocument document;
+  final List<Completer<void>> gates;
+
+  @override
+  Future<RenderedScore> render(ScoreRenderRequest request) async {
+    final gate = Completer<void>();
+    gates.add(gate);
+    await gate.future;
+    return RenderedScore(document);
+  }
+}
+
 Future<MidiDeviceManager> _makeDevices({bool connected = false}) async {
   final fake = _FakeMidiCommand();
   if (connected) {
@@ -379,6 +396,66 @@ void main() {
     );
     await tester.tap(find.byTooltip('Parar de ouvir'));
     await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+  }, skip: !verovioAvailable);
+
+  // A caixa mudou de altura com a rodada ainda carregando (as barras do
+  // sistema somem ao abrir o exercício): a rodada antiga não pode seguir
+  // tocando junto da nova — o metrônomo e o acompanhamento saíam dobrados.
+  testWidgets('caixa muda durante o carregamento: uma rodada só', (
+    tester,
+  ) async {
+    final lesson = rhythmLoaded.course.lessons.single;
+    final devices = await _makeDevices(connected: true);
+    final midi = FakeMidiInput();
+    final engine = FakeSoundEngine();
+    final gates = <Completer<void>>[];
+    final deps = _makeDeps(
+      devices: devices,
+      midi: midi,
+      engine: engine,
+      progress: MemoryCourseProgressStore(),
+      rendererFactory: () => _GatedRenderer(rhythmDoc, gates),
+    );
+    addTearDown(() {
+      midi.dispose();
+      deps.settings.dispose();
+      tester.view.resetPhysicalSize();
+    });
+    var rounds = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExerciseScreen(
+          loaded: rhythmLoaded,
+          lesson: lesson,
+          spec: lesson.exercises.single,
+          deps: deps,
+          rng: Random(7),
+          onRound: (_, _) => rounds++,
+        ),
+      ),
+    );
+    for (var i = 0; i < 10 && gates.isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(gates, hasLength(1), reason: 'a primeira rodada está renderizando');
+    // Mais alta: as barras do sistema sumiram.
+    tester.view.physicalSize = Size(
+      tester.view.physicalSize.width,
+      tester.view.physicalSize.height + 150,
+    );
+    for (var i = 0; i < 10 && gates.length < 2; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(gates, hasLength(2), reason: 'a caixa nova pede outra rodada');
+    // A antiga termina de renderizar depois da nova.
+    gates[1].complete();
+    await tester.pump(const Duration(milliseconds: 50));
+    gates[0].complete();
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(rounds, 1, reason: 'duas rodadas tocando juntas');
     await tester.pumpWidget(const SizedBox());
   }, skip: !verovioAvailable);
 

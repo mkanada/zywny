@@ -20,13 +20,16 @@ import '../../audio/audio_playback_clock.dart';
 import '../../audio/engine_opener.dart';
 import '../../audio/score_audio_scheduler.dart';
 import '../../practice/count_in_overlay.dart';
+import '../../render/score_size_log.dart';
 import '../exercise/exercise_kind.dart';
 import '../exercise/exercise_round.dart';
 import '../exercise/pass_check.dart';
 import '../exercise/score_round_runner.dart';
+import '../score/lesson_score.dart' show kLessonPageHeight;
 import '../../midi/midi_device_manager.dart';
 import '../../midi/midi_device_picker.dart';
 import '../../practice/app_hand.dart';
+import '../../practice/practice_colors.dart' show kPracticeAppHandColor;
 import '../../ui/theme.dart';
 import 'exercise_card.dart' show exerciseGoal, exerciseNeedsMidi;
 import '../format/course_model.dart';
@@ -89,6 +92,16 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   int? _previousBest;
   Set<String> _badMeasureIds = const {};
   double? _loadWidthPx;
+
+  /// Altura da caixa da partitura, na medida de [_loadWidthPx]: a página
+  /// não passa dela, e o resto da música vai para as páginas seguintes.
+  double? _loadHeightPx;
+
+  /// Conta as rodadas pedidas: só a última vale (ver [_newRound]).
+  int _roundToken = 0;
+
+  /// Solta o player quando a contagem inicial acaba.
+  Timer? _followTimer;
   bool _startedRound = false;
 
   /// Andamento escolhido (I08, tempo real): 1,0 = o escrito. Começa no
@@ -180,6 +193,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   }
 
   void _releaseRound() {
+    _followTimer?.cancel();
+    _followTimer = null;
     _runner?.dispose();
     _runner = null;
     _player?.dispose();
@@ -199,6 +214,12 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
   /// Renderiza e começa uma rodada nova ([widthPx] da caixa da partitura).
   Future<void> _newRound(double widthPx) async {
+    // Uma rodada pedida por cima de outra que ainda carrega (a caixa mudou
+    // de tamanho ao esconder as barras do sistema, ao girar) deixa a antiga
+    // velha: ela desiste a cada espera e descarta o que já montou — senão
+    // as duas tocavam juntas (metrônomo e acompanhamento dobrados).
+    final token = ++_roundToken;
+    bool stale() => !mounted || token != _roundToken;
     _releaseRound();
     _stopListening();
     setState(() {
@@ -211,7 +232,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     });
     try {
       final round = await generateRound(widget.spec, widget.loaded.files, _rng);
-      if (!mounted) return;
+      if (stale()) return;
       if (round is QuestionRound) {
         setState(() {
           _questionRound = round;
@@ -239,7 +260,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         }
       }
       final engine = await widget.deps.ensureEngine();
-      if (!mounted) return;
+      if (stale()) return;
       if (engine == null) {
         setState(() {
           _loading = false;
@@ -270,8 +291,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         onWaitTarget: (ms) => _player?.waitTarget = ms,
         metronomeOn: metronomeOn,
       );
-      await runner.load(scoreRound, widthPx: widthPx);
-      if (!mounted) {
+      await runner.load(scoreRound, widthPx: widthPx, heightPx: _loadHeightPx);
+      if (stale()) {
         runner.dispose();
         return;
       }
@@ -283,16 +304,24 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         highlightColor: settings.practicePendingColor,
         mergeTies: true,
       );
-      // No modo espera as notas do aluno são do treino; o player só vira
-      // páginas (como `_paintForPractice` em `main.dart`).
+      // Como `_paintForPractice` em `main.dart`: a mão do app em cinza; no
+      // modo espera as notas do aluno são do treino e o player só vira
+      // páginas.
       final track = runner.track;
-      final studentNotes = {
-        for (final id in studentHandNoteIds(track, scoreRound.hand)) ...[
-          id,
-          runner.document.sceneIdOf(id) ?? id,
-        ],
-      };
-      player.skipHighlight = studentNotes.contains;
+      final hand = runner.practice.hand;
+      final appNotes = appHandNoteIds(track, hand);
+      player.highlightColorOf = appNotes.isEmpty
+          ? null
+          : (id) => appNotes.contains(id) ? kPracticeAppHandColor : null;
+      if (scoreRound.mode == PlayMode.wait) {
+        final studentNotes = {
+          for (final id in studentHandNoteIds(track, hand)) ...[
+            id,
+            runner.document.sceneIdOf(id) ?? id,
+          ],
+        };
+        player.skipHighlight = studentNotes.contains;
+      }
       player.clock = AudioPlaybackClock(runner.scheduler);
       setState(() {
         _runner = runner;
@@ -303,19 +332,24 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         _roundNumber++;
       });
       final pending = runner.start();
+      _follow(
+        player,
+        runner,
+        exerciseRange(runner.timeline, scoreRound.measures).range.startMs,
+      );
       widget.onRound?.call(runner, pending);
       final result = await pending;
-      if (!mounted) return;
+      if (stale()) return;
       if (result == null) return; // cancelada (sair no meio): sem registro.
       await _finishRound(result);
     } on UnimplementedError catch (e) {
-      if (!mounted) return;
+      if (stale()) return;
       setState(() {
         _loading = false;
         _error = '$e';
       });
     } on Object catch (e) {
-      if (!mounted) return;
+      if (stale()) return;
       setState(() {
         _loading = false;
         _error = '$e';
@@ -323,7 +357,36 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     }
   }
 
+  /// O player acompanha a rodada pelo relógio do áudio e vira as páginas
+  /// (sem ele a partitura ficava parada na primeira). Com contagem inicial,
+  /// nada fica aceso até o primeiro tempo — como `_playPlayerAfterCount` em
+  /// `main.dart`.
+  void _follow(ScorePlayer player, ScoreRoundRunner runner, double startMs) {
+    _followTimer?.cancel();
+    _followTimer = null;
+    void go() => player
+      ..seek(Duration(microseconds: (startMs * 1000).round()))
+      ..play();
+    final scheduler = runner.scheduler;
+    if (!scheduler.isCountingIn) {
+      go();
+      return;
+    }
+    player.seek(Duration(microseconds: (startMs * 1000).round()));
+    runner.controller.clearHighlights();
+    _followTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (scheduler.isCountingIn) return;
+      timer.cancel();
+      _followTimer = null;
+      if (!mounted || !identical(player, _player)) return;
+      go();
+    });
+  }
+
   Future<void> _finishRound(RoundResult result) async {
+    _followTimer?.cancel();
+    _followTimer = null;
+    _player?.pause();
     final verdict = PassCheck.evaluate(widget.spec, [..._history, result]);
     final previousBest = widget
         .deps
@@ -412,6 +475,16 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       _running = false;
     });
     listen.play(range.startMs);
+    // A partitura acompanha o que se ouve (e vira as páginas).
+    if (_player case final player?) {
+      _followTimer?.cancel();
+      _followTimer = null;
+      player
+        ..clock = AudioPlaybackClock(listen)
+        ..skipHighlight = null
+        ..seek(Duration(microseconds: (range.startMs * 1000).round()))
+        ..play();
+    }
     final ms = ((range.endMs - range.startMs) / speed).ceil() + 500;
     _listenTimer = Timer(Duration(milliseconds: ms), () {
       if (!mounted) return;
@@ -524,24 +597,29 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   }
 
   Widget _scoreFlow() {
-    final showControls =
-        _runner != null && _result == null && !_loading && _error == null;
+    // A barra aparece já no carregamento (desligada): se surgisse só com a
+    // rodada pronta, a caixa da partitura encolheria depois de a página ter
+    // sido medida por ela.
+    final showControls = _result == null && _error == null;
+    final ready = _runner != null && !_loading;
     final realtime = _isRealtimeScore;
     return Column(
       children: [
-        if (showControls && (realtime || true))
+        if (showControls)
           _ScoreControls(
             realtime: realtime,
             speed: _chosenSpeed ?? widget.spec.pass.speed / 100.0,
             listening: _listening,
             running: _running,
-            onSpeed: (value) {
-              setState(() => _chosenSpeed = value);
-              final widthPx = _loadWidthPx;
-              if (widthPx != null) unawaited(_newRound(widthPx));
-            },
+            onSpeed: ready
+                ? (value) {
+                    setState(() => _chosenSpeed = value);
+                    final widthPx = _loadWidthPx;
+                    if (widthPx != null) unawaited(_newRound(widthPx));
+                  }
+                : null,
             onRestart: _loadWidthPx == null ? null : _restart,
-            onListen: _toggleListen,
+            onListen: ready ? _toggleListen : null,
           ),
         Expanded(
           child: _RoundBody(
@@ -553,11 +631,16 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             badMeasureIds: _badMeasureIds,
             scheduler: _runner?.scheduler,
             phone: _isPhone,
-            onWidth: (widthPx) {
-              if (_loadWidthPx == widthPx || _running || _result != null) {
+            label: widget.spec.id,
+            onPaper: (widthPx, heightPx) {
+              if ((_loadWidthPx == widthPx && _loadHeightPx == heightPx) ||
+                  _running ||
+                  _listening ||
+                  _result != null) {
                 return;
               }
               _loadWidthPx = widthPx;
+              _loadHeightPx = heightPx;
               if (_startedRound) unawaited(_newRound(widthPx));
             },
             resultPanel: _result != null && _verdict != null
@@ -635,9 +718,9 @@ class _ScoreControls extends StatelessWidget {
   final double speed;
   final bool listening;
   final bool running;
-  final ValueChanged<double> onSpeed;
+  final ValueChanged<double>? onSpeed;
   final VoidCallback? onRestart;
-  final VoidCallback onListen;
+  final VoidCallback? onListen;
 
   @override
   Widget build(BuildContext context) {
@@ -658,7 +741,9 @@ class _ScoreControls extends StatelessWidget {
                 max: 200,
                 divisions: 35,
                 label: '${(speed * 100).round()}%',
-                onChanged: (value) => onSpeed(value / 100.0),
+                onChanged: onSpeed == null
+                    ? null
+                    : (value) => onSpeed!(value / 100.0),
               ),
             ),
             SizedBox(
@@ -699,8 +784,9 @@ class _RoundBody extends StatelessWidget {
     required this.player,
     required this.viewController,
     required this.badMeasureIds,
-    required this.onWidth,
+    required this.onPaper,
     required this.resultPanel,
+    this.label = '',
     this.scheduler,
     this.phone = false,
   });
@@ -711,10 +797,15 @@ class _RoundBody extends StatelessWidget {
   final ScorePlayer? player;
   final ScoreViewController? viewController;
   final Set<String> badMeasureIds;
-  final ValueChanged<double> onWidth;
+
+  /// Largura e altura da caixa em medida de papel (`lessonScorePaperPx`).
+  final void Function(double widthPx, double heightPx) onPaper;
   final Widget? resultPanel;
   final ScoreAudioScheduler? scheduler;
   final bool phone;
+
+  /// Id do exercício, para o log de tamanho (`ScoreSizeLog`).
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -723,7 +814,12 @@ class _RoundBody extends StatelessWidget {
         final widthPx = constraints.maxWidth.isFinite
             ? lessonScorePaperPx(context, constraints.maxWidth)
             : 1800.0;
-        WidgetsBinding.instance.addPostFrameCallback((_) => onWidth(widthPx));
+        final heightPx = constraints.maxHeight.isFinite
+            ? lessonScorePaperPx(context, constraints.maxHeight)
+            : kLessonPageHeight.toDouble();
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => onPaper(widthPx, heightPx),
+        );
         final document = runner?.document;
         final Widget score;
         if (loading) {
@@ -740,21 +836,27 @@ class _RoundBody extends StatelessWidget {
             ),
           );
         } else {
-          score = ScoreView(
+          score = ScoreSizeLog(
+            label: 'exercício $label',
             document: document,
-            controller: runner!.controller,
-            viewController: viewController,
-            curtain: player?.curtain,
-            ghosts: runner!.ghosts,
-            overlayIds: badMeasureIds.isEmpty
-                ? const []
-                : [for (final m in player!.measures) m.id],
-            overlayBuilder: (context, id, rect) => badMeasureIds.contains(id)
-                ? IgnorePointer(
-                    child: ColoredBox(color: kBadColor.withValues(alpha: 0.12)),
-                  )
-                : null,
-            overlayUniformHeight: true,
+            child: ScoreView(
+              document: document,
+              controller: runner!.controller,
+              viewController: viewController,
+              curtain: player?.curtain,
+              ghosts: runner!.ghosts,
+              overlayIds: badMeasureIds.isEmpty
+                  ? const []
+                  : [for (final m in player!.measures) m.id],
+              overlayBuilder: (context, id, rect) => badMeasureIds.contains(id)
+                  ? IgnorePointer(
+                      child: ColoredBox(
+                        color: kBadColor.withValues(alpha: 0.12),
+                      ),
+                    )
+                  : null,
+              overlayUniformHeight: true,
+            ),
           );
         }
         return Stack(

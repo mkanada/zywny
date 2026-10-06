@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -267,6 +268,42 @@ void main() {
       expect(lessonScoreLayout(10).pageWidth, kLessonMinWidth);
       expect(lessonScoreLayout(1e9).pageWidth, kLessonMaxWidth);
     });
+
+    test('com a altura da caixa, a página não passa dela', () {
+      expect(lessonScoreLayout(1800).pageHeight, kLessonPageHeight);
+      expect(lessonScoreLayout(1800, heightPx: 540).pageHeight, 540);
+      expect(lessonScoreLayout(1800, heightPx: 10).pageHeight, 300);
+      expect(
+        lessonScoreLayout(1800, heightPx: 1e9).pageHeight,
+        kLessonPageHeight,
+      );
+    });
+
+    // A Ode do curso (duas pautas, 8 compassos) num celular deitado: antes
+    // cabia numa página alta que a tela encolhia; agora vira páginas, como
+    // os hinos, e cada uma cabe na caixa sem encolher.
+    test(
+      'a Ode no celular deitado sai em páginas da altura da caixa',
+      () async {
+        final bytes = File(
+          'assets/cursos/iniciacao/media/ode-a-alegria.musicxml',
+        ).readAsBytesSync();
+        // Caixa de ~780×270 pt a 2,75 de densidade, com o zoom 1,3 do curso.
+        final layout = lessonScoreLayout(1650, heightPx: 571, phone: true);
+        final doc = await renderBytes(
+          bytes,
+          'ode.musicxml',
+          pageWidth: layout.pageWidth,
+          pageHeight: layout.pageHeight,
+          options: layout.options,
+        );
+        expect(doc.pages.length, greaterThan(1));
+        for (final page in doc.pages) {
+          expect(page.heightPx, lessThanOrEqualTo(571));
+        }
+      },
+      skip: verovioAvailable ? false : _noLib,
+    );
   });
 
   // O MusicXML gerado renderiza pela libverovio e o midi.json bate com o

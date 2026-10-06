@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'render/score_size_log.dart';
+
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -2794,40 +2797,45 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             ? SizedBox(
                 width: constraints.maxWidth,
                 height: constraints.maxHeight,
-                child: ScoreView(
+                child: ScoreSizeLog(
+                  label: 'hino ${widget.opened?.piece.id ?? _scoreName ?? '?'}',
                   document: document,
-                  controller: _controller,
-                  viewController: _viewController,
-                  curtain: _player?.curtain,
-                  mode: ScorePageMode.pagedSweep,
-                  initialPage: _pageIndex.clamp(0, document.pages.length - 1),
-                  onPageChanged: _onPageChanged,
-                  onElementTap: _onScoreTap,
-                  ghosts: _ghosts,
-                  overlayIds:
-                      (_trailMarkedIds().isEmpty && _errorMeasureIds.isEmpty) ||
-                          _player == null
-                      ? const []
-                      : _allMeasureIds(_player!),
-                  overlayBuilder: _markMeasure,
-                  overlayUniformHeight: true,
-                  haloSigmaScale: _haloWidth,
-                  barColor: _barColor,
-                  barWidth: _barWidthOf(document),
-                  // A página nova fica ilegível até a haste começar a sair:
-                  // o foco é o fim da página que ainda toca. No treino com
-                  // tempo não: o aluno precisa ler o que vem antes de tocar,
-                  // e a virada é curta (300 ms de parede, em qualquer
-                  // andamento — o teto é em ms musicais).
-                  revealBlurSigma: _timedPractice
-                      ? 0
-                      : _barWidthOf(document) * 4,
-                  maxSweepDuration: _timedPractice
-                      ? Duration(
-                          milliseconds: (300 * (_scheduler?.speed ?? 1))
-                              .round(),
-                        )
-                      : kDefaultMaxSweepDuration,
+                  child: ScoreView(
+                    document: document,
+                    controller: _controller,
+                    viewController: _viewController,
+                    curtain: _player?.curtain,
+                    mode: ScorePageMode.pagedSweep,
+                    initialPage: _pageIndex.clamp(0, document.pages.length - 1),
+                    onPageChanged: _onPageChanged,
+                    onElementTap: _onScoreTap,
+                    ghosts: _ghosts,
+                    overlayIds:
+                        (_trailMarkedIds().isEmpty &&
+                                _errorMeasureIds.isEmpty) ||
+                            _player == null
+                        ? const []
+                        : _allMeasureIds(_player!),
+                    overlayBuilder: _markMeasure,
+                    overlayUniformHeight: true,
+                    haloSigmaScale: _haloWidth,
+                    barColor: _barColor,
+                    barWidth: _barWidthOf(document),
+                    // A página nova fica ilegível até a haste começar a sair:
+                    // o foco é o fim da página que ainda toca. No treino com
+                    // tempo não: o aluno precisa ler o que vem antes de tocar,
+                    // e a virada é curta (300 ms de parede, em qualquer
+                    // andamento — o teto é em ms musicais).
+                    revealBlurSigma: _timedPractice
+                        ? 0
+                        : _barWidthOf(document) * 4,
+                    maxSweepDuration: _timedPractice
+                        ? Duration(
+                            milliseconds: (300 * (_scheduler?.speed ?? 1))
+                                .round(),
+                          )
+                        : kDefaultMaxSweepDuration,
+                  ),
                 ),
               )
             : phone

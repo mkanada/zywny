@@ -8,6 +8,8 @@
 // Respeita a saída de som escolhida: quem chama resolve o `SoundEngine`
 // (app ou teclado MIDI) a partir de `AppSettings` e passa pronto.
 
+import '../../render/score_size_log.dart';
+
 import 'package:flutter/material.dart';
 import 'package:score_bridge/score_bridge.dart';
 
@@ -299,13 +301,18 @@ class _ScoreMarkViewState extends State<ScoreMarkView> {
                 ),
                 child: SizedBox(
                   height: height,
-                  child: ScoreView(
-                    // Redesenho (outra largura) = documento novo: estado novo.
-                    key: ObjectKey(document),
+                  child: ScoreSizeLog(
+                    label: 'lição ${widget.mark.caption ?? ''}',
                     document: document,
-                    controller: controller,
-                    viewController: viewController,
-                    mode: ScorePageMode.continuousScroll,
+                    continuous: true,
+                    child: ScoreView(
+                      // Redesenho (outra largura) = documento novo: estado novo.
+                      key: ObjectKey(document),
+                      document: document,
+                      controller: controller,
+                      viewController: viewController,
+                      mode: ScorePageMode.continuousScroll,
+                    ),
                   ),
                 ),
               );
