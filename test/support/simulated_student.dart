@@ -177,6 +177,7 @@ Future<RoundResult?> playTimedRound(
     }
     return false;
   }
+
   final staves = practice.hand.studentStaves;
   final events = [
     for (final e in runner.track.events)

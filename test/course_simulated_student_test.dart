@@ -137,13 +137,16 @@ void main() {
   final lessonDir = Directory('assets/cursos/iniciacao/lessons');
   final lessonFiles = lessonDir.listSync().whereType<File>().toList()
     ..sort((a, b) => a.path.compareTo(b.path));
-  final entries = <({
-    String lesson,
-    String exercise,
-    String type,
-    bool hasTimeLimit,
-    String? mode,
-  })>[];
+  final entries =
+      <
+        ({
+          String lesson,
+          String exercise,
+          String type,
+          bool hasTimeLimit,
+          String? mode,
+        })
+      >[];
   final lessonIdPattern = RegExp(r'^id:\s*([a-z0-9-]+)\s*$', multiLine: true);
   final exerciseBlockPattern = RegExp(
     r'```zywny-exercise\s*\n(.*?)```',
@@ -216,9 +219,7 @@ void main() {
           expect(result, isNotNull);
           history.add(result!);
         } else if (round is QuestionRound) {
-          history.add(
-            await _playQuestionsCorrect(round, spec.pass.timeLimit),
-          );
+          history.add(await _playQuestionsCorrect(round, spec.pass.timeLimit));
         } else {
           fail('rodada desconhecida para ${spec.id}');
         }
@@ -235,13 +236,8 @@ void main() {
         // Total de passos só se sabe depois de renderizar: 2 dá ~50%,
         // abaixo de qualquer `accuracy` do curso (80–90). Com um passo só,
         // erra ele.
-        final totalGuess = round.pitches.isNotEmpty
-            ? round.pitches.length
-            : 12;
-        final result = await _playScoreWrong(
-          round,
-          _wrongEvery(totalGuess),
-        );
+        final totalGuess = round.pitches.isNotEmpty ? round.pitches.length : 12;
+        final result = await _playScoreWrong(round, _wrongEvery(totalGuess));
         expect(result, isNotNull);
         expect(
           PassCheck.roundPasses(spec, result!),

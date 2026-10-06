@@ -22,8 +22,7 @@ void main() {
       expect((result.hits, result.total, result.percent), (2, 2, 100));
     });
 
-    test('errou uma vez: não conta como de primeira, mas avança na certa',
-        () {
+    test('errou uma vez: não conta como de primeira, mas avança na certa', () {
       final session = QuestionSession([
         _button('Q1', ['a', 'b'], 0),
         _button('Q2', ['a', 'b'], 1),
@@ -71,10 +70,9 @@ void main() {
     });
 
     test('tick com agora explícito (sem relógio injetado)', () {
-      final session = QuestionSession(
-        [_button('Q1', ['a', 'b'], 0)],
-        timeLimit: 5,
-      );
+      final session = QuestionSession([
+        _button('Q1', ['a', 'b'], 0),
+      ], timeLimit: 5);
       // Tempos grandes, sem depender do relógio de parede.
       expect(session.tick(1e12 + 10), isTrue);
       expect(session.revealing, isTrue);
@@ -89,9 +87,7 @@ void main() {
       ]);
       expect(any.answerPitch(72), isTrue);
 
-      final exact = QuestionSession([
-        const Question(expectedPitch: 60),
-      ]);
+      final exact = QuestionSession([const Question(expectedPitch: 60)]);
       expect(exact.answerPitch(72), isFalse);
       expect(exact.answerPitch(60), isTrue);
     });

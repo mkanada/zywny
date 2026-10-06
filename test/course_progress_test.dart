@@ -42,7 +42,11 @@ void main() {
     final course = await _course();
     final spec = course.lessons.first.exercises.single;
     final store = CourseProgressStore();
-    await store.recordAttempt('t', spec, const RoundResult(hits: 12, total: 12));
+    await store.recordAttempt(
+      't',
+      spec,
+      const RoundResult(hits: 12, total: 12),
+    );
     final progress = store['t'];
     expect(progress.records['ex-a']?.passed, isTrue);
     expect(progress.records['ex-a']?.streak, 1);
@@ -89,7 +93,11 @@ void main() {
     final course = await _course();
     final spec = course.lessons.first.exercises.single;
     final store = CourseProgressStore();
-    await store.recordAttempt('t', spec, const RoundResult(hits: 12, total: 12));
+    await store.recordAttempt(
+      't',
+      spec,
+      const RoundResult(hits: 12, total: 12),
+    );
     // O exercício sai do curso: some das contas, mas fica guardado.
     final orphan = store['t'].records['ex-a'];
     expect(orphan?.passed, isTrue);
@@ -116,7 +124,11 @@ void main() {
     final course = await _course();
     final spec = course.lessons.first.exercises.single;
     final store = CourseProgressStore();
-    await store.recordAttempt('t', spec, const RoundResult(hits: 12, total: 12));
+    await store.recordAttempt(
+      't',
+      spec,
+      const RoundResult(hits: 12, total: 12),
+    );
     await store.recordAttempt('t', spec, const RoundResult(hits: 0, total: 12));
     final record = store['t'].records['ex-a']!;
     expect(record.passed, isTrue);

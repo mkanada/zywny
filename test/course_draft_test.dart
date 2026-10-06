@@ -78,9 +78,7 @@ void main() {
     final prefs = SharedPreferencesAsync();
     expect(await prefs.getString('course_installed'), isNull);
     expect(
-      await prefs.getString(
-        CourseProgressStore.keyFor('rascunho-teste'),
-      ),
+      await prefs.getString(CourseProgressStore.keyFor('rascunho-teste')),
       isNull,
     );
     final blobs = MemoryLibraryBlobStore();
@@ -127,8 +125,9 @@ void main() {
     expect(find.textContaining('answer'), findsWidgets);
   });
 
-  testWidgets('Recarregar depois de corrigir abre e mantém progresso e lição',
-      (tester) async {
+  testWidgets('Recarregar depois de corrigir abre e mantém progresso e lição', (
+    tester,
+  ) async {
     var broken = true;
     final controller = CourseDraftController(
       loadFiles: () async =>
@@ -185,9 +184,7 @@ void main() {
     // E continuam fora do disco.
     final prefs = SharedPreferencesAsync();
     expect(
-      await prefs.getString(
-        CourseProgressStore.keyFor('rascunho-teste'),
-      ),
+      await prefs.getString(CourseProgressStore.keyFor('rascunho-teste')),
       isNull,
     );
   });

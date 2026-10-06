@@ -123,10 +123,7 @@ void main() {
       expect(pitchFromMidi(60), Pitch.parse('C4'));
       expect(midiLabel(60, NoteNaming.latin), 'Dó');
       expect(midiLabel(60, NoteNaming.letters), 'C');
-      expect(
-        midiLabel(60, NoteNaming.latin, withOctave: true),
-        'Dó4',
-      );
+      expect(midiLabel(60, NoteNaming.latin, withOctave: true), 'Dó4');
     });
 
     test('pretas saem como sustenido', () {

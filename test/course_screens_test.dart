@@ -38,6 +38,7 @@ import 'package:zywny/library/piece.dart';
 import 'package:zywny/midi/midi_device_manager.dart';
 import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/settings/app_settings.dart';
+
 import 'support/practice_fakes.dart';
 import 'support/render_helper.dart';
 
@@ -248,8 +249,9 @@ void main() {
     expect(opened?.id, 't');
   });
 
-  testWidgets('lição bloqueada mostra o motivo e abre com "assim mesmo"',
-      (tester) async {
+  testWidgets('lição bloqueada mostra o motivo e abre com "assim mesmo"', (
+    tester,
+  ) async {
     final devices = await makeDevices();
     final progress = MemoryCourseProgressStore();
     final deps = makeDeps(
@@ -263,7 +265,9 @@ void main() {
       deps.settings.dispose();
     });
     await tester.pumpWidget(
-      MaterialApp(home: CourseScreen(loaded: loaded, progress: progress, deps: deps)),
+      MaterialApp(
+        home: CourseScreen(loaded: loaded, progress: progress, deps: deps),
+      ),
     );
     await tester.pump();
     expect(find.text('Depois de: Primeira'), findsOneWidget);
@@ -273,7 +277,10 @@ void main() {
     await tester.tap(find.text('Abrir assim mesmo'));
     await tester.pumpAndSettle();
     // A lição abriu (texto + aviso de ordem).
-    expect(find.textContaining('Leia aquilo.', findRichText: true), findsWidgets);
+    expect(
+      find.textContaining('Leia aquilo.', findRichText: true),
+      findsWidgets,
+    );
     expect(find.textContaining('assim mesmo'), findsWidgets);
   });
 
@@ -314,11 +321,15 @@ void main() {
     expect(find.textContaining('Próxima lição: Segunda'), findsOneWidget);
     await tester.tap(find.textContaining('Próxima lição: Segunda'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Leia aquilo.', findRichText: true), findsWidgets);
+    expect(
+      find.textContaining('Leia aquilo.', findRichText: true),
+      findsWidgets,
+    );
   });
 
-  testWidgets('sem teclado, o exercício MIDI mostra "Conecte o teclado"',
-      (tester) async {
+  testWidgets('sem teclado, o exercício MIDI mostra "Conecte o teclado"', (
+    tester,
+  ) async {
     final devices = await makeDevices(connected: false);
     final progress = MemoryCourseProgressStore();
     final deps = makeDeps(
@@ -406,8 +417,9 @@ void main() {
     expect(find.text('rodada 2'), findsOneWidget);
   });
 
-  testWidgets('biblioteca sem músicas mostra o cartão do curso inicial',
-      (tester) async {
+  testWidgets('biblioteca sem músicas mostra o cartão do curso inicial', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: LibraryScreen(

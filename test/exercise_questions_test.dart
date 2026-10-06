@@ -39,12 +39,9 @@ void main() {
       final spec = await specFrom(
         'id: n\ntype: name-note\ntitle: N\nnotes: {random: C4-G4}',
       );
-      final a =
-          await generateRound(spec, _files, Random(5)) as QuestionRound;
-      final b =
-          await generateRound(spec, _files, Random(5)) as QuestionRound;
-      final c =
-          await generateRound(spec, _files, Random(6)) as QuestionRound;
+      final a = await generateRound(spec, _files, Random(5)) as QuestionRound;
+      final b = await generateRound(spec, _files, Random(5)) as QuestionRound;
+      final c = await generateRound(spec, _files, Random(6)) as QuestionRound;
       expect(
         [for (final q in a.questions) q.highlightId],
         [for (final q in b.questions) q.highlightId],
@@ -53,10 +50,9 @@ void main() {
         (a.questions.first.answers, a.questions.first.correct),
         (b.questions.first.answers, b.questions.first.correct),
       );
-      expect(
-        [for (final q in a.questions) q.correct],
-        isNot([for (final q in c.questions) q.correct]),
-      );
+      expect([
+        for (final q in a.questions) q.correct,
+      ], isNot([for (final q in c.questions) q.correct]));
     });
 
     test('find-key any × exact no sorteio', () async {
@@ -106,24 +102,27 @@ void main() {
       expect(verdict.reason, '50% de 90%');
     });
 
-    test('find-key any aceita outra oitava, exact não (ponta a ponta)', () async {
-      final anySpec = await specFrom(
-        'id: f\ntype: find-key\ntitle: F\nnotes: [C4]\noctave: any',
-      );
-      final anyRound =
-          await generateRound(anySpec, _files, Random(1)) as QuestionRound;
-      final any = QuestionSession(anyRound.questions);
-      expect(any.answerPitch(72), isTrue);
+    test(
+      'find-key any aceita outra oitava, exact não (ponta a ponta)',
+      () async {
+        final anySpec = await specFrom(
+          'id: f\ntype: find-key\ntitle: F\nnotes: [C4]\noctave: any',
+        );
+        final anyRound =
+            await generateRound(anySpec, _files, Random(1)) as QuestionRound;
+        final any = QuestionSession(anyRound.questions);
+        expect(any.answerPitch(72), isTrue);
 
-      final exactSpec = await specFrom(
-        'id: f\ntype: find-key\ntitle: F\nnotes: [C4]\noctave: exact',
-      );
-      final exactRound =
-          await generateRound(exactSpec, _files, Random(1)) as QuestionRound;
-      final exact = QuestionSession(exactRound.questions);
-      expect(exact.answerPitch(72), isFalse);
-      expect(exact.answerPitch(60), isTrue);
-    });
+        final exactSpec = await specFrom(
+          'id: f\ntype: find-key\ntitle: F\nnotes: [C4]\noctave: exact',
+        );
+        final exactRound =
+            await generateRound(exactSpec, _files, Random(1)) as QuestionRound;
+        final exact = QuestionSession(exactRound.questions);
+        expect(exact.answerPitch(72), isFalse);
+        expect(exact.answerPitch(60), isTrue);
+      },
+    );
 
     test('name-note tudo certo aprova', () async {
       const body =
@@ -131,10 +130,7 @@ void main() {
       final result = await _playAllCorrect(body);
       expect(result.percent, 100);
       final spec = await specFrom(body);
-      expect(
-        PassCheck.evaluate(spec, [result]).exercisePassed,
-        isTrue,
-      );
+      expect(PassCheck.evaluate(spec, [result]).exercisePassed, isTrue);
     });
 
     test('name-note com erros reprova', () async {
@@ -147,10 +143,7 @@ void main() {
       final result = await answerQuestions(session, wrongEvery: 3);
       // 8 de 12 de primeira: 66% < 90%.
       expect(result.percent, 66);
-      expect(
-        PassCheck.evaluate(spec, [result]).reason,
-        '66% de 90%',
-      );
+      expect(PassCheck.evaluate(spec, [result]).reason, '66% de 90%');
     });
 
     test('count-beats tudo certo aprova', () async {

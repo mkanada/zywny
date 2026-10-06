@@ -38,9 +38,12 @@ void main() {
       expect(abcSource('C', unit: '1/8'), contains('\nL:1/8\n'));
     });
 
-    test('o corpo é aparado, fecha o compasso e termina em quebra de linha', () {
-      expect(abcSource('\n  C D E  \n\n'), endsWith('clef=treble\nC D E|\n'));
-    });
+    test(
+      'o corpo é aparado, fecha o compasso e termina em quebra de linha',
+      () {
+        expect(abcSource('\n  C D E  \n\n'), endsWith('clef=treble\nC D E|\n'));
+      },
+    );
 
     test('barra final não duplica', () {
       expect(abcSource('C D E|'), endsWith('C D E|\n'));
