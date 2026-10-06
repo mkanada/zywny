@@ -46,7 +46,13 @@ class CoursesScreen extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            // O fim da lista fica acima da barra de botões do Android.
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              24 + MediaQuery.viewPaddingOf(context).bottom,
+            ),
             itemCount: courses.length + (onInstall == null ? 0 : 1),
             itemBuilder: (context, i) {
               if (i >= courses.length) {

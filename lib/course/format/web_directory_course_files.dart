@@ -33,8 +33,7 @@ Future<WebDirectoryCourseFiles?> pickWebDirectory() async {
     final handle = await (web.window as JSObject)
         .callMethod<JSPromise<JSObject>>('showDirectoryPicker'.toJS)
         .toDart;
-    final name =
-        (handle['name'] as JSString?)?.toDart ?? 'pasta';
+    final name = (handle['name'] as JSString?)?.toDart ?? 'pasta';
     return WebDirectoryCourseFiles(handle, label: name);
   } on Object {
     // Cancelou (AbortError) ou negou: sem rascunho, sem erro.
@@ -69,16 +68,11 @@ class WebDirectoryCourseFiles implements CourseFiles {
     return result..sort();
   }
 
-  Future<void> _collect(
-    JSObject dir,
-    String prefix,
-    List<String> out,
-  ) async {
+  Future<void> _collect(JSObject dir, String prefix, List<String> out) async {
     final iterator = dir.callMethod<JSObject>('values'.toJS);
     while (true) {
-      final next = await (iterator.callMethod<JSPromise<JSObject>>(
-        'next'.toJS,
-      )).toDart;
+      final next = await (iterator.callMethod<JSPromise<JSObject>>('next'.toJS))
+          .toDart;
       final done = (next['done'] as JSBoolean?)?.toDart ?? true;
       if (done) break;
       final entry = next['value'] as JSObject?;
@@ -100,19 +94,15 @@ class WebDirectoryCourseFiles implements CourseFiles {
     if (parts.isEmpty) throw ArgumentError('Arquivo ausente: $path');
     JSObject dir = _handle;
     for (var i = 0; i < parts.length - 1; i++) {
-      dir =
-          await dir
-              .callMethod<JSPromise<JSObject>>(
-                'getDirectoryHandle'.toJS,
-                parts[i].toJS,
-              )
-              .toDart;
+      dir = await dir
+          .callMethod<JSPromise<JSObject>>(
+            'getDirectoryHandle'.toJS,
+            parts[i].toJS,
+          )
+          .toDart;
     }
     final fileHandle = await dir
-        .callMethod<JSPromise<JSObject>>(
-          'getFileHandle'.toJS,
-          parts.last.toJS,
-        )
+        .callMethod<JSPromise<JSObject>>('getFileHandle'.toJS, parts.last.toJS)
         .toDart;
     final file = await fileHandle
         .callMethod<JSPromise<JSObject>>('getFile'.toJS)

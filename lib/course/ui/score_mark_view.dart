@@ -1,6 +1,6 @@
 // I05 — `zywny-score`: partitura pequena com toque para ouvir.
 //
-// Renderiza os bytes do I02 com `lessonScoreOptions(largura)`, mostra com o
+// Renderiza os bytes do I02 com `lessonScoreLayout(largura)`, mostra com o
 // `ScoreView` do `score_bridge`, `highlight` pinta as notas daquelas alturas
 // (cor de destaque das configurações) e a legenda vai embaixo. Toque = ouvir
 // do começo (o sintetizador do app, mesmo caminho do "ouvir o trecho", U03:
@@ -19,6 +19,7 @@ import '../../ui/theme.dart';
 import '../format/course_files.dart';
 import '../format/course_model.dart';
 import '../score/lesson_score.dart';
+import 'course_chrome.dart';
 
 /// Partitura pequena de uma marca `zywny-score`.
 class ScoreMarkView extends StatefulWidget {
@@ -85,8 +86,7 @@ class _ScoreMarkViewState extends State<ScoreMarkView> {
         _load(_lastWidth!);
       }
     }
-    if (oldWidget.highlightColor != widget.highlightColor &&
-        _track != null) {
+    if (oldWidget.highlightColor != widget.highlightColor && _track != null) {
       _applyHighlight();
     }
   }
@@ -123,6 +123,12 @@ class _ScoreMarkViewState extends State<ScoreMarkView> {
           autoTick: true,
         );
       }
+      if (widthPx != _lastWidth) {
+        // Já pediram outra largura: esta renderização ficou velha.
+        controller.dispose();
+        return;
+      }
+      _disposeLater();
       setState(() {
         _document = rendered.document;
         _track = track;
@@ -155,9 +161,7 @@ class _ScoreMarkViewState extends State<ScoreMarkView> {
         ids.addAll(event.tied);
       }
     }
-    controller.setColors({
-      for (final id in ids) id: widget.highlightColor,
-    });
+    controller.setColors({for (final id in ids) id: widget.highlightColor});
   }
 
   Future<void> _toggle() async {
@@ -178,6 +182,24 @@ class _ScoreMarkViewState extends State<ScoreMarkView> {
     // `Future.delayed` aqui travaria o `tap` do teste no relógio falso).
     scheduler.play(0);
     if (mounted) setState(() => _playing = true);
+  }
+
+  /// Solta o que a partitura anterior usava depois do quadro em que a nova
+  /// entra (o `ScoreView` ainda segura os controladores velhos até lá).
+  void _disposeLater() {
+    final scheduler = _scheduler;
+    final controller = _controller;
+    final viewController = _viewController;
+    if (scheduler == null && controller == null && viewController == null) {
+      return;
+    }
+    scheduler?.stop();
+    _playing = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      scheduler?.dispose();
+      controller?.dispose();
+      viewController?.dispose();
+    });
   }
 
   void _releaseSound() {
@@ -209,8 +231,16 @@ class _ScoreMarkViewState extends State<ScoreMarkView> {
             builder: (context, constraints) {
               final widthPx =
                   widget.widthPx ??
-                  constraints.maxWidth *
-                      MediaQuery.devicePixelRatioOf(context);
+                  lessonScorePaperPx(
+                    context,
+                    constraints.maxWidth.isFinite ? constraints.maxWidth : 640,
+                  );
+              if (!_loading && _lastWidth != null && widthPx != _lastWidth) {
+                // O "Aa" ou o giro mudou o papel: redesenha, mostrando a
+                // anterior até a nova ficar pronta.
+                _lastWidth = widthPx;
+                _load(widthPx);
+              }
               if (_loading && _lastWidth == null) {
                 // Espaço reservado com altura estimada, sem pular a rolagem.
                 _lastWidth = widthPx;
@@ -221,9 +251,7 @@ class _ScoreMarkViewState extends State<ScoreMarkView> {
                     color: kChipBg,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  child: const Center(child: CircularProgressIndicator()),
                 );
               }
               if (_loading) {
@@ -233,9 +261,7 @@ class _ScoreMarkViewState extends State<ScoreMarkView> {
                     color: kChipBg,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  child: const Center(child: CircularProgressIndicator()),
                 );
               }
               if (_error != null) {
@@ -274,6 +300,8 @@ class _ScoreMarkViewState extends State<ScoreMarkView> {
                 child: SizedBox(
                   height: height,
                   child: ScoreView(
+                    // Redesenho (outra largura) = documento novo: estado novo.
+                    key: ObjectKey(document),
                     document: document,
                     controller: controller,
                     viewController: viewController,

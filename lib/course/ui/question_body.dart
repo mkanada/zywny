@@ -22,6 +22,7 @@ import '../format/course_model.dart';
 import '../format/note_name.dart';
 import '../note_names.dart';
 import '../score/lesson_score.dart';
+import 'course_chrome.dart';
 import 'keyboard_mark_view.dart';
 import 'markdown_view.dart';
 
@@ -81,13 +82,10 @@ class _QuestionBodyState extends State<QuestionBody> {
     }
     final limit = widget.spec.pass.timeLimit;
     if (limit != null) {
-      _tickTimer = Timer.periodic(
-        const Duration(milliseconds: 200),
-        (_) {
-          if (!mounted) return;
-          if (_session.tick()) setState(() {});
-        },
-      );
+      _tickTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        if (!mounted) return;
+        if (_session.tick()) setState(() {});
+      });
     }
   }
 
@@ -333,11 +331,7 @@ class _QuestionBodyState extends State<QuestionBody> {
   Widget _findKeyPrompt(Question question) {
     final naming = widget.settings.noteNaming;
     final expected = question.expectedPitch ?? 60;
-    final label = midiLabel(
-      expected,
-      naming,
-      withOctave: !question.anyOctave,
-    );
+    final label = midiLabel(expected, naming, withOctave: !question.anyOctave);
     final showingAnswer = _session.revealing;
     return Column(
       children: [
@@ -384,10 +378,7 @@ class _QuestionBodyState extends State<QuestionBody> {
   }
 
   Widget _choicePrompt(Question question) {
-    return MarkdownView(
-      text: question.prompt ?? '',
-      files: widget.files,
-    );
+    return MarkdownView(text: question.prompt ?? '', files: widget.files);
   }
 
   Widget? _choiceFigure(BoxConstraints constraints) {
@@ -413,7 +404,7 @@ class _QuestionBodyState extends State<QuestionBody> {
 
   Widget _scoreView(BoxConstraints constraints, {bool small = false}) {
     final widthPx = constraints.maxWidth.isFinite
-        ? constraints.maxWidth * MediaQuery.devicePixelRatioOf(context)
+        ? lessonScorePaperPx(context, constraints.maxWidth)
         : 1800.0;
     if (_scoreWidthPx == null) {
       _scoreWidthPx = widthPx;
@@ -454,7 +445,7 @@ class _QuestionBodyState extends State<QuestionBody> {
         total += boxWidth * page.heightPx / page.widthPx;
       }
     }
-    final height = (total < 120.0 ? 120.0 : total).clamp(120.0, 320.0);
+    final height = (total < 120.0 ? 120.0 : total).clamp(120.0, 420.0);
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -491,10 +482,7 @@ class _QuestionBodyState extends State<QuestionBody> {
             child: FilledButton(
               style: _buttonStyle(question, i),
               onPressed: _session.revealing ? null : () => _answerButton(i),
-              child: Text(
-                labels[i],
-                style: const TextStyle(fontSize: 18),
-              ),
+              child: Text(labels[i], style: const TextStyle(fontSize: 18)),
             ),
           ),
       ],

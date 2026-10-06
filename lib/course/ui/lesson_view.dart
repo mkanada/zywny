@@ -95,8 +95,7 @@ class LessonView extends StatelessWidget {
                 style: serifDisplay(fontSize: 26).copyWith(height: 1.2),
               ),
             ),
-            for (final block in lesson.blocks)
-              _block(block, coordinator),
+            for (final block in lesson.blocks) _block(block, coordinator),
             const SizedBox(height: 24),
           ],
         );

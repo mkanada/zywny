@@ -16,12 +16,9 @@ import 'exercise_round.dart';
 const double kAnswerRevealSeconds = 1.5;
 
 class QuestionSession {
-  QuestionSession(
-    this.questions, {
-    this.timeLimit,
-    double Function()? now,
-  }) : _now = now ?? _wallNow,
-       firstTry = List<bool>.filled(questions.length, true) {
+  QuestionSession(this.questions, {this.timeLimit, double Function()? now})
+    : _now = now ?? _wallNow,
+      firstTry = List<bool>.filled(questions.length, true) {
     _startAt = _now();
   }
 
@@ -31,8 +28,7 @@ class QuestionSession {
   final int? timeLimit;
 
   final double Function() _now;
-  static double _wallNow() =>
-      DateTime.now().millisecondsSinceEpoch / 1000.0;
+  static double _wallNow() => DateTime.now().millisecondsSinceEpoch / 1000.0;
 
   /// De primeira até agora, por pergunta (falso depois do primeiro erro ou
   /// do estouro).
@@ -65,8 +61,7 @@ class QuestionSession {
     return hits;
   }
 
-  RoundResult result() =>
-      RoundResult(hits: _hits, total: questions.length);
+  RoundResult result() => RoundResult(hits: _hits, total: questions.length);
 
   void _markWrong() {
     if (index < firstTry.length) firstTry[index] = false;

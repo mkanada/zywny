@@ -18,11 +18,7 @@ String videoDomain(String link) {
 }
 
 class VideoMarkView extends StatelessWidget {
-  const VideoMarkView({
-    super.key,
-    required this.mark,
-    this.openLink,
-  });
+  const VideoMarkView({super.key, required this.mark, this.openLink});
 
   final VideoMark mark;
   final LessonLinkOpener? openLink;
@@ -78,10 +74,7 @@ class VideoMarkView extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       domain,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: kInkCaption,
-                      ),
+                      style: const TextStyle(fontSize: 13, color: kInkCaption),
                     ),
                   ],
                 ),

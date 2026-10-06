@@ -392,6 +392,8 @@ void main() {
     }
     expect(find.text('Exercício aprovado!'), findsOneWidget);
     expect(find.textContaining('12 de 12 de primeira'), findsOneWidget);
+    // Primeira vez: só o número de erros (ainda não há melhor anterior).
+    expect(find.text('nenhum erro'), findsOneWidget);
     expect(progress['t'].records['ex-a']?.passed, isTrue);
     expect(progress['t'].records['ex-a']?.bestPercent, 100);
     // Outra rodada recomeça (rodada 2). O painel fica no pé da tela.

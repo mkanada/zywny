@@ -113,3 +113,44 @@ antes do I10) → 49 MB agora (`libapp.so` 5,5 → 8,3 MB: a plataforma de
 cursos inteira; o curso em si tem 102 KB). O `just build-apk` sem split saiu
 com 72 MB porque leva as `.so` x86_64 do emulador junto — para o celular,
 use o split arm64.
+
+**4. Curso no celular (em andamento, 2026-10-05).** Achados do usuário e
+correções:
+- **Queda sem aviso na lição 2** (duas partituras ABC): o leitor de ABC do
+  Verovio guarda estado em globais (`ioabc.cpp:71` `abcLine`, `dataKey`…);
+  dois isolates lendo ABC juntos abortavam com `std::out_of_range`. Os
+  renders agora vão em fila (`lib/verovio_render.dart`); teste
+  `test/verovio_render_queue_test.dart` (no PC a corrupção só gera avisos,
+  não derruba — o aceite é no aparelho).
+- **Saída de som ignorada no curso:** a lição e o exercício abriam sempre o
+  sintetizador do app; agora seguem `AppSettings.output` (teclado MIDI
+  conectado → `MidiOutSoundEngine`), como a `ScoreHomePage`
+  (`_ensureCourseEngine` em `lib/library/library_screen.dart`). O
+  `zywny-audio` (arquivo gravado) continua no alto-falante.
+- **Orientação:** com o teclado no cabo, girar o celular a cada tela
+  incomodava. Biblioteca e fluxo de cursos inteiro (lista, curso, lição,
+  exercício) seguem o aparelho (`kFollowDeviceOrientations`,
+  `lib/ui/orientation.dart`); só a partitura do hino trava em paisagem.
+- **Barra de botões do Android cobria o fim** da lista de cursos, da tela
+  do curso e da lição: fundo com `viewPaddingOf(context).bottom`
+  (a lista de hinos já tinha). Conferido no aparelho.
+- **Partitura do curso miúda:** no celular usa o `unit` dos hinos
+  (`kPhoneUnit`, em `lessonScoreLayout`) e é ampliada 1,3× vezes o tamanho
+  do texto (`lessonScorePaperPx`, `lib/course/ui/course_chrome.dart`): o
+  papel fica mais estreito e o `ScoreView` estica até a caixa. A da lição
+  redesenha quando o texto ou a largura mudam.
+- **Aumentar as letras:** botão "Aa" no curso e na lição
+  (`AppSettings.courseTextScale`, 85–200%, vale também no exercício). O
+  `RichText` do markdown não lia o `MediaQuery`: agora recebe o
+  `textScaler`.
+- **Cabeçalho em paisagem:** celular deitado → barra de 44; no curso e na
+  lição ela some ao rolar para baixo (`CourseScrollScaffold`, `SliverAppBar`
+  flutuante).
+- **Exercício sem mostrar o erro:** a tecla errada vira nota fantasma na
+  pauta, como nos hinos (`ScoreRoundRunner.ghosts`, 1,5 s na tela); contador
+  "N erros" durante a rodada e, no resultado, "N erros · seu melhor: X%" /
+  "novo recorde".
+- **Tela escurecendo no exercício:** `WakelockPlus` enquanto a tela do
+  exercício está aberta.
+- Pendente: "play sem som" na lição 2 — não reproduzido pelo log; rever
+  com a saída nova.

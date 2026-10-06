@@ -46,9 +46,6 @@ class AssetCourseFiles implements CourseFiles {
   @override
   Future<Uint8List> read(String path) async {
     final data = await _bundle.load('$_root$path');
-    return data.buffer.asUint8List(
-      data.offsetInBytes,
-      data.lengthInBytes,
-    );
+    return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
   }
 }

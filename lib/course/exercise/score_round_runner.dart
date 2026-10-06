@@ -20,7 +20,10 @@ import 'exercise_round.dart';
 /// Intervalo de passagem única para [measures] (compassos **escritos**,
 /// base 1, inclusivos) em [timeline]: primeira ocorrência de cada um, com
 /// os saltos do caminho como vãos (J01/J08). `null` é a partitura toda.
-({({double startMs, double endMs}) range, List<({double startMs, double endMs})> jumps})
+({
+  ({double startMs, double endMs}) range,
+  List<({double startMs, double endMs})> jumps,
+})
 exerciseRange(ScoreTimeline timeline, MeasureRange? measures) {
   if (measures == null) {
     return (
@@ -33,9 +36,7 @@ exerciseRange(ScoreTimeline timeline, MeasureRange? measures) {
   }
   final path = TrailPath.fromTimeline(timeline);
   final count = path.measureCount;
-  if (measures.from < 1 ||
-      measures.to < measures.from ||
-      measures.to > count) {
+  if (measures.from < 1 || measures.to < measures.from || measures.to > count) {
     throw StateError(
       'compassos ${measures.from}-${measures.to} fora da partitura '
       '(a peça tem $count compassos)',
@@ -106,6 +107,14 @@ class ScoreRoundRunner {
   /// Modo espera: instante (ms musicais) da nota pendente, ou `null` — a
   /// tela repassa ao `ScorePlayer.waitTarget` para virar a página.
   final void Function(double? onMs)? onWaitTarget;
+
+  /// A nota errada desenhada na pauta, como no treino dos hinos. Fica mais
+  /// tempo na tela que lá: no exercício o aluno precisa ver o que tocou,
+  /// mesmo soltando a tecla logo.
+  final GhostController ghosts = GhostController(
+    minVisible: const Duration(milliseconds: 1500),
+    fade: const Duration(milliseconds: 300),
+  );
 
   ScoreRound? _round;
   VsbDocument? _document;
@@ -196,6 +205,7 @@ class ScoreRoundRunner {
       scheduler: scheduler,
       controller: controller,
       hand: hand,
+      ghosts: ghosts,
       inputLatencyMs: inputLatencyMs,
       mode: realtime ? PracticeMode.realtime : PracticeMode.wait,
       measureIndexAt: timeline.measureIndexAt,
@@ -261,6 +271,7 @@ class ScoreRoundRunner {
 
   void _release() {
     cancel();
+    ghosts.clear();
     _practice?.dispose();
     _scheduler?.dispose();
     _controller?.dispose();
@@ -277,5 +288,6 @@ class ScoreRoundRunner {
   void dispose() {
     _disposed = true;
     _release();
+    ghosts.dispose();
   }
 }

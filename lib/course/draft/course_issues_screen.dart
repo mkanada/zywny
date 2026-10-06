@@ -28,8 +28,14 @@ class CourseIssuesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final errors = [for (final i in issues) if (i.isError) i];
-    final warnings = [for (final i in issues) if (!i.isError) i];
+    final errors = [
+      for (final i in issues)
+        if (i.isError) i,
+    ];
+    final warnings = [
+      for (final i in issues)
+        if (!i.isError) i,
+    ];
     final ordered = [...errors, ...warnings];
     return Scaffold(
       backgroundColor: kLibraryBg,
@@ -132,11 +138,8 @@ class _DraftBanner extends StatelessWidget {
   final bool loading;
 
   @override
-  Widget build(BuildContext context) => DraftBanner(
-    label: label,
-    onReload: onReload,
-    loading: loading,
-  );
+  Widget build(BuildContext context) =>
+      DraftBanner(label: label, onReload: onReload, loading: loading);
 }
 
 class _IssueRow extends StatelessWidget {

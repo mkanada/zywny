@@ -110,7 +110,9 @@ String rhythmScore(
         'a figura ${figure.wire} atravessa a barra do compasso $time',
       );
     }
-    final index = withRestIds ? noteIndex++ : (figure.rest ? null : noteIndex++);
+    final index = withRestIds
+        ? noteIndex++
+        : (figure.rest ? null : noteIndex++);
     current.add(
       _Event(
         duration: figure.eighths,
@@ -527,10 +529,7 @@ String beatLabel(double beats) {
 
 /// Valores distintos das [allowed] em tempos de [time], ordenados, com os
 /// rótulos para os botões. Pausas valem igual.
-List<(double, String)> beatOptions(
-  List<Figure> allowed,
-  String time,
-) {
+List<(double, String)> beatOptions(List<Figure> allowed, String time) {
   final seen = <String, double>{};
   for (final figure in allowed) {
     final beats = beatsOfFigure(figure, time);

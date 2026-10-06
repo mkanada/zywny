@@ -26,8 +26,10 @@ import 'package:zywny/course/score/lesson_score.dart';
 import 'package:zywny/course/ui/exercise_card.dart';
 import 'package:zywny/course/ui/lesson_audio.dart';
 import 'package:zywny/course/ui/lesson_view.dart';
+import 'package:zywny/course/ui/score_mark_view.dart';
 import 'package:zywny/midi/piano_keyboard.dart';
 import 'package:zywny/render/score_renderer.dart';
+
 import 'support/practice_fakes.dart';
 import 'support/render_helper.dart';
 
@@ -157,22 +159,10 @@ void main() {
   test('a fixture valida com só o aviso de HTML', () {
     // A leitura já conferiu (sem erros) no `setUpAll`; aqui fica o registro.
     expect(fixtureLesson.id, 'um');
-    expect(
-      fixtureLesson.blocks.whereType<ScoreMark>(),
-      hasLength(1),
-    );
-    expect(
-      fixtureLesson.blocks.whereType<KeyboardMark>(),
-      hasLength(1),
-    );
-    expect(
-      fixtureLesson.blocks.whereType<AudioMark>(),
-      hasLength(1),
-    );
-    expect(
-      fixtureLesson.blocks.whereType<VideoMark>(),
-      hasLength(1),
-    );
+    expect(fixtureLesson.blocks.whereType<ScoreMark>(), hasLength(1));
+    expect(fixtureLesson.blocks.whereType<KeyboardMark>(), hasLength(1));
+    expect(fixtureLesson.blocks.whereType<AudioMark>(), hasLength(1));
+    expect(fixtureLesson.blocks.whereType<VideoMark>(), hasLength(1));
   });
 
   testWidgets('a lição mostra tudo; HTML é texto; link chama o abridor falso', (
@@ -215,31 +205,16 @@ void main() {
     expect(find.text('Título um', findRichText: true), findsOneWidget);
     expect(find.text('Título dois', findRichText: true), findsOneWidget);
     expect(find.text('Título três', findRichText: true), findsOneWidget);
-    expect(
-      find.textContaining('negrito', findRichText: true),
-      findsWidgets,
-    );
-    expect(
-      find.textContaining('itálico', findRichText: true),
-      findsWidgets,
-    );
-    expect(
-      find.textContaining('código', findRichText: true),
-      findsWidgets,
-    );
+    expect(find.textContaining('negrito', findRichText: true), findsWidgets);
+    expect(find.textContaining('itálico', findRichText: true), findsWidgets);
+    expect(find.textContaining('código', findRichText: true), findsWidgets);
     expect(find.textContaining('link', findRichText: true), findsWidgets);
-    expect(
-      find.textContaining('item um', findRichText: true),
-      findsWidgets,
-    );
+    expect(find.textContaining('item um', findRichText: true), findsWidgets);
     expect(
       find.textContaining('subitem dois', findRichText: true),
       findsWidgets,
     );
-    expect(
-      find.textContaining('primeiro', findRichText: true),
-      findsWidgets,
-    );
+    expect(find.textContaining('primeiro', findRichText: true), findsWidgets);
     expect(
       find.textContaining('Uma citação para o teste.', findRichText: true),
       findsWidgets,
@@ -250,14 +225,8 @@ void main() {
     );
 
     // HTML aparece como texto, sem interpretar.
-    expect(
-      find.textContaining('isto é texto, não HTML'),
-      findsWidgets,
-    );
-    expect(
-      find.textContaining('<div>', findRichText: true),
-      findsWidgets,
-    );
+    expect(find.textContaining('isto é texto, não HTML'), findsWidgets);
+    expect(find.textContaining('<div>', findRichText: true), findsWidgets);
 
     // Link chama o abridor falso (o `url_launcher` de verdade, nunca aqui).
     _tapFirstLink(tester);
@@ -429,6 +398,61 @@ void main() {
     expect(exerciseGoal(spec), 'meta 90%');
     expect(exerciseNeedsMidi(spec), isTrue);
   });
+
+  testWidgets(
+    'aumentar o texto redesenha a partitura maior (papel mais estreito)',
+    (tester) async {
+      final score = cachedScore;
+      if (score == null) return; // sem a .so: nada a medir
+      final renderer = _RecordingRenderer(score);
+      final mark = fixtureLesson.blocks.whereType<ScoreMark>().single;
+      Widget app(double scale) => MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(
+            size: const Size(400, 800),
+            devicePixelRatio: 2.5,
+            textScaler: TextScaler.linear(scale),
+          ),
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: ScoreMarkView(
+                mark: mark,
+                files: fixtureFiles,
+                highlightColor: Colors.green,
+                renderer: renderer,
+              ),
+            ),
+          ),
+        ),
+      );
+      Future<void> settle() async {
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+      }
+
+      await tester.pumpWidget(app(1));
+      await settle();
+      await tester.pumpWidget(app(1.5));
+      await settle();
+      expect(renderer.widths, hasLength(2));
+      expect(renderer.widths.last, lessThan(renderer.widths.first));
+      expect(find.byType(ScoreView), findsOneWidget);
+    },
+  );
+}
+
+/// [_CachedRenderer] que anota a largura de papel de cada pedido.
+class _RecordingRenderer extends _CachedRenderer {
+  _RecordingRenderer(super.document);
+
+  final widths = <int>[];
+
+  @override
+  Future<RenderedScore> render(ScoreRenderRequest request) {
+    widths.add(request.pageWidth);
+    return super.render(request);
+  }
 }
 
 /// Devolve um documento já renderizado (o FFI não roda no relógio falso).

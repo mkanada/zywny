@@ -1,3 +1,4 @@
+import 'dart:async';
 // I03 — `play-notes` de ponta a ponta, sem aparelho: o curso `minimo/` do
 // I01 → sorteio → render real pela libverovio → `ScoreRoundRunner` (treino
 // de passagem única em modo espera) → aluno simulado no teclado MIDI falso →
@@ -94,15 +95,17 @@ void main() {
       expect(both.hand, Hand.ambas);
     });
 
-    test('todos os tipos geram rodada (nada mais lança UnimplementedError)',
-        () async {
-      final choice = await specFrom(
-        'id: c\ntype: choice\ntitle: C\nquestion: Q\noptions: [a, b]\n'
-        'answer: a',
-      );
-      final round = await generateRound(choice, files, Random(1));
-      expect(round, isA<QuestionRound>());
-    });
+    test(
+      'todos os tipos geram rodada (nada mais lança UnimplementedError)',
+      () async {
+        final choice = await specFrom(
+          'id: c\ntype: choice\ntitle: C\nquestion: Q\noptions: [a, b]\n'
+          'answer: a',
+        );
+        final round = await generateRound(choice, files, Random(1));
+        expect(round, isA<QuestionRound>());
+      },
+    );
   });
 
   group('rodada com o aluno simulado (libverovio)', () {
@@ -131,6 +134,35 @@ void main() {
       expect(verdict.roundPassed, isFalse);
       expect(verdict.exercisePassed, isFalse);
       expect(verdict.reason, '75% de 90%');
+      // As teclas erradas contam (o "3 erros" da tela).
+      expect(played.runner.practice.wrongCount.value, 3);
+    }, skip: verovioAvailable ? false : _noLib);
+
+    test('tecla errada vira nota fantasma na pauta (como nos hinos)', () async {
+      final spec = await minimoExercise();
+      final round = await generateRound(spec, files, Random(1)) as ScoreRound;
+      final engine = FakeSoundEngine();
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      final runner = ScoreRoundRunner(
+        midiInput: midi,
+        engine: engine,
+        renderer: LibverovioRenderer(),
+        autoTick: false,
+      );
+      addTearDown(runner.dispose);
+      await runner.load(round);
+      // O `ScoreView` faz isto ao desenhar a página.
+      runner.ghosts.attachDocument(runner.document);
+      unawaited(runner.start());
+      await pumpEventQueue();
+      final wanted = runner.practice.currentStep.value!.notes.first.pitch;
+      final wrong = wanted == 72 ? 71 : wanted + 1;
+      midi.press(wrong, atSeconds: engine.now);
+      await pumpEventQueue();
+      expect(runner.ghosts.visible, hasLength(1));
+      expect(runner.ghosts.visible.single.ghost.key, wrong);
+      runner.cancel();
     }, skip: verovioAvailable ? false : _noLib);
 
     test('uma errada a cada 5 de 12: 83% ainda reprova (limiar 90)', () async {

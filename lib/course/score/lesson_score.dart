@@ -1,5 +1,6 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
+import '../../layout_options.dart' show kPhoneUnit;
 import '../format/course_files.dart';
 import '../format/course_model.dart';
 import 'abc_source.dart';
@@ -51,6 +52,10 @@ LessonScoreSource fromMusicXml(String xml) =>
 /// (ver `kFallbackPageWidth` em `render/page_size.dart`). [pageHeight] é um
 /// teto — `adjustPageHeight` encolhe a página ao que a música ocupa; se o
 /// conteúdo não couber, o Verovio abre mais sistemas/páginas.
+///
+/// No celular ([phone], padrão: Android/iOS) a notação usa o mesmo `unit`
+/// dos hinos ([kPhoneUnit]): com o `unit` do desktop as notas saíam miúdas
+/// na tela pequena.
 class LessonScoreLayout {
   const LessonScoreLayout({
     required this.pageWidth,
@@ -63,17 +68,25 @@ class LessonScoreLayout {
   final Map<String, Object> options;
 }
 
-LessonScoreLayout lessonScoreLayout(double widthPx) => LessonScoreLayout(
-  pageWidth: widthPx.round().clamp(kLessonMinWidth, kLessonMaxWidth),
-  pageHeight: kLessonPageHeight,
-  options: lessonScoreOptions,
-);
+LessonScoreLayout lessonScoreLayout(double widthPx, {bool? phone}) =>
+    LessonScoreLayout(
+      pageWidth: widthPx.round().clamp(kLessonMinWidth, kLessonMaxWidth),
+      pageHeight: kLessonPageHeight,
+      options: (phone ?? _isPhone)
+          ? {...lessonScoreOptions, 'unit': kPhoneUnit}
+          : lessonScoreOptions,
+    );
+
+bool get _isPhone =>
+    defaultTargetPlatform == TargetPlatform.android ||
+    defaultTargetPlatform == TargetPlatform.iOS;
 
 const kLessonMinWidth = 500;
 const kLessonMaxWidth = 10000;
 const kLessonPageHeight = 2000;
 
-/// As opções do Verovio de [lessonScoreLayout] (a página vai à parte).
+/// As opções do Verovio de [lessonScoreLayout] no desktop (a página vai à
+/// parte; no celular o `unit` vira [kPhoneUnit]).
 const lessonScoreOptions = <String, Object>{
   'adjustPageHeight': true,
   'header': 'none',

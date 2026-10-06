@@ -59,8 +59,8 @@ class _AudioMarkViewState extends State<AudioMarkView> {
     try {
       final bytes = await widget.files.read(widget.mark.file);
       if (!mounted) return;
-      final player =
-          (widget.playerFactory ?? () => AudioplayersLessonPlayer()).call();
+      final player = (widget.playerFactory ?? () => AudioplayersLessonPlayer())
+          .call();
       await player.setBytes(LessonAudioBytes(bytes, widget.mark.file));
       if (!mounted) {
         await player.dispose();
@@ -168,9 +168,8 @@ class _AudioMarkViewState extends State<AudioMarkView> {
                             : 1,
                       ),
                   onChanged: _duration.inMilliseconds > 0
-                      ? (value) => _player?.seek(
-                          Duration(milliseconds: value.round()),
-                        )
+                      ? (value) =>
+                            _player?.seek(Duration(milliseconds: value.round()))
                       : null,
                 ),
               ),

@@ -55,10 +55,14 @@ class CourseDraftController extends ChangeNotifier {
   String get label => _files?.label ?? 'rascunho';
 
   bool get hasErrors => _issues.any((i) => i.isError);
-  List<CourseIssue> get errors =>
-      [for (final i in _issues) if (i.isError) i];
-  List<CourseIssue> get warnings =>
-      [for (final i in _issues) if (!i.isError) i];
+  List<CourseIssue> get errors => [
+    for (final i in _issues)
+      if (i.isError) i,
+  ];
+  List<CourseIssue> get warnings => [
+    for (final i in _issues)
+      if (!i.isError) i,
+  ];
 
   /// O curso pronto para as telas do I09, com `origin: draft`. `null` com
   /// erro (aí vale a lista de problemas).
@@ -66,7 +70,11 @@ class CourseDraftController extends ChangeNotifier {
     final course = _course;
     final files = _files;
     if (course == null || files == null) return null;
-    return LoadedCourse(course: course, files: files, origin: CourseOrigin.draft);
+    return LoadedCourse(
+      course: course,
+      files: files,
+      origin: CourseOrigin.draft,
+    );
   }
 
   /// A lição que a tela mostra (a selecionada, se ainda existir).

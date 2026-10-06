@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../audio/audio_playback_clock.dart';
 import '../../audio/engine_opener.dart';
@@ -30,13 +31,17 @@ import '../../ui/theme.dart';
 import 'exercise_card.dart' show exerciseGoal, exerciseNeedsMidi;
 import '../format/course_model.dart';
 import '../loaded_course.dart';
+import 'course_chrome.dart';
 import 'course_flow.dart';
+import '../../ui/orientation.dart';
 import 'question_body.dart';
 
 /// Costura de teste: avisa quando a rodada começa (o aluno simulado toca a
 /// partir daqui). `null` no app.
-typedef ExerciseRoundHook =
-    void Function(ScoreRoundRunner runner, Future<RoundResult?> result);
+typedef ExerciseRoundHook = void Function(
+  ScoreRoundRunner runner,
+  Future<RoundResult?> result,
+);
 
 class ExerciseScreen extends StatefulWidget {
   const ExerciseScreen({
@@ -77,6 +82,11 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   final List<RoundResult> _history = [];
   RoundResult? _result;
   PassVerdict? _verdict;
+
+  /// Teclas erradas da rodada que acabou (`null` nas perguntas) e o melhor %
+  /// guardado antes dela, para o painel comparar.
+  int? _errors;
+  int? _previousBest;
   Set<String> _badMeasureIds = const {};
   double? _loadWidthPx;
   bool _startedRound = false;
@@ -108,15 +118,24 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       (widget.spec is PlayScoreSpec &&
           (widget.spec as PlayScoreSpec).mode == PlayMode.realtime);
 
+  /// Tela acesa enquanto o exercício está aberto: as mãos ficam no teclado,
+  /// não na tela, e o celular escurecia no meio da rodada. (O hino segura
+  /// só enquanto toca; aqui a espera pela nota certa também é exercício.)
+  static void _keepScreenOn(bool on) {
+    unawaited(
+      (on ? WakelockPlus.enable() : WakelockPlus.disable()).catchError(
+        (Object e) => debugPrint('exercício: tela acesa falhou ($e)'),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _keepScreenOn(true);
     if (_isPhone) {
       unawaited(
-        SystemChrome.setPreferredOrientations(const [
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]),
+        SystemChrome.setPreferredOrientations(kFollowDeviceOrientations),
       );
       unawaited(
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky),
@@ -147,11 +166,10 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
   @override
   void dispose() {
+    _keepScreenOn(false);
     if (_isPhone) {
       unawaited(
-        SystemChrome.setPreferredOrientations(const [
-          DeviceOrientation.portraitUp,
-        ]),
+        SystemChrome.setPreferredOrientations(kFollowDeviceOrientations),
       );
       unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     }
@@ -192,11 +210,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       _questionRound = null;
     });
     try {
-      final round = await generateRound(
-        widget.spec,
-        widget.loaded.files,
-        _rng,
-      );
+      final round = await generateRound(widget.spec, widget.loaded.files, _rng);
       if (!mounted) return;
       if (round is QuestionRound) {
         setState(() {
@@ -311,6 +325,15 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
   Future<void> _finishRound(RoundResult result) async {
     final verdict = PassCheck.evaluate(widget.spec, [..._history, result]);
+    final previousBest = widget
+        .deps
+        .progress[widget.loaded.id]
+        .records[widget.spec.id]
+        ?.bestPercent;
+    final runner = _runner;
+    final errors = runner != null && runner.isLoaded
+        ? runner.practice.wrongCount.value
+        : null;
     await widget.deps.progress.recordAttempt(
       widget.loaded.id,
       widget.spec,
@@ -323,6 +346,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       _history.add(result);
       _result = result;
       _verdict = verdict;
+      _errors = errors;
+      _previousBest = previousBest;
       _running = false;
       _badMeasureIds = {
         for (final i in badMeasures)
@@ -399,6 +424,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       appBar: AppBar(
         backgroundColor: kPanelSideBg,
         surfaceTintColor: Colors.transparent,
+        // Deitado, o cabeçalho fica baixo: a partitura precisa da altura.
+        toolbarHeight: courseToolbarHeight(context),
         automaticallyImplyLeading: false,
         leading: IconButton(
           tooltip: 'Sair do exercício',
@@ -434,12 +461,14 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
           ),
         ],
       ),
-      body: _needsMidi &&
-              widget.deps.deviceManager.connected.value == null
-          ? _KeyboardGate(deviceManager: widget.deps.deviceManager)
-          : _isQuestion
-              ? _questionFlow()
-              : _scoreFlow(),
+      body: CourseTextScale(
+        settings: widget.deps.settings,
+        child: _needsMidi && widget.deps.deviceManager.connected.value == null
+            ? _KeyboardGate(deviceManager: widget.deps.deviceManager)
+            : _isQuestion
+            ? _questionFlow()
+            : _scoreFlow(),
+      ),
     );
   }
 
@@ -466,6 +495,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
           child: _ResultPanel(
             result: _result!,
             verdict: _verdict!,
+            errors: _errors,
+            previousBest: _previousBest,
             onRetry: () => unawaited(_newRound(1800)),
             onBack: _exit,
           ),
@@ -529,6 +560,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                 ? _ResultPanel(
                     result: _result!,
                     verdict: _verdict!,
+                    errors: _errors,
+                    previousBest: _previousBest,
                     onRetry: _loadWidthPx == null
                         ? null
                         : () => unawaited(_newRound(_loadWidthPx!)),
@@ -571,9 +604,8 @@ class _KeyboardGate extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => unawaited(
-                showMidiDevicePicker(context, deviceManager),
-              ),
+              onPressed: () =>
+                  unawaited(showMidiDevicePicker(context, deviceManager)),
               icon: const Icon(Icons.piano),
               label: const Text('Conectar teclado'),
             ),
@@ -640,9 +672,7 @@ class _ScoreControls extends StatelessWidget {
               ),
             ),
           IconButton(
-            tooltip: listening
-                ? 'Parar de ouvir'
-                : 'Ouvir antes (sem avaliar)',
+            tooltip: listening ? 'Parar de ouvir' : 'Ouvir antes (sem avaliar)',
             onPressed: onListen,
             icon: Icon(listening ? Icons.stop : Icons.hearing),
           ),
@@ -687,7 +717,7 @@ class _RoundBody extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final widthPx = constraints.maxWidth.isFinite
-            ? constraints.maxWidth * MediaQuery.devicePixelRatioOf(context)
+            ? lessonScorePaperPx(context, constraints.maxWidth)
             : 1800.0;
         WidgetsBinding.instance.addPostFrameCallback((_) => onWidth(widthPx));
         final document = runner?.document;
@@ -711,15 +741,13 @@ class _RoundBody extends StatelessWidget {
             controller: runner!.controller,
             viewController: viewController,
             curtain: player?.curtain,
+            ghosts: runner!.ghosts,
             overlayIds: badMeasureIds.isEmpty
                 ? const []
                 : [for (final m in player!.measures) m.id],
-            overlayBuilder: (context, id, rect) =>
-                badMeasureIds.contains(id)
+            overlayBuilder: (context, id, rect) => badMeasureIds.contains(id)
                 ? IgnorePointer(
-                    child: ColoredBox(
-                      color: kBadColor.withValues(alpha: 0.12),
-                    ),
+                    child: ColoredBox(color: kBadColor.withValues(alpha: 0.12)),
                   )
                 : null,
             overlayUniformHeight: true,
@@ -737,16 +765,55 @@ class _RoundBody extends StatelessWidget {
                   phone: phone,
                 ),
               ),
-            if (resultPanel case final panel?)
+            // Erros da rodada, ao vivo: o modo espera deixa tentar até
+            // acertar, e o número é o que se quer ver diminuir.
+            if (runner case final r?
+                when r.isLoaded &&
+                    !loading &&
+                    error == null &&
+                    resultPanel == null)
               Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: panel,
+                top: 8,
+                right: 8,
+                child: IgnorePointer(
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: r.practice.wrongCount,
+                    builder: (context, n, _) => _ErrorChip(count: n),
+                  ),
+                ),
               ),
+            if (resultPanel case final panel?)
+              Positioned(left: 0, right: 0, bottom: 0, child: panel),
           ],
         );
       },
+    );
+  }
+}
+
+/// "2 erros" no canto da partitura durante a rodada.
+class _ErrorChip extends StatelessWidget {
+  const _ErrorChip({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final bad = count > 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bad ? kBadColor.withValues(alpha: 0.12) : kChipBg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        count == 1 ? '1 erro' : '$count erros',
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: bad ? kBadColor : kInkCaption,
+        ),
+      ),
     );
   }
 }
@@ -760,12 +827,37 @@ class _ResultPanel extends StatelessWidget {
     required this.verdict,
     required this.onRetry,
     required this.onBack,
+    this.errors,
+    this.previousBest,
   });
 
   final RoundResult result;
   final PassVerdict verdict;
+
+  /// Teclas erradas na rodada (exercícios no teclado; `null` nas perguntas).
+  final int? errors;
+
+  /// O melhor % antes desta rodada (`null`: primeira vez).
+  final int? previousBest;
   final VoidCallback? onRetry;
   final VoidCallback onBack;
+
+  /// "2 erros · seu melhor: 83%" — ou "novo recorde" quando passou dele.
+  String? _progressLine() {
+    final parts = <String>[
+      if (errors case final n?)
+        switch (n) {
+          0 => 'nenhum erro',
+          1 => '1 erro',
+          _ => '$n erros',
+        },
+      if (previousBest case final best?)
+        result.percent > best
+            ? 'novo recorde (antes: $best%)'
+            : 'seu melhor: $best%',
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -781,14 +873,16 @@ class _ResultPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            '${result.percent}%',
-            style: serifDisplay(fontSize: 36),
-          ),
+          Text('${result.percent}%', style: serifDisplay(fontSize: 36)),
           Text(
             '${result.hits} de ${result.total} de primeira',
             style: const TextStyle(fontSize: 15, color: kInk),
           ),
+          if (_progressLine() case final line?)
+            Text(
+              line,
+              style: const TextStyle(fontSize: 14, color: kInkCaption),
+            ),
           const SizedBox(height: 2),
           Text(
             approved ? 'Exercício aprovado!' : verdict.reason,
@@ -804,19 +898,10 @@ class _ResultPanel extends StatelessWidget {
               onPressed: onBack,
               child: const Text('Voltar à lição'),
             ),
-            TextButton(
-              onPressed: onRetry,
-              child: const Text('Outra rodada'),
-            ),
+            TextButton(onPressed: onRetry, child: const Text('Outra rodada')),
           ] else ...[
-            FilledButton(
-              onPressed: onRetry,
-              child: const Text('Outra rodada'),
-            ),
-            TextButton(
-              onPressed: onBack,
-              child: const Text('Voltar à lição'),
-            ),
+            FilledButton(onPressed: onRetry, child: const Text('Outra rodada')),
+            TextButton(onPressed: onBack, child: const Text('Voltar à lição')),
           ],
         ],
       ),

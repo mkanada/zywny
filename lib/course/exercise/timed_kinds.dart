@@ -36,9 +36,7 @@ class RhythmKind extends ExerciseKind<RhythmSpec> {
         fileName = 'lesson.abc';
       } else {
         // Corpo sem `X:`: cabeçalho com o `time` do exercício.
-        bytes = utf8Bytes(
-          abcSource(body, time: spec.time),
-        );
+        bytes = utf8Bytes(abcSource(body, time: spec.time));
         fileName = 'lesson.abc';
       }
       return ScoreRound(
@@ -55,12 +53,7 @@ class RhythmKind extends ExerciseKind<RhythmSpec> {
       rng: rng,
     );
     final source = fromMusicXml(
-      rhythmScore(
-        figures,
-        time: spec.time,
-        pitch: spec.note,
-        bpm: spec.bpm,
-      ),
+      rhythmScore(figures, time: spec.time, pitch: spec.note, bpm: spec.bpm),
     );
     final pitches = [
       for (final figure in figures)

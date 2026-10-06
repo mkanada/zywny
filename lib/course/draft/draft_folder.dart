@@ -5,7 +5,8 @@
 // só esta fachada.
 
 import 'draft_folder_web.dart'
-    if (dart.library.io) 'draft_folder_io.dart' as impl;
+    if (dart.library.io) 'draft_folder_io.dart'
+    as impl;
 
 import '../format/course_files.dart';
 
@@ -17,5 +18,4 @@ bool get draftPickerAvailable => impl.draftPickerAvailable;
 Future<CourseFiles?> pickDraftCourseFiles() => impl.pickDraftCourseFiles();
 
 /// Abre a pasta do `just curso <pasta>` (linha de comando, desktop).
-Future<CourseFiles> openDraftFolder(String path) =>
-    impl.openDraftFolder(path);
+Future<CourseFiles> openDraftFolder(String path) => impl.openDraftFolder(path);

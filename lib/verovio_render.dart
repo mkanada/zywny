@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -45,6 +46,9 @@ class VsbRenderRequest {
   };
 }
 
+/// Tail of the render chain; see [renderScoreToVsb].
+Future<void> _renderQueue = Future.value();
+
 /// Renders the whole score to a single `.vsb` in a worker isolate — so the
 /// UI thread never blocks on the native call — and parses the result.
 ///
@@ -53,8 +57,22 @@ class VsbRenderRequest {
 /// in [_renderInIsolate], which only hands back a file path. The parse runs
 /// here, on the caller's isolate: the model it builds (`ui.Rect`/`ui.Offset`
 /// and the glyph cache's `ui.Path`s) belongs to the isolate that paints it.
+///
+/// Renders run one at a time: Verovio keeps parser state in process-wide
+/// globals (`ioabc.cpp`: `abcLine`, `dataKey`, `keyPitchAlter`…), so two
+/// isolates loading ABC at once corrupt each other and abort the app with
+/// `std::out_of_range` — a lesson with two ABC scores did exactly that on
+/// the phone.
 Future<VsbDocument> renderScoreToVsb(VsbRenderRequest request) async {
-  await Isolate.run(() => _renderInIsolate(request.toJson()));
+  final previous = _renderQueue;
+  final done = Completer<void>();
+  _renderQueue = done.future;
+  try {
+    await previous;
+    await Isolate.run(() => _renderInIsolate(request.toJson()));
+  } finally {
+    done.complete();
+  }
   final bytes = await File(request.outputPath).readAsBytes();
   _assertVsbPackage(request.outputPath, bytes);
   return VsbDocument.fromBytes(bytes);

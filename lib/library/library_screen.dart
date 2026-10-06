@@ -19,11 +19,13 @@ import '../course/ui/course_screen.dart' show openLessonScreen;
 import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
 import '../midi/midi_input_service.dart';
+import '../midi/midi_out_sound_engine.dart';
 import '../settings/app_settings.dart';
 import '../settings/general_settings_panel.dart';
 import '../settings/piece_settings.dart';
 import '../trail/trail_progress.dart';
 import '../trail/trail_widgets.dart' show TrailProgressBar, trailResumeText;
+import '../ui/orientation.dart';
 import '../ui/theme.dart';
 import 'piece.dart';
 import 'piece_progress.dart';
@@ -174,12 +176,34 @@ class _LibraryScreenState extends State<LibraryScreen> {
     nowSeconds: () => _courseClock.elapsedMicroseconds / 1e6,
   );
 
-  /// Motor de som do fluxo de cursos (um só, memoizado); descartado com a
-  /// biblioteca.
+  /// Motores de som do fluxo de cursos, um por saída (como a `ScoreHomePage`,
+  /// M03): o sintetizador do app (memoizado; `.sf2` carregado uma vez) e a
+  /// saída para o teclado MIDI (recriada se o teclado conectado mudar).
+  /// Descartados com a biblioteca.
   SoundEngine? _courseEngine;
   Future<SoundEngine?>? _courseEngineOpening;
+  MidiOutSoundEngine? _courseMidiOutEngine;
+  String? _courseMidiOutDeviceId;
 
+  /// O motor da saída escolhida nas configurações gerais: com "teclado MIDI"
+  /// e um teclado conectado, o som sai nele; senão, no sintetizador do app.
   Future<SoundEngine?> _ensureCourseEngine() async {
+    await _settingsLoaded;
+    final device = _midi.connected.value;
+    if (_settings.output == SoundOutput.midiKeyboard && device != null) {
+      final existing = _courseMidiOutEngine;
+      if (existing != null && _courseMidiOutDeviceId == device.id) {
+        existing.useScoreInstruments = _settings.useScoreInstruments;
+        return existing;
+      }
+      unawaited(existing?.dispose());
+      _courseMidiOutDeviceId = device.id;
+      return _courseMidiOutEngine = MidiOutSoundEngine(
+        sender: FlutterMidiSender(),
+        deviceId: device.id,
+        useScoreInstruments: _settings.useScoreInstruments,
+      );
+    }
     final existing = _courseEngine;
     if (existing != null) return existing;
     return _courseEngineOpening ??= openAppSoundEngine().then((engine) {
@@ -284,10 +308,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void _openDraftScreen(CourseDraftController controller) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => CourseDraftScreen(
-          controller: controller,
-          deps: _courseDeps(),
-        ),
+        builder: (context) =>
+            CourseDraftScreen(controller: controller, deps: _courseDeps()),
       ),
     );
   }
@@ -309,7 +331,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   void initState() {
     super.initState();
-    _lockPortrait();
+    _followDevice();
     unawaited(_loadProgress());
     unawaited(_settingsLoaded);
     final initial = widget.initialDraftPath;
@@ -327,6 +349,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _midi.dispose();
     _courseMidi.dispose();
     unawaited(_courseEngine?.dispose());
+    unawaited(_courseMidiOutEngine?.dispose());
     _draft?.dispose();
     if (widget.progress == null) _progress.dispose();
     if (widget.trailProgress == null) _trail.dispose();
@@ -335,15 +358,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
     super.dispose();
   }
 
-  /// A biblioteca é para ler em retrato no celular; a partitura, em
-  /// paisagem (quem vira é a própria tela de partitura). No desktop isto não
-  /// vale nada.
-  void _lockPortrait() {
-    unawaited(
-      SystemChrome.setPreferredOrientations(const [
-        DeviceOrientation.portraitUp,
-      ]),
-    );
+  /// A biblioteca segue a posição do celular ([kFollowDeviceOrientations]);
+  /// a partitura do hino trava em paisagem e aqui solta de novo quando
+  /// fecha. No desktop isto não vale nada.
+  void _followDevice() {
+    unawaited(SystemChrome.setPreferredOrientations(kFollowDeviceOrientations));
     // A biblioteca mostra a barra de status (a partitura a esconde, U10).
     unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
   }
@@ -442,7 +461,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     } finally {
       _opening = false;
-      if (mounted) _lockPortrait();
+      if (mounted) _followDevice();
     }
   }
 
@@ -1156,9 +1175,7 @@ class _LiveCoursesScreenState extends State<_LiveCoursesScreen> {
           future: _courses,
           builder: (context, snapshot) {
             final rest = snapshot.data ?? widget.initial;
-            final courses = draftLoaded == null
-                ? rest
-                : [draftLoaded, ...rest];
+            final courses = draftLoaded == null ? rest : [draftLoaded, ...rest];
             return CoursesScreen(
               courses: courses,
               // O progresso do rascunho é o da sessão; os demais, o disco.

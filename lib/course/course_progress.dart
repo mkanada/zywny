@@ -161,9 +161,7 @@ class CourseProgress {
     final byId = {for (final l in course.lessons) l.id: l};
     return [
       for (final required in lesson.requires)
-        if (byId[required] case final dep?
-            when !lessonDone(dep))
-          dep.title,
+        if (byId[required] case final dep? when !lessonDone(dep)) dep.title,
     ];
   }
 
@@ -201,9 +199,7 @@ class CourseProgress {
     if (stored is Map) {
       stored.forEach((key, value) {
         if (key is String && value is Map) {
-          records[key] = ExerciseRecord.fromJson(
-            value.cast<String, dynamic>(),
-          );
+          records[key] = ExerciseRecord.fromJson(value.cast<String, dynamic>());
         }
       });
     }
@@ -285,7 +281,11 @@ class CourseProgressStore extends ChangeNotifier {
     );
   }
 
-  Future<void> recordAttempt(String courseId, ExerciseSpec spec, RoundResult result) {
+  Future<void> recordAttempt(
+    String courseId,
+    ExerciseSpec spec,
+    RoundResult result,
+  ) {
     return _write(this[courseId].recordAttempt(spec, result));
   }
 

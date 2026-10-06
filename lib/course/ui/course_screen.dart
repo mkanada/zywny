@@ -15,6 +15,7 @@ import '../format/course_files.dart';
 import '../format/course_issue.dart';
 import '../format/course_model.dart';
 import '../loaded_course.dart';
+import 'course_chrome.dart';
 import 'course_flow.dart';
 import 'lesson_screen.dart';
 import 'markdown_view.dart';
@@ -52,67 +53,56 @@ class CourseScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final course = loaded.course;
     final reload = onDraftReload;
-    Widget scaffold = Scaffold(
-      backgroundColor: kLibraryBg,
-      appBar: AppBar(
-        backgroundColor: kPanelSideBg,
-        surfaceTintColor: Colors.transparent,
-        title: Text(
-          course.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: serifDisplay(fontSize: 20),
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: ListenableBuilder(
-            listenable: progress,
-            builder: (context, _) {
-              final state = progress[course.id];
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                children: [
-                  if (_isDraft && reload != null)
-                    DraftBanner(
-                      label: draftLabel ?? loaded.files.label,
-                      onReload: reload,
-                      loading: draftLoading,
-                    )
-                  else if (loaded.isDraft)
-                    const _DraftBanner(),
-                  if (_isDraft &&
-                      draftWarnings.isNotEmpty &&
-                      reload != null)
-                    _WarningsStrip(warnings: draftWarnings),
-                  _IntroCard(course: course, files: loaded.files),
-                  const SizedBox(height: 12),
-                  for (final lesson in course.lessons)
-                    _LessonRow(
-                      lesson: lesson,
-                      course: course,
-                      progress: state,
-                      onOpen: ({lockedTitles}) {
-                        onLessonOpen?.call(lesson.id);
-                        openLessonScreen(
-                          context,
-                          loaded,
-                          lesson,
-                          deps: deps,
-                          lockedTitles: lockedTitles,
-                          draftLabel: draftLabel,
-                          draftLoading: draftLoading,
-                          onDraftReload: reload,
-                        );
-                      },
-                    ),
-                ],
-              );
-            },
+    Widget scaffold = ListenableBuilder(
+      listenable: progress,
+      builder: (context, _) {
+        final state = progress[course.id];
+        return CourseScrollScaffold(
+          settings: deps.settings,
+          backgroundColor: kLibraryBg,
+          title: Text(
+            course.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: serifDisplay(fontSize: 20),
           ),
-        ),
-      ),
+          actions: [CourseTextSizeButton(settings: deps.settings)],
+          topPadding: 12,
+          children: [
+            if (_isDraft && reload != null)
+              DraftBanner(
+                label: draftLabel ?? loaded.files.label,
+                onReload: reload,
+                loading: draftLoading,
+              )
+            else if (loaded.isDraft)
+              const _DraftBanner(),
+            if (_isDraft && draftWarnings.isNotEmpty && reload != null)
+              _WarningsStrip(warnings: draftWarnings),
+            _IntroCard(course: course, files: loaded.files),
+            const SizedBox(height: 12),
+            for (final lesson in course.lessons)
+              _LessonRow(
+                lesson: lesson,
+                course: course,
+                progress: state,
+                onOpen: ({lockedTitles}) {
+                  onLessonOpen?.call(lesson.id);
+                  openLessonScreen(
+                    context,
+                    loaded,
+                    lesson,
+                    deps: deps,
+                    lockedTitles: lockedTitles,
+                    draftLabel: draftLabel,
+                    draftLoading: draftLoading,
+                    onDraftReload: reload,
+                  );
+                },
+              ),
+          ],
+        );
+      },
     );
     // Atalho do autor no desktop (I12): Ctrl+R = Recarregar.
     if (_isDraft && reload != null && !kIsWeb) {
@@ -276,7 +266,9 @@ class _LessonRow extends StatelessWidget {
     final done = progress.lessonDone(lesson);
     final open = progress.lessonOpen(lesson, course);
     final counts = progress.exerciseCounts(lesson);
-    final missing = open ? const <String>[] : progress.missingFor(lesson, course);
+    final missing = open
+        ? const <String>[]
+        : progress.missingFor(lesson, course);
     final subtitle = done
         ? 'concluída'
         : counts != null

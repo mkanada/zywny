@@ -15,6 +15,7 @@ import '../course_progress.dart';
 import '../draft/course_issues_screen.dart' show DraftBanner;
 import '../format/course_model.dart';
 import '../loaded_course.dart';
+import 'course_chrome.dart';
 import 'course_flow.dart';
 import 'exercise_card.dart';
 import 'exercise_screen.dart';
@@ -55,9 +56,8 @@ class _LessonScreenState extends State<LessonScreen> {
   bool _markedEnd = false;
   SoundEngine? _engine;
 
-  Lesson get _lesson => widget.loaded.course.lessons.firstWhere(
-    (l) => l.id == widget.lessonId,
-  );
+  Lesson get _lesson =>
+      widget.loaded.course.lessons.firstWhere((l) => l.id == widget.lessonId);
 
   @override
   void initState() {
@@ -71,9 +71,11 @@ class _LessonScreenState extends State<LessonScreen> {
     });
     // O toque-para-ouvir das partituras: o motor do fluxo (memoizado fora);
     // sem áudio, a lição abre muda.
-    unawaited(widget.deps.ensureEngine().then((engine) {
-      if (mounted) setState(() => _engine = engine);
-    }));
+    unawaited(
+      widget.deps.ensureEngine().then((engine) {
+        if (mounted) setState(() => _engine = engine);
+      }),
+    );
   }
 
   @override
@@ -84,106 +86,90 @@ class _LessonScreenState extends State<LessonScreen> {
     final next = _nextLesson(course, lesson);
     final reload = widget.onDraftReload;
     final isDraft = widget.loaded.isDraft || widget.draftLabel != null;
-    Widget scaffold = Scaffold(
-      backgroundColor: kLibraryBg,
-      appBar: AppBar(
-        backgroundColor: kPanelSideBg,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          tooltip: 'Voltar ao curso',
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.chevron_left),
-        ),
-        title: Text(
-          course.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 15),
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: ListenableBuilder(
-            listenable: Listenable.merge([
-              widget.progress,
-              widget.deps.deviceManager.connected,
-            ]),
-            builder: (context, _) {
-              final state = widget.progress[course.id];
-              final hasKeyboard =
-                  widget.deps.deviceManager.connected.value != null;
-              final states = {
-                for (final spec in lesson.exercises)
-                  spec.id: ExerciseCardState(
-                    passed: state.records[spec.id]?.passed ?? false,
-                    bestPercent: state.records[spec.id]?.bestPercent,
-                  ),
-              };
-              return NotificationListener<ScrollNotification>(
-                onNotification: (notification) =>
-                    _onScroll(notification, lesson),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (isDraft && reload != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: DraftBanner(
-                            label:
-                                widget.draftLabel ?? widget.loaded.files.label,
-                            onReload: reload,
-                            loading: widget.draftLoading,
-                          ),
-                        )
-                      else if (widget.loaded.isDraft)
-                        const _DraftLine(),
-                      if (locked != null && locked.isNotEmpty)
-                        _LockedLine(titles: locked),
-                      LessonView(
-                        lesson: lesson,
-                        files: widget.loaded.files,
-                        highlightColor: widget.deps.settings.highlightColor,
-                        naming: widget.deps.settings.noteNaming,
-                        engine: _engine,
-                        hasKeyboard: hasKeyboard,
-                        exerciseStates: states,
-                        exerciseNotice: locked == null
-                            ? null
-                            : 'Depois de: ${locked.join(', ')}',
-                        onExerciseStart: (spec) =>
-                            openExerciseScreen(context, widget.loaded, lesson, spec,
-                              deps: widget.deps),
-                        openLink: widget.deps.openLink,
-                        audioPlayerFactory: widget.deps.audioPlayerFactory,
-                      ),
-                      if (lesson.exercises.isEmpty)
-                        _ConcludeButton(
-                          done: state.lessonDone(lesson),
-                          onConclude: () => widget.progress.markLessonDone(
-                            widget.loaded.id,
-                            lesson.id,
-                          ),
-                        ),
-                      if (next != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: FilledButton.icon(
-                            onPressed: () => _goNext(context, next),
-                            icon: const Icon(Icons.chevron_right),
-                            label: Text('Próxima lição: ${next.title}'),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            },
+    Widget scaffold = ListenableBuilder(
+      listenable: Listenable.merge([
+        widget.progress,
+        widget.deps.deviceManager.connected,
+      ]),
+      builder: (context, _) {
+        final state = widget.progress[course.id];
+        final hasKeyboard = widget.deps.deviceManager.connected.value != null;
+        final states = {
+          for (final spec in lesson.exercises)
+            spec.id: ExerciseCardState(
+              passed: state.records[spec.id]?.passed ?? false,
+              bestPercent: state.records[spec.id]?.bestPercent,
+            ),
+        };
+        return CourseScrollScaffold(
+          settings: widget.deps.settings,
+          backgroundColor: kLibraryBg,
+          leading: IconButton(
+            tooltip: 'Voltar ao curso',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.chevron_left),
           ),
-        ),
-      ),
+          title: Text(
+            course.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 15),
+          ),
+          actions: [CourseTextSizeButton(settings: widget.deps.settings)],
+          onScroll: (notification) => _onScroll(notification, lesson),
+          children: [
+            if (isDraft && reload != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: DraftBanner(
+                  label: widget.draftLabel ?? widget.loaded.files.label,
+                  onReload: reload,
+                  loading: widget.draftLoading,
+                ),
+              )
+            else if (widget.loaded.isDraft)
+              const _DraftLine(),
+            if (locked != null && locked.isNotEmpty)
+              _LockedLine(titles: locked),
+            LessonView(
+              lesson: lesson,
+              files: widget.loaded.files,
+              highlightColor: widget.deps.settings.highlightColor,
+              naming: widget.deps.settings.noteNaming,
+              engine: _engine,
+              hasKeyboard: hasKeyboard,
+              exerciseStates: states,
+              exerciseNotice: locked == null
+                  ? null
+                  : 'Depois de: ${locked.join(', ')}',
+              onExerciseStart: (spec) => openExerciseScreen(
+                context,
+                widget.loaded,
+                lesson,
+                spec,
+                deps: widget.deps,
+              ),
+              openLink: widget.deps.openLink,
+              audioPlayerFactory: widget.deps.audioPlayerFactory,
+            ),
+            if (lesson.exercises.isEmpty)
+              _ConcludeButton(
+                done: state.lessonDone(lesson),
+                onConclude: () =>
+                    widget.progress.markLessonDone(widget.loaded.id, lesson.id),
+              ),
+            if (next != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: FilledButton.icon(
+                  onPressed: () => _goNext(context, next),
+                  icon: const Icon(Icons.chevron_right),
+                  label: Text('Próxima lição: ${next.title}'),
+                ),
+              ),
+          ],
+        );
+      },
     );
     if (isDraft && reload != null && !kIsWeb) {
       final platform = defaultTargetPlatform;
@@ -208,8 +194,7 @@ class _LessonScreenState extends State<LessonScreen> {
   bool _onScroll(ScrollNotification notification, Lesson lesson) {
     if (_markedEnd || lesson.exercises.isNotEmpty) return false;
     final metrics = notification.metrics;
-    if (notification is ScrollUpdateNotification &&
-        metrics.extentAfter <= 1) {
+    if (notification is ScrollUpdateNotification && metrics.extentAfter <= 1) {
       _markedEnd = true;
       widget.progress.markLessonDone(widget.loaded.id, lesson.id);
     }

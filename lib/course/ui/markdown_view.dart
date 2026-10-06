@@ -47,7 +47,11 @@ class MarkdownView extends StatelessWidget {
     // Sem `encodeHtml`: a AST vai direto para widgets, e entidades (`"`,
     // `&`) sairiam literais como `&quot;` na tela (visto no I13, foto 51).
     final nodes = md.Document(encodeHtml: false).parse(text);
-    final builder = _BlockBuilder(files: files, openLink: openLink);
+    final builder = _BlockBuilder(
+      files: files,
+      openLink: openLink,
+      textScaler: MediaQuery.textScalerOf(context),
+    );
     final widgets = <Widget>[];
     for (final node in nodes) {
       widgets.addAll(builder.buildBlock(node));
@@ -60,10 +64,18 @@ class MarkdownView extends StatelessWidget {
 }
 
 class _BlockBuilder {
-  _BlockBuilder({required this.files, required this.openLink});
+  _BlockBuilder({
+    required this.files,
+    required this.openLink,
+    required this.textScaler,
+  });
 
   final CourseFiles files;
   final LessonLinkOpener? openLink;
+
+  /// O `RichText` não lê o `MediaQuery` sozinho: sem isto o "Aa" da lição
+  /// (e o tamanho de fonte do sistema) não chegaria ao texto.
+  final TextScaler textScaler;
 
   List<Widget> buildBlock(md.Node node) {
     if (node is md.Text) {
@@ -90,10 +102,12 @@ class _BlockBuilder {
       case 'blockquote':
         return [_quote(node)];
       case 'hr':
-        return const [Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: Divider(color: kBorderSoft, height: 1),
-        )];
+        return const [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(color: kBorderSoft, height: 1),
+          ),
+        ];
       case 'pre':
         return [_codeBlock(node)];
       case 'table':
@@ -111,6 +125,7 @@ class _BlockBuilder {
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 8),
       child: RichText(
+        textScaler: textScaler,
         text: TextSpan(
           children: _inline(node.children ?? const []),
           style: serifDisplay(fontSize: size).copyWith(height: 1.25),
@@ -136,13 +151,10 @@ class _BlockBuilder {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: RichText(
+              textScaler: textScaler,
               text: TextSpan(
                 children: _inline(spanBuffer),
-                style: const TextStyle(
-                  fontSize: 16,
-                  height: 1.4,
-                  color: kInk,
-                ),
+                style: const TextStyle(fontSize: 16, height: 1.4, color: kInk),
               ),
             ),
           ),
@@ -165,6 +177,7 @@ class _BlockBuilder {
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: RichText(
+          textScaler: textScaler,
           text: TextSpan(
             children: _inline(children),
             style: const TextStyle(fontSize: 16, height: 1.4, color: kInk),
@@ -185,7 +198,11 @@ class _BlockBuilder {
     );
   }
 
-  Widget _bulletList(md.Element node, {required bool ordered, required int depth}) {
+  Widget _bulletList(
+    md.Element node, {
+    required bool ordered,
+    required int depth,
+  }) {
     final items = [
       for (final c in node.children ?? const [])
         if (c is md.Element && c.tag == 'li') c,
@@ -250,6 +267,7 @@ class _BlockBuilder {
               ),
               Expanded(
                 child: RichText(
+                  textScaler: textScaler,
                   text: TextSpan(
                     children: _inline(inlineNodes),
                     style: const TextStyle(
@@ -283,6 +301,7 @@ class _BlockBuilder {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: RichText(
+                  textScaler: textScaler,
                   text: TextSpan(
                     children: _inline(child.children ?? const []),
                     style: const TextStyle(
