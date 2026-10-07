@@ -56,7 +56,6 @@ import 'practice/shift_banner.dart';
 import 'practice/shift_detector.dart';
 import 'practice/practice_report.dart';
 import 'practice/practice_tools.dart';
-import 'practice/review_bar.dart';
 import 'practice/study_mode.dart';
 import 'settings/app_settings.dart';
 import 'settings/effective_transposition.dart';
@@ -372,15 +371,23 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               required badLogical,
               required isLast,
               blockCount,
-            }) => showStageSummary(
-              context,
-              stageRef: stageRef,
-              result: result,
-              badLogical: badLogical,
-              isLast: isLast,
-              blockCount: blockCount,
-              sidePanel: _phoneLayout,
-            ),
+            }) async {
+              final action = await showStageSummary(
+                context,
+                stageRef: stageRef,
+                result: result,
+                badLogical: badLogical,
+                isLast: isLast,
+                blockCount: blockCount,
+                reviewCount: _runner.wrongMarks.length,
+                reviewHasSides: _runner.wrongMarks.any((m) => m.side != 0),
+                sidePanel: _phoneLayout,
+              );
+              if (action == StageSummaryAction.review && mounted) {
+                _startReview();
+              }
+              return action;
+            },
         conclusion: () => showTrailConclusion(context, sidePanel: _phoneLayout),
         backToLibrary: _backToLibrary,
         practiceReport: _onPracticeReport,
@@ -771,6 +778,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     sidePanel: _phoneLayout,
     onRepeatWorst: _repeatWorst,
     wrongCount: _runner.wrongMarks.length,
+    reviewHasSides: _runner.wrongMarks.any((m) => m.side != 0),
     onReview: _runner.wrongMarks.isEmpty ? null : _startReview,
   );
 
@@ -785,14 +793,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Páginas (índices) que têm nota errada fixa, em ordem.
   List<int> _reviewPages() =>
       ({for (final g in _ghosts.review) g.page.index}.toList()..sort());
-
-  /// Pula para a página com erro depois (ou antes) da de agora.
-  void _goToReviewPage({required bool forward}) {
-    final here = _session.pageIndex;
-    final pages = _reviewPages().where((p) => forward ? p > here : p < here);
-    if (pages.isEmpty) return;
-    _viewController.goToPage(forward ? pages.first : pages.last);
-  }
 
   /// "Repetir os compassos com mais erros" (T03 + loop do T04): o intervalo
   /// que cobre os piores compassos se forem próximos (até 4 compassos);
@@ -1772,31 +1772,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Treino com a música andando (tempo real, livre ou na trilha).
   bool get _timedPractice => _runner.practice?.mode == PracticeMode.realtime;
 
-  /// A faixa da revisão do treino: oferta de "Revisar" depois do treino e,
-  /// aberta, a navegação entre as páginas com nota errada.
-  bool get _reviewBarVisible =>
-      _runner.wrongMarks.isNotEmpty &&
-      _runner.practice == null &&
-      !_playback.playing;
-
-  Widget _buildReviewBar() {
-    final here = _session.pageIndex;
-    final pages = _reviewPages();
-    return ReviewBar(
-      count: _runner.wrongMarks.length,
-      reviewing: _runner.reviewing,
-      hasSides: _runner.wrongMarks.any((m) => m.side != 0),
-      onReview: _startReview,
-      onPrevious: pages.any((p) => p < here)
-          ? () => _goToReviewPage(forward: false)
-          : null,
-      onNext: pages.any((p) => p > here)
-          ? () => _goToReviewPage(forward: true)
-          : null,
-      onClose: _runner.discardWrongMarks,
-    );
-  }
-
   Widget _buildScoreArea({bool phone = false}) {
     // The page is engraved for this box, so its size has to be known before
     // the first render — hence measuring here rather than off the window.
@@ -1919,26 +1894,17 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 right: 0,
                 child: LinearProgressIndicator(),
               ),
-            if (_reviewBarVisible || (phone && _pagerVisible))
+            // No layout largo a barra de baixo já tem os botões de página.
+            if (phone && _pagerVisible)
               Positioned(
                 left: 8,
                 right: 8,
                 bottom: 8,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_reviewBarVisible) _buildReviewBar(),
-                    if (_reviewBarVisible && phone && _pagerVisible)
-                      const SizedBox(height: 6),
-                    // No layout largo a barra de baixo já tem os botões.
-                    if (phone && _pagerVisible)
-                      PagePager(
-                        page: _session.pageIndex,
-                        pageCount: _session.pageCount,
-                        onPrevious: _canPageBack ? _previousPage : null,
-                        onNext: _canPageForward ? _nextPage : null,
-                      ),
-                  ],
+                child: PagePager(
+                  page: _session.pageIndex,
+                  pageCount: _session.pageCount,
+                  onPrevious: _canPageBack ? _previousPage : null,
+                  onNext: _canPageForward ? _nextPage : null,
                 ),
               ),
             Positioned(

@@ -435,6 +435,11 @@ Future<void> _shotCountIn(WidgetTester tester, String name) async {
   await _shot(tester, name);
 }
 
+/// `--dart-define=ZYWNY_TELAS_ROTEIRO=revisao` roda só a passagem da
+/// revisão do treino (fotos `r*`); vazio, todas as outras.
+const _kOnlyScript = String.fromEnvironment('ZYWNY_TELAS_ROTEIRO');
+bool get _onlyReview => _kOnlyScript == 'revisao';
+
 bool _summaryOpen() =>
     _has(find.textContaining('Aprovado')) ||
     _has(find.textContaining('Precisa de'));
@@ -453,6 +458,7 @@ Future<void> _playWaitStage(
   TrailStage stage, {
   required Set<int> staves,
   String? wrongNoteShot,
+  Set<int> wrongAt = const {3},
 }) async {
   final view = tester.widget<ScoreView>(find.byType(ScoreView));
   final track = PerformanceTrack.fromDocument(view.document);
@@ -469,11 +475,11 @@ Future<void> _playWaitStage(
   final onsets = byOnMs.keys.toList()..sort();
   for (var i = 0; i < onsets.length && !_summaryOpen(); i++) {
     final pitches = byOnMs[onsets[i]]!;
-    if (i == 3 && wrongNoteShot != null) {
+    if (wrongAt.contains(i) && (wrongNoteShot != null || wrongAt.length > 1)) {
       final wrong = pitches.first + 1;
       _keyboard.noteOn(wrong);
       await _wait(tester, 400);
-      await _shot(tester, wrongNoteShot);
+      if (wrongNoteShot != null) await _shot(tester, wrongNoteShot);
       _keyboard.noteOff(wrong);
       await _wait(tester, 150);
     }
@@ -713,591 +719,661 @@ void main() {
   // Sem a faixa "DEBUG" no canto: as telas saem como as de uma versão final.
   WidgetsApp.debugAllowBannerOverride = false;
 
-  testWidgets('primeiro uso, sem teclado', (tester) async {
-    _forceOrientation(tester);
-    await SharedPreferencesAsync().clear();
-    // Emulador limpo não tem biblioteca instalada (o app não traz música):
-    // garante a de teste antes de abrir, como as passagens seguintes fazem.
-    try {
-      await _installTestLibrary();
-    } on Object catch (e) {
-      debugPrint('telas: sem biblioteca de teste ($e)');
-      // Sem o arquivo no aparelho, segue sem biblioteca (o roteiro mostra
-      // a tela de instalar).
-    }
-    await _launch(tester, splash: true);
-    await _wait(tester, 500);
-    await _shot(tester, '01-abertura');
+  testWidgets(
+    'primeiro uso, sem teclado',
+    (tester) async {
+      _forceOrientation(tester);
+      await SharedPreferencesAsync().clear();
+      // Emulador limpo não tem biblioteca instalada (o app não traz música):
+      // garante a de teste antes de abrir, como as passagens seguintes fazem.
+      try {
+        await _installTestLibrary();
+      } on Object catch (e) {
+        debugPrint('telas: sem biblioteca de teste ($e)');
+        // Sem o arquivo no aparelho, segue sem biblioteca (o roteiro mostra
+        // a tela de instalar).
+      }
+      await _launch(tester, splash: true);
+      await _wait(tester, 500);
+      await _shot(tester, '01-abertura');
 
-    await _libraryReady(tester);
-    await _shot(tester, '02-biblioteca-primeiro-uso');
+      await _libraryReady(tester);
+      await _shot(tester, '02-biblioteca-primeiro-uso');
 
-    await _typeSearch(tester, 'santo');
-    await _wait(tester);
-    await _shot(tester, '03-biblioteca-busca');
-    await _typeSearch(tester, 'chopin');
-    await _wait(tester);
-    await _shot(tester, '04-biblioteca-busca-sem-resultado');
-    await _typeSearch(tester, '');
-    FocusManager.instance.primaryFocus?.unfocus();
-    await _wait(tester);
+      await _typeSearch(tester, 'santo');
+      await _wait(tester);
+      await _shot(tester, '03-biblioteca-busca');
+      await _typeSearch(tester, 'chopin');
+      await _wait(tester);
+      await _shot(tester, '04-biblioteca-busca-sem-resultado');
+      await _typeSearch(tester, '');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _wait(tester);
 
-    await _sortBy(tester, 'Dificuldade');
-    await _shot(tester, '05-biblioteca-por-dificuldade');
-    await _sortBy(tester, 'Número');
+      await _sortBy(tester, 'Dificuldade');
+      await _shot(tester, '05-biblioteca-por-dificuldade');
+      await _sortBy(tester, 'Número');
 
-    await _tap(tester, find.byTooltip('Conectar teclado MIDI'));
-    await _shot(tester, '06-teclado-midi-nenhum');
-    await _tap(tester, find.text('Fechar'));
+      await _tap(tester, find.byTooltip('Conectar teclado MIDI'));
+      await _shot(tester, '06-teclado-midi-nenhum');
+      await _tap(tester, find.text('Fechar'));
 
-    await _tap(tester, find.byTooltip('Configurações gerais'));
-    await _until(
-      tester,
-      () => _has(find.text('o app toca a música')),
-      what: 'configurações gerais',
-    );
-    await _shot(tester, '07-configuracoes');
-    // Mudar o corte da trilha pede confirmação: recomeça as trilhas. O painel
-    // cresceu (Bibliotecas e Cursos das fases B/I): rola até a seção.
-    await _settingsRow(tester, 'Trilha de estudo');
-    await _tap(tester, find.byTooltip('Mais compassos por trecho'));
-    await _shot(tester, '08-configuracoes-mudar-o-padrao');
-    await _tap(tester, find.text('Cancelar'));
-    await _settingsRow(tester, 'Cores');
-    await _tap(tester, find.text('Nota certa'));
-    await _shot(tester, '09-seletor-de-cor');
-    await _tap(tester, find.text('Cancelar'));
-    await _tap(tester, find.byTooltip('Fechar'));
+      await _tap(tester, find.byTooltip('Configurações gerais'));
+      await _until(
+        tester,
+        () => _has(find.text('o app toca a música')),
+        what: 'configurações gerais',
+      );
+      await _shot(tester, '07-configuracoes');
+      // Mudar o corte da trilha pede confirmação: recomeça as trilhas. O painel
+      // cresceu (Bibliotecas e Cursos das fases B/I): rola até a seção.
+      await _settingsRow(tester, 'Trilha de estudo');
+      await _tap(tester, find.byTooltip('Mais compassos por trecho'));
+      await _shot(tester, '08-configuracoes-mudar-o-padrao');
+      await _tap(tester, find.text('Cancelar'));
+      await _settingsRow(tester, 'Cores');
+      await _tap(tester, find.text('Nota certa'));
+      await _shot(tester, '09-seletor-de-cor');
+      await _tap(tester, find.text('Cancelar'));
+      await _tap(tester, find.byTooltip('Fechar'));
 
-    // Abre o hino: a tela vira para paisagem e o Verovio grava a página.
-    await _openPieceFromList(tester);
-    await _until(
-      tester,
-      () =>
-          _oriented(tester, landscape: true) &&
-          _has(find.byType(PhoneTitleBar)),
-      what: 'tela da partitura',
-    );
-    await tester.pump(const Duration(milliseconds: 60));
-    await _shot(tester, '10-hino-abrindo');
+      // Abre o hino: a tela vira para paisagem e o Verovio grava a página.
+      await _openPieceFromList(tester);
+      await _until(
+        tester,
+        () =>
+            _oriented(tester, landscape: true) &&
+            _has(find.byType(PhoneTitleBar)),
+        what: 'tela da partitura',
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+      await _shot(tester, '10-hino-abrindo');
 
-    await _scoreReady(tester);
-    await _shot(tester, '11-trilha-sem-teclado');
+      await _scoreReady(tester);
+      await _shot(tester, '11-trilha-sem-teclado');
 
-    // Sem teclado o play ouve o trecho (U03): o botão grande e o da barra
-    // lateral têm o mesmo tooltip.
-    await _tap(tester, find.byTooltip('Ouvir o trecho').first);
-    await _until(
-      tester,
-      () => _has(find.byTooltip('Parar de ouvir')),
-      what: 'ouvindo o trecho',
-      seconds: 30,
-    );
-    await _wait(tester, 800);
-    await _shot(tester, '12-ouvindo-o-trecho');
-    await _tap(tester, find.byTooltip('Parar de ouvir').first);
-    await _wait(tester);
+      // Sem teclado o play ouve o trecho (U03): o botão grande e o da barra
+      // lateral têm o mesmo tooltip.
+      await _tap(tester, find.byTooltip('Ouvir o trecho').first);
+      await _until(
+        tester,
+        () => _has(find.byTooltip('Parar de ouvir')),
+        what: 'ouvindo o trecho',
+        seconds: 30,
+      );
+      await _wait(tester, 800);
+      await _shot(tester, '12-ouvindo-o-trecho');
+      await _tap(tester, find.byTooltip('Parar de ouvir').first);
+      await _wait(tester);
 
-    await _openTrailDrawer(tester);
-    _plan = tester.widget<TrailDrawer>(find.byType(TrailDrawer)).plan;
-    await _shot(tester, '13-gaveta-da-trilha');
-    await _tap(tester, find.byTooltip('Fechar'));
+      await _openTrailDrawer(tester);
+      _plan = tester.widget<TrailDrawer>(find.byType(TrailDrawer)).plan;
+      await _shot(tester, '13-gaveta-da-trilha');
+      await _tap(tester, find.byTooltip('Fechar'));
 
-    await _openOptions(tester);
-    await _shot(tester, '14-opcoes-de-estudo');
-    await _scrollOptions(tester, -300);
-    await _shot(tester, '15-opcoes-de-estudo-meio');
-    await _scrollOptions(tester, -600);
-    await _shot(tester, '16-opcoes-de-estudo-fim');
+      await _openOptions(tester);
+      await _shot(tester, '14-opcoes-de-estudo');
+      await _scrollOptions(tester, -300);
+      await _shot(tester, '15-opcoes-de-estudo-meio');
+      await _scrollOptions(tester, -600);
+      await _shot(tester, '16-opcoes-de-estudo-fim');
 
-    await _optionsItem(tester, 'Ajustes da partitura (avançado)');
-    await _shot(tester, '17-layout-do-hino');
-    await _tap(tester, find.byTooltip('Fechar'));
+      await _optionsItem(tester, 'Ajustes da partitura (avançado)');
+      await _shot(tester, '17-layout-do-hino');
+      await _tap(tester, find.byTooltip('Fechar'));
 
-    await _openOptions(tester);
-    await _optionsItem(tester, 'Configurações gerais');
-    await _shot(tester, '18-configuracoes-na-partitura');
-    await _tap(tester, find.byTooltip('Fechar'));
+      await _openOptions(tester);
+      await _optionsItem(tester, 'Configurações gerais');
+      await _shot(tester, '18-configuracoes-na-partitura');
+      await _tap(tester, find.byTooltip('Fechar'));
 
-    await _tap(tester, find.byTooltip('Ir para compasso'));
-    await _until(
-      tester,
-      () => _has(find.textContaining('Ir para o compasso')),
-      what: 'ir para compasso',
-    );
-    await _shot(tester, '19-ir-para-compasso');
-    _popRoute(tester);
-    await _wait(tester);
+      await _tap(tester, find.byTooltip('Ir para compasso'));
+      await _until(
+        tester,
+        () => _has(find.textContaining('Ir para o compasso')),
+        what: 'ir para compasso',
+      );
+      await _shot(tester, '19-ir-para-compasso');
+      _popRoute(tester);
+      await _wait(tester);
 
-    // Treino livre (os modos de antes da trilha, num menu secundário). Na
-    // trilha a gaveta não oferece "Repetir um trecho" (U11): vem depois.
-    await _openOptions(tester);
-    await _optionsItem(tester, 'Treino livre');
-    await _wait(tester);
+      // Treino livre (os modos de antes da trilha, num menu secundário). Na
+      // trilha a gaveta não oferece "Repetir um trecho" (U11): vem depois.
+      await _openOptions(tester);
+      await _optionsItem(tester, 'Treino livre');
+      await _wait(tester);
 
-    await _openOptions(tester);
-    await _optionsItem(tester, 'Repetir um trecho');
-    await _until(
-      tester,
-      () => _has(find.text('Repetir este trecho')),
-      what: 'repetir um trecho',
-    );
-    await _shot(tester, '20-repetir-um-trecho');
-    _popRoute(tester);
-    await _wait(tester);
-    await _shot(tester, '21-treino-livre');
+      await _openOptions(tester);
+      await _optionsItem(tester, 'Repetir um trecho');
+      await _until(
+        tester,
+        () => _has(find.text('Repetir este trecho')),
+        what: 'repetir um trecho',
+      );
+      await _shot(tester, '20-repetir-um-trecho');
+      _popRoute(tester);
+      await _wait(tester);
+      await _shot(tester, '21-treino-livre');
 
-    await tester.tap(find.byTooltip('Tocar'), warnIfMissed: false);
-    await _shotCountIn(tester, '22-contagem');
-    await _wait(tester, 6500);
-    await _shot(tester, '23-tocando');
-    await _tap(tester, find.byTooltip('Pausar'));
+      await tester.tap(find.byTooltip('Tocar'), warnIfMissed: false);
+      await _shotCountIn(tester, '22-contagem');
+      await _wait(tester, 6500);
+      await _shot(tester, '23-tocando');
+      await _tap(tester, find.byTooltip('Pausar'));
 
-    await _openOptions(tester);
-    await _tap(tester, find.text('Espera'));
-    await _shot(tester, '24-opcoes-modo-espera');
-    await _tap(tester, find.byTooltip('Fechar'));
-    await _shot(tester, '25-espera-sem-teclado');
+      await _openOptions(tester);
+      await _tap(tester, find.text('Espera'));
+      await _shot(tester, '24-opcoes-modo-espera');
+      await _tap(tester, find.byTooltip('Fechar'));
+      await _shot(tester, '25-espera-sem-teclado');
 
-    await _backToLibrary(tester);
-    await _shot(tester, '26-biblioteca-continuar');
-  }, timeout: const Timeout(Duration(minutes: 12)));
+      await _backToLibrary(tester);
+      await _shot(tester, '26-biblioteca-continuar');
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+    skip: _onlyReview,
+  );
 
-  testWidgets('com histórico e teclado MIDI', (tester) async {
-    _forceOrientation(tester);
-    await _seedHistory();
-    _keyboard.plug();
-    await _launch(tester, splash: false);
-    await _libraryReady(tester);
-    await _until(
-      tester,
-      () => _has(find.byTooltip('Teclado MIDI: Teclado digital')),
-      what: 'teclado conectado',
-    );
-    await _shot(tester, '27-biblioteca-com-historico');
+  testWidgets(
+    'com histórico e teclado MIDI',
+    (tester) async {
+      _forceOrientation(tester);
+      await _seedHistory();
+      _keyboard.plug();
+      await _launch(tester, splash: false);
+      await _libraryReady(tester);
+      await _until(
+        tester,
+        () => _has(find.byTooltip('Teclado MIDI: Teclado digital')),
+        what: 'teclado conectado',
+      );
+      await _shot(tester, '27-biblioteca-com-historico');
 
-    await _sortBy(tester, 'Pontuação');
-    await _shot(tester, '28-biblioteca-por-pontuacao');
-    await _sortBy(tester, 'Número');
+      await _sortBy(tester, 'Pontuação');
+      await _shot(tester, '28-biblioteca-por-pontuacao');
+      await _sortBy(tester, 'Número');
 
-    await _tap(tester, find.byTooltip('Teclado MIDI: Teclado digital'));
-    await _shot(tester, '29-teclado-midi-conectado');
-    await _tap(tester, find.text('Fechar'));
+      await _tap(tester, find.byTooltip('Teclado MIDI: Teclado digital'));
+      await _shot(tester, '29-teclado-midi-conectado');
+      await _tap(tester, find.text('Fechar'));
 
-    _forceOrientation(tester, score: true);
-    await tester.tap(find.byTooltip('Continuar estudo'), warnIfMissed: false);
-    await _scoreReady(tester);
-    await _shot(tester, '30-trilha-retomada');
+      _forceOrientation(tester, score: true);
+      await tester.tap(find.byTooltip('Continuar estudo'), warnIfMissed: false);
+      await _scoreReady(tester);
+      await _shot(tester, '30-trilha-retomada');
 
-    await _openTrailDrawer(tester);
-    final waitStage = _selectedStage(tester);
-    await _shot(tester, '31-gaveta-da-trilha-com-progresso');
-    await _tap(tester, find.byTooltip('Fechar'));
+      await _openTrailDrawer(tester);
+      final waitStage = _selectedStage(tester);
+      await _shot(tester, '31-gaveta-da-trilha-com-progresso');
+      await _tap(tester, find.byTooltip('Fechar'));
 
-    // Etapa do modo espera (notas da direita): o tempo espera o aluno.
-    await _tap(tester, find.byTooltip('Começar etapa'));
-    await _until(
-      tester,
-      () => _has(find.byType(PhoneScorePill)),
-      what: 'etapa rodando',
-    );
-    await _wait(tester, 800);
-    await _shot(tester, '32-etapa-espera');
-    await _playWaitStage(
-      tester,
-      waitStage,
-      staves: waitStage.phase.hand == Hand.esquerda ? {2} : {1},
-      wrongNoteShot: '33-etapa-nota-errada',
-    );
-    await _until(tester, _summaryOpen, what: 'resumo da etapa', seconds: 20);
-    await _wait(tester);
-    await _shot(tester, '34-resumo-da-etapa');
-    await _tap(tester, find.text('Próxima etapa'));
-    await _shot(tester, '35-proxima-etapa');
+      // Etapa do modo espera (notas da direita): o tempo espera o aluno.
+      await _tap(tester, find.byTooltip('Começar etapa'));
+      await _until(
+        tester,
+        () => _has(find.byType(PhoneScorePill)),
+        what: 'etapa rodando',
+      );
+      await _wait(tester, 800);
+      await _shot(tester, '32-etapa-espera');
+      await _playWaitStage(
+        tester,
+        waitStage,
+        staves: waitStage.phase.hand == Hand.esquerda ? {2} : {1},
+        wrongNoteShot: '33-etapa-nota-errada',
+      );
+      await _until(tester, _summaryOpen, what: 'resumo da etapa', seconds: 20);
+      await _wait(tester);
+      await _shot(tester, '34-resumo-da-etapa');
+      await _tap(tester, find.text('Próxima etapa'));
+      await _shot(tester, '35-proxima-etapa');
 
-    // Refaz uma etapa com tempo do trecho já concluído (tudo junto a 50%):
-    // contagem, metrônomo e avaliação nota a nota.
-    await _openTrailDrawer(tester);
-    await _tap(tester, find.textContaining('Trecho 1 ·'));
-    await _shot(tester, '36-gaveta-etapas-concluidas');
-    final timed = find.text('Tudo junto no ritmo 50%');
-    await tester.ensureVisible(timed.first);
-    await _wait(tester, 300);
-    await _tap(tester, timed);
-    await tester.tap(
-      find.byTooltip('Começar etapa').first,
-      warnIfMissed: false,
-    );
-    await _shotCountIn(tester, '37-etapa-contagem');
-    await _playAlong(
-      tester,
-      staves: {1, 2},
-      stop: _summaryOpen,
-      skipEvery: 4,
-      shots: {9000: '38-etapa-tempo-real'},
-    );
-    await _until(tester, _summaryOpen, what: 'resumo da etapa', seconds: 30);
-    await _wait(tester);
-    await _shot(tester, '39-resumo-da-etapa-reprovada');
-    _popRoute(tester);
-    await _wait(tester);
+      // Refaz uma etapa com tempo do trecho já concluído (tudo junto a 50%):
+      // contagem, metrônomo e avaliação nota a nota.
+      await _openTrailDrawer(tester);
+      await _tap(tester, find.textContaining('Trecho 1 ·'));
+      await _shot(tester, '36-gaveta-etapas-concluidas');
+      final timed = find.text('Tudo junto no ritmo 50%');
+      await tester.ensureVisible(timed.first);
+      await _wait(tester, 300);
+      await _tap(tester, timed);
+      await tester.tap(
+        find.byTooltip('Começar etapa').first,
+        warnIfMissed: false,
+      );
+      await _shotCountIn(tester, '37-etapa-contagem');
+      await _playAlong(
+        tester,
+        staves: {1, 2},
+        stop: _summaryOpen,
+        skipEvery: 4,
+        shots: {9000: '38-etapa-tempo-real'},
+      );
+      await _until(tester, _summaryOpen, what: 'resumo da etapa', seconds: 30);
+      await _wait(tester);
+      await _shot(tester, '39-resumo-da-etapa-reprovada');
+      _popRoute(tester);
+      await _wait(tester);
 
-    // Treino livre em tempo real, com o resumo de precisão ao parar.
-    await _openOptions(tester);
-    await _optionsItem(tester, 'Treino livre');
-    await _openOptions(tester);
-    await _tap(tester, find.text('Tempo real'));
-    await _shot(tester, '40-opcoes-treino-em-tempo-real');
-    await _tap(tester, find.byTooltip('Fechar'));
-    await _tap(tester, find.byTooltip('Praticar'), ms: 300);
-    await _playAlong(
-      tester,
-      staves: {1},
-      stop: () => false,
-      maxMs: 16000,
-      skipEvery: 5,
-      shots: {11000: '41-treino-livre-tempo-real'},
-    );
-    await _tap(tester, find.byTooltip('Pausar'));
-    await _until(
-      tester,
-      () => _has(find.textContaining('Precisão')),
-      what: 'resumo do treino',
-      seconds: 15,
-    );
-    await _shot(tester, '42-resumo-do-treino');
-    await _tap(tester, find.text('Fechar'));
+      // Treino livre em tempo real, com o resumo de precisão ao parar.
+      await _openOptions(tester);
+      await _optionsItem(tester, 'Treino livre');
+      await _openOptions(tester);
+      await _tap(tester, find.text('Tempo real'));
+      await _shot(tester, '40-opcoes-treino-em-tempo-real');
+      await _tap(tester, find.byTooltip('Fechar'));
+      await _tap(tester, find.byTooltip('Praticar'), ms: 300);
+      await _playAlong(
+        tester,
+        staves: {1},
+        stop: () => false,
+        maxMs: 16000,
+        skipEvery: 5,
+        shots: {11000: '41-treino-livre-tempo-real'},
+      );
+      await _tap(tester, find.byTooltip('Pausar'));
+      await _until(
+        tester,
+        () => _has(find.textContaining('Precisão')),
+        what: 'resumo do treino',
+        seconds: 15,
+      );
+      await _shot(tester, '42-resumo-do-treino');
+      await _tap(tester, find.text('Fechar'));
 
-    // O que só aparece nas configurações com o teclado ligado.
-    await _openOptions(tester);
-    await _optionsItem(tester, 'Configurações gerais');
-    await _settingsRow(tester, 'Atraso do teclado');
-    await _shot(tester, '43-configuracoes-com-teclado');
-    await _tap(tester, find.text('Atraso do teclado'));
-    await _shot(tester, '44-calibrar-latencia');
-    await _tap(tester, find.text('Cancelar'));
+      // O que só aparece nas configurações com o teclado ligado.
+      await _openOptions(tester);
+      await _optionsItem(tester, 'Configurações gerais');
+      await _settingsRow(tester, 'Atraso do teclado');
+      await _shot(tester, '43-configuracoes-com-teclado');
+      await _tap(tester, find.text('Atraso do teclado'));
+      await _shot(tester, '44-calibrar-latencia');
+      await _tap(tester, find.text('Cancelar'));
 
-    await _openOptions(tester);
-    await _optionsItem(tester, 'Configurações gerais');
-    await _settingsRow(tester, 'Ver as teclas que chegam');
-    await _tap(tester, find.text('Ver as teclas que chegam'));
-    for (final pitch in [60, 64, 67]) {
-      _keyboard.noteOn(pitch);
-    }
-    await _wait(tester);
-    await _shot(tester, '45-monitor-midi');
-    for (final pitch in [60, 64, 67]) {
-      _keyboard.noteOff(pitch);
-    }
-    await _tap(tester, find.byTooltip('Fechar'));
+      await _openOptions(tester);
+      await _optionsItem(tester, 'Configurações gerais');
+      await _settingsRow(tester, 'Ver as teclas que chegam');
+      await _tap(tester, find.text('Ver as teclas que chegam'));
+      for (final pitch in [60, 64, 67]) {
+        _keyboard.noteOn(pitch);
+      }
+      await _wait(tester);
+      await _shot(tester, '45-monitor-midi');
+      for (final pitch in [60, 64, 67]) {
+        _keyboard.noteOff(pitch);
+      }
+      await _tap(tester, find.byTooltip('Fechar'));
 
-    await _backToLibrary(tester);
-    await _shot(tester, '46-biblioteca-depois-do-estudo');
-  }, timeout: const Timeout(Duration(minutes: 12)));
+      await _backToLibrary(tester);
+      await _shot(tester, '46-biblioteca-depois-do-estudo');
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+    skip: _onlyReview,
+  );
 
-  testWidgets('cursos da fase I', (tester) async {
-    _forceOrientation(tester);
-    // Sem biblioteca (não mexe no blob instalado): a tela direto com o
-    // catálogo vazio mostra o cartão do curso inicial.
-    _keyboard.unplug();
-    await tester.pumpWidget(
-      RepaintBoundary(
-        key: _shotKey,
-        child: MaterialApp(
-          home: LibraryScreen(
-            loadCatalog: () async => PieceCatalog.none(),
-            loadScore: (piece) async => Uint8List(0),
-            loadCourses: loadBuiltInCourses,
-            scoreBuilder: (context, o) =>
-                const Scaffold(body: Text('partitura')),
+  testWidgets(
+    'cursos da fase I',
+    (tester) async {
+      _forceOrientation(tester);
+      // Sem biblioteca (não mexe no blob instalado): a tela direto com o
+      // catálogo vazio mostra o cartão do curso inicial.
+      _keyboard.unplug();
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: _shotKey,
+          child: MaterialApp(
+            home: LibraryScreen(
+              loadCatalog: () async => PieceCatalog.none(),
+              loadScore: (piece) async => Uint8List(0),
+              loadCourses: loadBuiltInCourses,
+              scoreBuilder: (context, o) =>
+                  const Scaffold(body: Text('partitura')),
+            ),
           ),
         ),
-      ),
-    );
-    await _until(
-      tester,
-      () => _has(find.text('Comece pelo curso inicial')),
-      what: 'cartão do curso inicial sem biblioteca',
-      seconds: 60,
-    );
-    await _wait(tester, 2000);
-    await _shot(tester, '47-curso-inicial-sem-biblioteca');
+      );
+      await _until(
+        tester,
+        () => _has(find.text('Comece pelo curso inicial')),
+        what: 'cartão do curso inicial sem biblioteca',
+        seconds: 60,
+      );
+      await _wait(tester, 2000);
+      await _shot(tester, '47-curso-inicial-sem-biblioteca');
 
-    await _tap(tester, find.text('Começar'));
-    await _until(
-      tester,
-      () => _has(find.text('O teclado')),
-      what: 'lição 1 do curso',
-      seconds: 30,
-    );
-    await _wait(tester, 1500);
-    await _shot(tester, '48-licao-1-pelo-cartao');
+      await _tap(tester, find.text('Começar'));
+      await _until(
+        tester,
+        () => _has(find.text('O teclado')),
+        what: 'lição 1 do curso',
+        seconds: 30,
+      );
+      await _wait(tester, 1500);
+      await _shot(tester, '48-licao-1-pelo-cartao');
 
-    // Com biblioteca: o app de verdade, com a lição 1 feita (uma feita, uma
-    // aberta, o resto bloqueado). Não limpa o blob: só o progresso de curso.
-    final prefs = SharedPreferencesAsync();
-    final now = DateTime.now().millisecondsSinceEpoch;
-    await prefs.setString(
-      CourseProgressStore.keyFor('iniciacao'),
-      jsonEncode({
-        'v': 1,
-        'course': 'iniciacao',
-        'records': {
-          'l1-achar-do': {'p': true, 's': 1, 'b': 100, 't': now},
-          'l1-achar-brancas': {'p': true, 's': 1, 'b': 100, 't': now},
-        },
-        'doneLessons': [],
-        'lastLessonId': 'pauta-e-clave-de-sol',
-      }),
-    );
-    try {
-      await _installTestLibrary();
-    } on Object {
-      // Já instalada: segue.
-    }
-    await _launch(tester, splash: false);
-    await _libraryReady(tester);
-    await _until(
-      tester,
-      () => _has(find.textContaining('Cursos ·')),
-      what: 'linha Cursos na biblioteca',
-      seconds: 30,
-    );
-    await _shot(tester, '49-biblioteca-com-cursos');
+      // Com biblioteca: o app de verdade, com a lição 1 feita (uma feita, uma
+      // aberta, o resto bloqueado). Não limpa o blob: só o progresso de curso.
+      final prefs = SharedPreferencesAsync();
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await prefs.setString(
+        CourseProgressStore.keyFor('iniciacao'),
+        jsonEncode({
+          'v': 1,
+          'course': 'iniciacao',
+          'records': {
+            'l1-achar-do': {'p': true, 's': 1, 'b': 100, 't': now},
+            'l1-achar-brancas': {'p': true, 's': 1, 'b': 100, 't': now},
+          },
+          'doneLessons': [],
+          'lastLessonId': 'pauta-e-clave-de-sol',
+        }),
+      );
+      try {
+        await _installTestLibrary();
+      } on Object {
+        // Já instalada: segue.
+      }
+      await _launch(tester, splash: false);
+      await _libraryReady(tester);
+      await _until(
+        tester,
+        () => _has(find.textContaining('Cursos ·')),
+        what: 'linha Cursos na biblioteca',
+        seconds: 30,
+      );
+      await _shot(tester, '49-biblioteca-com-cursos');
 
-    await _tap(tester, find.textContaining('Cursos ·'));
-    await _until(
-      tester,
-      () =>
-          _has(find.text('Cursos')) &&
-          _has(find.text('Primeiros passos ao piano')),
-      what: 'lista de cursos',
-      seconds: 30,
-    );
-    await _wait(tester, 1000);
-    await _shot(tester, '50-lista-de-cursos');
+      await _tap(tester, find.textContaining('Cursos ·'));
+      await _until(
+        tester,
+        () =>
+            _has(find.text('Cursos')) &&
+            _has(find.text('Primeiros passos ao piano')),
+        what: 'lista de cursos',
+        seconds: 30,
+      );
+      await _wait(tester, 1000);
+      await _shot(tester, '50-lista-de-cursos');
 
-    await _tap(tester, find.text('Primeiros passos ao piano'));
-    await _until(
-      tester,
-      () => _has(find.text('Apresentação')) && _has(find.text('O teclado')),
-      what: 'tela do curso',
-      seconds: 30,
-    );
-    await _wait(tester, 1000);
-    await _shot(tester, '51-tela-do-curso');
+      await _tap(tester, find.text('Primeiros passos ao piano'));
+      await _until(
+        tester,
+        () => _has(find.text('Apresentação')) && _has(find.text('O teclado')),
+        what: 'tela do curso',
+        seconds: 30,
+      );
+      await _wait(tester, 1000);
+      await _shot(tester, '51-tela-do-curso');
 
-    // Lição 2 em retrato: topo, partitura e cartão do exercício. O corpo da
-    // lição é RichText (markdown), não Text.
-    await _scrollTo(tester, find.text('A pauta e a clave de sol'));
-    await _tap(tester, find.text('A pauta e a clave de sol'));
-    await _until(
-      tester,
-      () => find
-          .textContaining('Cinco linhas', findRichText: true)
-          .evaluate()
-          .isNotEmpty,
-      what: 'lição 2',
-      seconds: 30,
-    );
-    await _wait(tester, 1500);
-    await _shot(tester, '52-licao-2-topo');
-    await _scrollTo(tester, find.text('Do Dó ao Sol na clave de sol'));
-    await _shot(tester, '53-licao-2-partitura');
-    await _scrollTo(tester, find.text('Toque do Dó ao Sol'));
-    await _shot(tester, '54-licao-2-exercicio');
+      // Lição 2 em retrato: topo, partitura e cartão do exercício. O corpo da
+      // lição é RichText (markdown), não Text.
+      await _scrollTo(tester, find.text('A pauta e a clave de sol'));
+      await _tap(tester, find.text('A pauta e a clave de sol'));
+      await _until(
+        tester,
+        () => find
+            .textContaining('Cinco linhas', findRichText: true)
+            .evaluate()
+            .isNotEmpty,
+        what: 'lição 2',
+        seconds: 30,
+      );
+      await _wait(tester, 1500);
+      await _shot(tester, '52-licao-2-topo');
+      await _scrollTo(tester, find.text('Do Dó ao Sol na clave de sol'));
+      await _shot(tester, '53-licao-2-partitura');
+      await _scrollTo(tester, find.text('Toque do Dó ao Sol'));
+      await _shot(tester, '54-licao-2-exercicio');
 
-    // O cartão sem teclado deixa o Começar desabilitado ("Precisa do
-    // teclado", foto 54): a porta "Conecte o teclado" do exercício só
-    // aparece se o teclado cair com o exercício abrindo. Liga, abre pelo
-    // botão do cartão e despluga em seguida — a rodada carrega devagar no
-    // emulador, então a porta chega antes da partitura.
-    _keyboard.plug();
-    await _wait(tester, 1500);
-    await _startExercise(tester, 'Toque do Dó ao Sol');
-    _keyboard.unplug();
-    // Se a rodada já começou, o exercício não se reconstrói ao perder o
-    // teclado e a porta não aparece: sem ela, segue sem a foto 55.
-    final gateUntil = DateTime.now().add(const Duration(seconds: 30));
-    while (!_has(find.text('Conecte o teclado')) &&
-        DateTime.now().isBefore(gateUntil)) {
-      await tester.pump(const Duration(milliseconds: 50));
-    }
-    if (_has(find.text('Conecte o teclado'))) {
+      // O cartão sem teclado deixa o Começar desabilitado ("Precisa do
+      // teclado", foto 54): a porta "Conecte o teclado" do exercício só
+      // aparece se o teclado cair com o exercício abrindo. Liga, abre pelo
+      // botão do cartão e despluga em seguida — a rodada carrega devagar no
+      // emulador, então a porta chega antes da partitura.
+      _keyboard.plug();
+      await _wait(tester, 1500);
+      await _startExercise(tester, 'Toque do Dó ao Sol');
+      _keyboard.unplug();
+      // Se a rodada já começou, o exercício não se reconstrói ao perder o
+      // teclado e a porta não aparece: sem ela, segue sem a foto 55.
+      final gateUntil = DateTime.now().add(const Duration(seconds: 30));
+      while (!_has(find.text('Conecte o teclado')) &&
+          DateTime.now().isBefore(gateUntil)) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      if (_has(find.text('Conecte o teclado'))) {
+        await _wait(tester, 800);
+        await _shot(tester, '55-exercicio-conecte-o-teclado');
+      } else {
+        debugPrint('telas: sem a porta do teclado (55)');
+      }
+      // De volta à lição, religa para as telas com partitura.
+      _popRoute(tester);
+      await _wait(tester);
+      _keyboard.plug();
+      await _wait(tester, 1500);
+
+      // name-note (botões, sem MIDI): abre pelo botão do cartão.
+      await _startExercise(tester, 'Que nota é esta');
+      await _until(
+        tester,
+        () => _has(find.byType(ScoreView)) || _has(find.textContaining('Dó')),
+        what: 'exercício name-note',
+        seconds: 60,
+      );
+      await _wait(tester, 1000);
+      await _shot(tester, '56-exercicio-name-note');
+
+      // Volta e abre o choice da lição 8 (precisa liberar a lição: abre assim
+      // mesmo pela tela do curso). A lista volta onde estava (lição 2 no
+      // topo), então rola até a lição 8 em vez de só esperar.
+      _popRoute(tester);
+      await _wait(tester);
+      _popRoute(tester);
+      await _wait(tester);
+      await _until(
+        tester,
+        () =>
+            _has(find.text('Apresentação')) ||
+            _has(find.text('A pauta e a clave de sol')),
+        what: 'tela do curso depois dos pops',
+        seconds: 30,
+      );
+      await _scrollTo(tester, find.text('Acidentes'), 200);
+      await _wait(tester, 300);
+      await tester.tap(find.text('Acidentes'), warnIfMissed: false);
       await _wait(tester, 800);
-      await _shot(tester, '55-exercicio-conecte-o-teclado');
-    } else {
-      debugPrint('telas: sem a porta do teclado (55)');
-    }
-    // De volta à lição, religa para as telas com partitura.
-    _popRoute(tester);
-    await _wait(tester);
-    _keyboard.plug();
-    await _wait(tester, 1500);
+      if (_has(find.text('Abrir assim mesmo'))) {
+        await _tap(tester, find.text('Abrir assim mesmo'));
+      }
+      await _until(
+        tester,
+        () => _has(find.text('Para que serve o bequadro')),
+        what: 'choice do bequadro',
+        seconds: 30,
+      );
+      await _scrollTo(tester, find.text('Para que serve o bequadro'));
+      await _shot(tester, '57-licao-8-choice-cartao');
+      await _startExercise(tester, 'Para que serve o bequadro');
+      await _until(
+        tester,
+        () =>
+            _has(find.textContaining('bequadro')) &&
+            _has(find.textContaining('Anula')),
+        what: 'exercício choice',
+        seconds: 30,
+      );
+      await _shot(tester, '58-exercicio-choice');
+      _popRoute(tester);
+      await _wait(tester);
+      _popRoute(tester);
+      await _wait(tester);
 
-    // name-note (botões, sem MIDI): abre pelo botão do cartão.
-    await _startExercise(tester, 'Que nota é esta');
-    await _until(
-      tester,
-      () => _has(find.byType(ScoreView)) || _has(find.textContaining('Dó')),
-      what: 'exercício name-note',
-      seconds: 60,
-    );
-    await _wait(tester, 1000);
-    await _shot(tester, '56-exercicio-name-note');
+      // play-notes com teclado: antes e depois da rodada (a lista está na
+      // lição 8; rola de volta, para cima, até a lição 2).
+      await _scrollTo(tester, find.text('A pauta e a clave de sol'), -400);
+      // Rolando para cima, a linha para rente ao cabeçalho: centraliza antes
+      // do toque.
+      await Scrollable.ensureVisible(
+        tester.element(find.text('A pauta e a clave de sol').first),
+        alignment: 0.5,
+      );
+      await _wait(tester, 500);
+      await tester.tap(
+        find.text('A pauta e a clave de sol'),
+        warnIfMissed: false,
+      );
+      await _wait(tester, 1500);
+      await _startExercise(tester, 'Toque do Dó ao Sol');
+      await _until(
+        tester,
+        () => _has(find.byType(ScoreView)),
+        what: 'partitura do play-notes',
+        seconds: 90,
+      );
+      await _wait(tester, 1200);
+      await _shot(tester, '59-exercicio-play-notes-antes');
+      await _playCourseWait(tester);
+      await _until(
+        tester,
+        () =>
+            _has(find.text('Exercício aprovado!')) ||
+            _has(find.textContaining('Precisa de')) ||
+            _has(find.textContaining('Tente de novo')),
+        what: 'resultado do play-notes',
+        seconds: 60,
+      );
+      await _wait(tester, 800);
+      await _shot(tester, '60-exercicio-play-notes-depois');
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+    skip: _onlyReview,
+  );
+  testWidgets(
+    'transpor (fase Q)',
+    (tester) async {
+      _forceOrientation(tester);
+      await _seedHistory();
+      _keyboard.plug();
+      await _launch(tester, splash: false);
+      await _libraryReady(tester);
+      await _until(
+        tester,
+        () => _has(find.byTooltip('Teclado MIDI: Teclado digital')),
+        what: 'teclado conectado',
+      );
 
-    // Volta e abre o choice da lição 8 (precisa liberar a lição: abre assim
-    // mesmo pela tela do curso). A lista volta onde estava (lição 2 no
-    // topo), então rola até a lição 8 em vez de só esperar.
-    _popRoute(tester);
-    await _wait(tester);
-    _popRoute(tester);
-    await _wait(tester);
-    await _until(
-      tester,
-      () =>
-          _has(find.text('Apresentação')) ||
-          _has(find.text('A pauta e a clave de sol')),
-      what: 'tela do curso depois dos pops',
-      seconds: 30,
-    );
-    await _scrollTo(tester, find.text('Acidentes'), 200);
-    await _wait(tester, 300);
-    await tester.tap(find.text('Acidentes'), warnIfMissed: false);
-    await _wait(tester, 800);
-    if (_has(find.text('Abrir assim mesmo'))) {
-      await _tap(tester, find.text('Abrir assim mesmo'));
-    }
-    await _until(
-      tester,
-      () => _has(find.text('Para que serve o bequadro')),
-      what: 'choice do bequadro',
-      seconds: 30,
-    );
-    await _scrollTo(tester, find.text('Para que serve o bequadro'));
-    await _shot(tester, '57-licao-8-choice-cartao');
-    await _startExercise(tester, 'Para que serve o bequadro');
-    await _until(
-      tester,
-      () =>
-          _has(find.textContaining('bequadro')) &&
-          _has(find.textContaining('Anula')),
-      what: 'exercício choice',
-      seconds: 30,
-    );
-    await _shot(tester, '58-exercicio-choice');
-    _popRoute(tester);
-    await _wait(tester);
-    _popRoute(tester);
-    await _wait(tester);
+      _forceOrientation(tester, score: true);
+      await tester.tap(find.byTooltip('Continuar estudo'), warnIfMissed: false);
+      await _scoreReady(tester);
 
-    // play-notes com teclado: antes e depois da rodada (a lista está na
-    // lição 8; rola de volta, para cima, até a lição 2).
-    await _scrollTo(tester, find.text('A pauta e a clave de sol'), -400);
-    // Rolando para cima, a linha para rente ao cabeçalho: centraliza antes
-    // do toque.
-    await Scrollable.ensureVisible(
-      tester.element(find.text('A pauta e a clave de sol').first),
-      alignment: 0.5,
-    );
-    await _wait(tester, 500);
-    await tester.tap(
-      find.text('A pauta e a clave de sol'),
-      warnIfMissed: false,
-    );
-    await _wait(tester, 1500);
-    await _startExercise(tester, 'Toque do Dó ao Sol');
-    await _until(
-      tester,
-      () => _has(find.byType(ScoreView)),
-      what: 'partitura do play-notes',
-      seconds: 90,
-    );
-    await _wait(tester, 1200);
-    await _shot(tester, '59-exercicio-play-notes-antes');
-    await _playCourseWait(tester);
-    await _until(
-      tester,
-      () =>
-          _has(find.text('Exercício aprovado!')) ||
-          _has(find.textContaining('Precisa de')) ||
-          _has(find.textContaining('Tente de novo')),
-      what: 'resultado do play-notes',
-      seconds: 60,
-    );
-    await _wait(tester, 800);
-    await _shot(tester, '60-exercicio-play-notes-depois');
-  }, timeout: const Timeout(Duration(minutes: 12)));
-  testWidgets('transpor (fase Q)', (tester) async {
-    _forceOrientation(tester);
-    await _seedHistory();
-    _keyboard.plug();
-    await _launch(tester, splash: false);
-    await _libraryReady(tester);
-    await _until(
-      tester,
-      () => _has(find.byTooltip('Teclado MIDI: Teclado digital')),
-      what: 'teclado conectado',
-    );
+      // O item da gaveta e a lista dos 12 tons.
+      await _openOptions(tester);
+      await tester.ensureVisible(find.text('TRANSPOR'));
+      await _wait(tester, 400);
+      await _shot(tester, '61-opcoes-transpor');
+      await _optionsItem(tester, 'Escolher…');
+      await _until(
+        tester,
+        () => _has(find.text('Transpor para…')),
+        what: 'lista dos 12 tons',
+        seconds: 20,
+      );
+      await _shot(tester, '62-transpor-12-tons');
 
-    _forceOrientation(tester, score: true);
-    await tester.tap(find.byTooltip('Continuar estudo'), warnIfMissed: false);
-    await _scoreReady(tester);
+      // O primeiro tom da lista que não é o original: com a trilha do hino
+      // começada, pede a confirmação (Q04).
+      final dialog = find.byType(SimpleDialog);
+      final tones = find.descendant(
+        of: dialog,
+        matching: find.textContaining('teclado'),
+      );
+      await _tap(tester, tones);
+      if (await _appears(tester, find.text('Trocar de tom?'))) {
+        await _shot(tester, '63-transpor-trocar-de-tom');
+        await _tap(tester, find.text('Trocar'));
+      }
 
-    // O item da gaveta e a lista dos 12 tons.
-    await _openOptions(tester);
-    await tester.ensureVisible(find.text('TRANSPOR'));
-    await _wait(tester, 400);
-    await _shot(tester, '61-opcoes-transpor');
-    await _optionsItem(tester, 'Escolher…');
-    await _until(
-      tester,
-      () => _has(find.text('Transpor para…')),
-      what: 'lista dos 12 tons',
-      seconds: 20,
-    );
-    await _shot(tester, '62-transpor-12-tons');
+      // Com o teclado conectado e ainda não conferido, a conferência abre
+      // sozinha depois da gravura; o selo fica na barra do título.
+      await _until(
+        tester,
+        () => _has(find.text('Conferir o teclado')),
+        what: 'conferência do teclado',
+        seconds: 60,
+      );
+      await _wait(tester, 800);
+      await _shot(tester, '64-conferir-o-teclado');
+      await _tap(tester, find.text('Cancelar'));
+      await _until(
+        tester,
+        () => _has(find.byType(TransposeSeal)),
+        what: 'selo da transposição',
+        seconds: 20,
+      );
+      await _shot(tester, '65-selo-da-transposicao');
 
-    // O primeiro tom da lista que não é o original: com a trilha do hino
-    // começada, pede a confirmação (Q04).
-    final dialog = find.byType(SimpleDialog);
-    final tones = find.descendant(
-      of: dialog,
-      matching: find.textContaining('teclado'),
-    );
-    await _tap(tester, tones);
-    if (await _appears(tester, find.text('Trocar de tom?'))) {
-      await _shot(tester, '63-transpor-trocar-de-tom');
-      await _tap(tester, find.text('Trocar'));
-    }
+      // A chave geral, nas configurações.
+      await _openOptions(tester);
+      await _optionsItem(tester, 'Configurações gerais');
+      await _settingsRow(tester, 'Abrir as músicas já sem acidentes');
+      await _shot(tester, '66-configuracoes-sem-acidentes');
+      await _tap(tester, find.byTooltip('Fechar'));
 
-    // Com o teclado conectado e ainda não conferido, a conferência abre
-    // sozinha depois da gravura; o selo fica na barra do título.
-    await _until(
-      tester,
-      () => _has(find.text('Conferir o teclado')),
-      what: 'conferência do teclado',
-      seconds: 60,
-    );
-    await _wait(tester, 800);
-    await _shot(tester, '64-conferir-o-teclado');
-    await _tap(tester, find.text('Cancelar'));
-    await _until(
-      tester,
-      () => _has(find.byType(TransposeSeal)),
-      what: 'selo da transposição',
-      seconds: 20,
-    );
-    await _shot(tester, '65-selo-da-transposicao');
+      await _backToLibrary(tester);
+      await _shot(tester, '67-biblioteca-transposta');
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+    skip: _onlyReview,
+  );
 
-    // A chave geral, nas configurações.
-    await _openOptions(tester);
-    await _optionsItem(tester, 'Configurações gerais');
-    await _settingsRow(tester, 'Abrir as músicas já sem acidentes');
-    await _shot(tester, '66-configuracoes-sem-acidentes');
-    await _tap(tester, find.byTooltip('Fechar'));
+  testWidgets(
+    'revisão do treino',
+    (tester) async {
+      _forceOrientation(tester);
+      await _seedHistory();
+      _keyboard.plug();
+      await _launch(tester, splash: false);
+      await _libraryReady(tester);
+      await _until(
+        tester,
+        () => _has(find.byTooltip('Teclado MIDI: Teclado digital')),
+        what: 'teclado conectado',
+      );
+      _forceOrientation(tester, score: true);
+      await tester.tap(find.byTooltip('Continuar estudo'), warnIfMissed: false);
+      await _scoreReady(tester);
+      await _shot(tester, 'r0-partitura-parada');
 
-    await _backToLibrary(tester);
-    await _shot(tester, '67-biblioteca-transposta');
-  }, timeout: const Timeout(Duration(minutes: 12)));
+      await _openTrailDrawer(tester);
+      final waitStage = _selectedStage(tester);
+      await _tap(tester, find.byTooltip('Fechar'));
+      await _tap(tester, find.byTooltip('Começar etapa'));
+      await _until(
+        tester,
+        () => _has(find.byType(PhoneScorePill)),
+        what: 'etapa rodando',
+      );
+      await _playWaitStage(
+        tester,
+        waitStage,
+        staves: waitStage.phase.hand == Hand.esquerda ? {2} : {1},
+        wrongAt: const {3, 8, 14},
+      );
+      await _until(tester, _summaryOpen, what: 'resumo da etapa', seconds: 20);
+      await _wait(tester);
+      await _shot(tester, 'r1-resumo-com-revisao');
+
+      await _tap(tester, find.text('Rever na partitura'));
+      await _wait(tester);
+      await _shot(tester, 'r2-revisao');
+      if (_has(find.byTooltip('Próxima página'))) {
+        await _tap(tester, find.byTooltip('Próxima página'));
+        await _wait(tester);
+        await _shot(tester, 'r3-revisao-proxima-pagina');
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 8)),
+    skip: !_onlyReview,
+  );
 }

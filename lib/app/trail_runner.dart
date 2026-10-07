@@ -168,7 +168,12 @@ class TrailRunner extends ChangeNotifier {
   /// Id da etapa para a qual a partitura já foi levada (U02).
   String? _armedStageId;
 
+  /// O cache de [markedIds]: vale para uma etapa **e** uma gravura. Cada
+  /// gravura nova dá outros ids aos compassos (o Verovio continua o
+  /// contador), e os da anterior não marcariam nada — o véu cobriria a
+  /// pauta inteira, inclusive o trecho que se está tocando.
   String? _markedStageId;
+  ScorePlayer? _markedPlayer;
   List<String> _markedIds = const [];
   Set<String> _markedSet = const {};
 
@@ -204,7 +209,7 @@ class TrailRunner extends ChangeNotifier {
   Set<String> get errorMeasureIds => _errorMeasureIds;
 
   /// As notas erradas do último treino que terminou; vazio se não houve
-  /// nenhuma, ou depois de [discardWrongMarks].
+  /// nenhuma.
   List<WrongMark> get wrongMarks => _wrongMarks;
 
   /// A revisão está aberta: as notas erradas fixas na partitura.
@@ -219,8 +224,9 @@ class TrailRunner extends ChangeNotifier {
     if (trail == null || trail.freeMode || player == null || stage == null) {
       return const [];
     }
-    if (_markedStageId != stage.id) {
+    if (_markedStageId != stage.id || !identical(_markedPlayer, player)) {
       _markedStageId = stage.id;
+      _markedPlayer = player;
       _markedIds = trailStageMeasureIds(trail.path, stage, player.measures);
       _markedSet = _markedIds.toSet();
     }
@@ -443,18 +449,14 @@ class TrailRunner extends ChangeNotifier {
   }
 
   /// "Revisar": fixa na partitura as notas erradas do último treino — as
-  /// tocadas antes do tempo à esquerda da nota, as depois à direita.
+  /// tocadas antes do tempo à esquerda da nota, as depois à direita. A
+  /// revisão é um estado da partitura, sem botão de fechar: dura o mesmo que
+  /// as marcas de erro ([clearErrorMarks]) — até o próximo treino, o play, a
+  /// troca de etapa ou uma gravura nova.
   void startReview() {
     if (_wrongMarks.isEmpty || _practice != null || _disposed) return;
     ghosts.setReview([for (final m in _wrongMarks) m.ghostRequest]);
     _reviewing = true;
-    _changed();
-  }
-
-  /// Fecha a revisão (ou a oferta dela) e esquece as notas erradas.
-  void discardWrongMarks() {
-    if (_wrongMarks.isEmpty && !_reviewing) return;
-    _dropWrongMarks();
     _changed();
   }
 
@@ -719,6 +721,8 @@ class TrailRunner extends ChangeNotifier {
           trail.next();
         case StageSummaryAction.train:
           trail.next();
+        // A revisão fica na etapa: quem a abre é a tela (vai à página).
+        case StageSummaryAction.review:
         case null:
           break;
       }
@@ -755,6 +759,7 @@ class TrailRunner extends ChangeNotifier {
       case StageSummaryAction.skip:
         trail.skipBlock(blockIndex);
         break;
+      case StageSummaryAction.review:
       case null:
         break;
     }

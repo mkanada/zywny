@@ -3,10 +3,12 @@
 // relógio andado pelo teste, e o aluno toca pelo [FakeMidiInput] — a
 // primeira etapa é "notas da direita", no modo espera.
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' show Size;
 
+import 'package:archive/archive.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -63,6 +65,7 @@ class _Harness {
   late final TrailRunner runner;
   final List<FakeSoundEngine> engines = [];
   final List<_Summary> summaries = [];
+  final RecordingRenderer renderer = RecordingRenderer();
 
   FakeSoundEngine get engine => engines.single;
 
@@ -88,7 +91,7 @@ class _Harness {
     );
     final piece = fakePiece(fifths: fifths);
     h.session = ScoreRenderSession(
-      renderer: RecordingRenderer(),
+      renderer: h.renderer,
       scoreXml: Uint8List(1),
       piece: piece,
       settings: h.settings,
@@ -227,6 +230,21 @@ class _Harness {
   }
 }
 
+/// A gravura [vsb] com cada id de [ids] trocado por outro, em todos os
+/// arquivos — o que uma gravura nova da mesma música faz.
+VsbDocument _withRenamedIds(List<int> vsb, Set<String> ids) {
+  final out = Archive();
+  for (final file in ZipDecoder().decodeBytes(vsb)) {
+    var text = utf8.decode(file.content);
+    for (final id in ids) {
+      text = text.replaceAll('"$id"', '"$id-novo"');
+    }
+    final bytes = utf8.encode(text);
+    out.addFile(ArchiveFile(file.name, bytes.length, bytes));
+  }
+  return VsbDocument.fromBytes(Uint8List.fromList(ZipEncoder().encode(out)));
+}
+
 void main() {
   testWidgets('uma etapa passada avança para a seguinte', (tester) async {
     final h = await _Harness.create(tester);
@@ -284,11 +302,51 @@ void main() {
     expect(h.ghosts.review, isNotEmpty);
     expect(h.ghosts.review.every((g) => g.key == 22), isTrue);
 
-    // Fechar a revisão esquece as notas e tira as fantasmas da pauta.
-    h.runner.discardWrongMarks();
+    // A revisão não tem fechar: acaba quando o próximo treino começa.
+    await h.runner.startStage();
     expect(h.runner.wrongMarks, isEmpty);
     expect(h.runner.reviewing, isFalse);
     expect(h.ghosts.review, isEmpty);
+    h.runner.abandonStage();
+    h.dispose();
+  });
+
+  testWidgets('a pauta da etapa segue a gravura nova (ids novos)', (
+    tester,
+  ) async {
+    final h = await _Harness.create(tester);
+    final stage = h.runner.trail!.selected!;
+    final before = h.runner.markedIds();
+    expect(before, isNotEmpty);
+
+    // Gravar de novo (caixa nova, tom...) dá outros ids aos compassos: o
+    // Verovio continua o contador de ids de uma gravura para a outra. A
+    // etapa é a mesma.
+    h.renderer.next = _withRenamedIds(
+      File('test/fixtures/erik-satie.vsb').readAsBytesSync(),
+      {for (final m in h.playback.player!.measures) m.id},
+    );
+    final oldPlayer = h.playback.player;
+    await h.session.render();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    final player = h.playback.player!;
+    expect(identical(player, oldPlayer), isFalse);
+    expect(h.runner.trail!.selected!.id, stage.id);
+    final ids = {for (final m in player.measures) m.id};
+    expect(
+      ids.containsAll(before),
+      isFalse,
+      reason: 'a gravura do teste precisa ter outros ids',
+    );
+    final after = h.runner.markedIds();
+    expect(after, isNotEmpty);
+    expect(
+      ids.containsAll(after),
+      isTrue,
+      reason: 'os compassos marcados são os da gravura na tela',
+    );
     h.dispose();
   });
 
