@@ -1897,12 +1897,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             // No layout largo a barra de baixo já tem os botões de página.
             if (phone && _pagerVisible)
               Positioned(
-                left: 8,
-                right: 8,
-                bottom: 8,
+                left: 0,
+                right: 0,
+                bottom: 0,
                 child: PagePager(
-                  page: _session.pageIndex,
-                  pageCount: _session.pageCount,
                   onPrevious: _canPageBack ? _previousPage : null,
                   onNext: _canPageForward ? _nextPage : null,
                 ),
