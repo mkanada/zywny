@@ -26,6 +26,7 @@ mudar.
 import csv
 import datetime
 import json
+import os
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -34,7 +35,8 @@ from pathlib import Path
 from build_library import build_package, fold
 
 PROJ = Path(__file__).resolve().parent.parent
-DEFAULT_SRC = Path("/home/mauricio/IdeaProjects/Hymn_Grabber")
+# Vizinho deste repositório (pode ser symlink); HYMN_GRABBER sobrescreve.
+DEFAULT_SRC = Path(os.environ.get("HYMN_GRABBER") or PROJ.parent / "Hymn_Grabber")
 PACKAGE = PROJ / "dist" / "hinos.zywny"
 
 # Palavras que ficam em minúscula no meio do título ("Ao Deus de Abraão

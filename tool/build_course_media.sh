@@ -16,7 +16,7 @@
 # esta receita. Rode-a quando quiser refazer a mídia (ela sobrescreve).
 #
 # Ferramentas medidas em 2026-10-06 (Pop!_OS):
-# - verovio 6.3.0-a4637ea (fork em /home/mauricio/rust_projects/verovio_flutter_bridge)
+# - verovio 6.3.0-a4637ea (fork no verovio_flutter_bridge)
 # - google-chrome (headless para rasterizar o SVG)
 # - ImageMagick 6.9.12-98 (convert: trim + borda)
 # - cargo 1.95.0 + rustysynth 1.3.6 (render_wav, sem fluidsynth — não instalado)
@@ -25,10 +25,11 @@ set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 media_dir="$proj_dir/assets/cursos/iniciacao/media"
-bridge_dir="/home/mauricio/rust_projects/verovio_flutter_bridge"
+source "$(dirname "${BASH_SOURCE[0]}")/verovio_bridge.sh"
+bridge_dir="$verovio_bridge"
 verovio_bin="$bridge_dir/verovio/tools/verovio"
 data_dir="$bridge_dir/verovio/data"
-chrome_bin="${CHROME_BIN:-/home/mauricio/bin/google-chrome}"
+chrome_bin="${CHROME_BIN:-$(command -v google-chrome || echo google-chrome)}"
 soundfont="$proj_dir/assets/soundfonts/TimGM6mb.sf2"
 crate_dir="$proj_dir/native/zywny_audio"
 

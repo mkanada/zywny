@@ -854,8 +854,8 @@ packages:
   verovio:
     dependency: "direct main"
     description:
-      path: "/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart"
-      relative: false
+      path: "../verovio_flutter_bridge/verovio/bindings/dart"
+      relative: true
     source: path
     version: "0.1.0"
   vm_service:

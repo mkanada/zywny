@@ -17,7 +17,7 @@ Antes de qualquer pacote, rende mais quebrar `main.dart` em controllers.
 | 1 | Gravura sem páginas quebra o `setState` de `_renderAndShow` | bug | corrigido |
 | 2 | `findAudioLibrary` sem proteção de plataforma | bug | corrigido |
 | 3 | Opções do Verovio montadas em dois lugares | bug latente | corrigido |
-| 4 | Caminhos absolutos para `/home/mauricio/...` | portabilidade | aberto |
+| 4 | Caminhos absolutos para `/home/mauricio/...` | portabilidade | corrigido |
 | 5 | `_ScoreHomePageState` com ~3650 linhas | estrutura | aberto |
 | 6 | Posse dupla de recursos só para teste | estrutura | aberto |
 | 7 | Ciclo audio → settings → practice → audio | estrutura | aberto |
@@ -76,7 +76,7 @@ Verovio, ou o contrário.
 **Correção:** `_renderAndShow` usa `_effectiveOptions()` e só tira a
 largura e a altura da página, que vão à parte no `ScoreRenderRequest`.
 
-## Portabilidade (aberto)
+## Portabilidade (corrigido)
 
 ### 4. Caminhos absolutos
 
@@ -100,6 +100,18 @@ submodule ou subtree, como já foi feito com `score_bridge/`) e usar caminho
 relativo; ou um caminho relativo vizinho (`../verovio_flutter_bridge`) mais
 uma variável de ambiente (`VEROVIO_BRIDGE`) lida pelos scripts, num lugar
 só.
+
+**Correção (feita):** a segunda opção. O bridge e o Hymn_Grabber são
+procurados ao lado do repositório (`../verovio_flutter_bridge`,
+`../Hymn_Grabber`; um symlink basta — ver "Repositórios vizinhos" no
+README). `VEROVIO_BRIDGE` e `HYMN_GRABBER` sobrescrevem, cada um lido num
+lugar só por linguagem: `tool/verovio_bridge.sh` (scripts),
+`verovioBridgeDir()` em `lib/native_paths.dart` (app e CLI),
+`test/support/render_helper.dart` (testes) e `linux/CMakeLists.txt`. O
+`pubspec.yaml` e o `pubspec.lock` usam o caminho relativo. A lista acima
+estava incompleta: `linux/CMakeLists.txt`, o README e mais seis testes
+também tinham o caminho, e o `CHROME_BIN` padrão apontava para
+`/home/mauricio/bin`.
 
 ## Estrutura (aberto)
 
@@ -208,7 +220,7 @@ documentado; fica registrado aqui para não ser esquecido.
 
 ## Ordem sugerida para o que está aberto
 
-1. Caminhos absolutos (4).
+1. ~~Caminhos absolutos (4).~~ Feito.
 2. Ciclos (7, 8, 9) e o teste de camadas.
 3. Quebrar `main.dart` em controllers (5) e tornar `OpenedPiece`
    obrigatório (6).

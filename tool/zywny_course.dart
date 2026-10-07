@@ -18,10 +18,14 @@ import 'package:zywny/course/format/course_model.dart';
 import 'package:zywny/course/format/course_reader.dart';
 import 'package:zywny/course/format/course_render_check.dart';
 import 'package:zywny/course/format/directory_course_files.dart';
+import 'package:zywny/native_paths.dart';
 
 Future<void> main(List<String> args) async {
   final render = args.contains('--render');
-  final rest = [for (final a in args) if (a != '--render') a];
+  final rest = [
+    for (final a in args)
+      if (a != '--render') a,
+  ];
   final String folder;
   if (render && rest.length == 1 && rest.first != 'validate') {
     // `just curso-validar --render <pasta>`: atalho para validar com render.
@@ -76,7 +80,10 @@ Future<List<CourseIssue>?> _renderIssues(
   }
   try {
     final refs = await collectCourseScores(course, files);
-    return await checkCourseScores(refs, (ref) async => _renderOne(toolkit, ref));
+    return await checkCourseScores(
+      refs,
+      (ref) async => _renderOne(toolkit, ref),
+    );
   } on Object {
     return null;
   } finally {
@@ -101,8 +108,7 @@ VerovioToolkit _openToolkit() {
 String? _findLibrary() {
   final env = Platform.environment['VEROVIO_LIBRARY_PATH'];
   if (env != null && env.isNotEmpty && File(env).existsSync()) return env;
-  const bridge =
-      '/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so';
+  final bridge = '${verovioBridgeDir()}/verovio/bindings/dart/libverovio.so';
   if (File(bridge).existsSync()) return File(bridge).absolute.path;
   return null;
 }
@@ -114,7 +120,7 @@ String? _findResource() {
   if (env != null && env.isNotEmpty && Directory(env).existsSync()) {
     return Directory(env).absolute.path;
   }
-  const bridge = '/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/data';
+  final bridge = '${verovioBridgeDir()}/verovio/data';
   if (Directory(bridge).existsSync()) {
     return Directory(bridge).absolute.path;
   }
@@ -126,9 +132,7 @@ Future<ScoreRenderOutcome> _renderOne(
   CourseScoreRef ref,
 ) async {
   toolkit.resetOptions();
-  if (!toolkit.setOptions(
-    jsonEncode({'pageWidth': 800, 'pageHeight': 1000}),
-  )) {
+  if (!toolkit.setOptions(jsonEncode({'pageWidth': 800, 'pageHeight': 1000}))) {
     throw StateError(toolkit.getLog().trim());
   }
   final loaded = toolkit.loadData(ref.data);

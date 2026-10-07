@@ -40,6 +40,7 @@ diretório temporário).
 import argparse
 import collections
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -50,10 +51,12 @@ import zipfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-BRIDGE = Path("/home/mauricio/rust_projects/verovio_flutter_bridge")
+# Vizinhos deste repositório (podem ser symlinks); as variáveis sobrescrevem.
+VIZINHOS = Path(__file__).resolve().parent.parent.parent
+BRIDGE = Path(os.environ.get("VEROVIO_BRIDGE") or VIZINHOS / "verovio_flutter_bridge")
 CLI = BRIDGE / "verovio" / "tools" / "verovio"
 DATA = BRIDGE / "verovio" / "data"
-FONTE = Path("/home/mauricio/IdeaProjects/Hymn_Grabber")
+FONTE = Path(os.environ.get("HYMN_GRABBER") or VIZINHOS / "Hymn_Grabber")
 
 # Tabela do Q00: armadura (quintas, + sustenidos) -> (intervalo do Verovio, k).
 # O trítono (±6) desce (D-TRP-DIRECAO); a outra direção fica em ALTERNATIVA.

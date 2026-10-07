@@ -10,11 +10,12 @@
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-bridge_dir="/home/mauricio/rust_projects/verovio_flutter_bridge"
+source "$(dirname "${BASH_SOURCE[0]}")/verovio_bridge.sh"
+bridge_dir="$verovio_bridge"
 verovio_bin="$bridge_dir/verovio/tools/verovio"
 data_dir="$bridge_dir/verovio/data"
 input_mei="$bridge_dir/corpus/mei/Grieg_Little_bird_Op43_No4.mei"
-chrome_bin="${CHROME_BIN:-/home/mauricio/bin/google-chrome}"
+chrome_bin="${CHROME_BIN:-$(command -v google-chrome || echo google-chrome)}"
 out_dir="$proj_dir/assets/mockup"
 
 [[ -x "$verovio_bin" ]] || { echo "ERROR: $verovio_bin não existe — compile o fork (cd $bridge_dir/verovio/tools && cmake ../cmake && make -j4)" >&2; exit 1; }

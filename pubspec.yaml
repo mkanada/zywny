@@ -47,9 +47,10 @@ dependencies:
   web: ^1.1.0
 
   # Bindings FFI do fork do Verovio que exporta `.vsb` (Verovio Score
-  # Bridge), em /home/mauricio/rust_projects/verovio_flutter_bridge.
+  # Bridge). O checkout fica ao lado deste repositório, em
+  # ../verovio_flutter_bridge (pode ser um symlink) — ver o README.
   verovio:
-    path: /home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart
+    path: ../verovio_flutter_bridge/verovio/bindings/dart
   # Pacote que lê o `.vsb` e o desenha com CustomPaint — vive neste repo
   # (score_bridge/, trazido do verovio_flutter_bridge via git subtree).
   score_bridge:

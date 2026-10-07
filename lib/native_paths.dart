@@ -1,5 +1,16 @@
 import 'dart:io';
 
+/// The verovio_flutter_bridge checkout (dev only: libverovio.so, engraving
+/// data, corpus). `VEROVIO_BRIDGE` overrides; otherwise it is the sibling of
+/// this repo, `../verovio_flutter_bridge` (a symlink is fine) — the same
+/// relative path `pubspec.yaml` uses. Relative to the working directory, so
+/// it assumes `flutter run`/`flutter test`/`dart run` from the project root.
+String verovioBridgeDir() {
+  final env = Platform.environment['VEROVIO_BRIDGE'];
+  if (env != null && env.isNotEmpty) return env;
+  return '../verovio_flutter_bridge';
+}
+
 /// Locates the native `libverovio.so`.
 ///
 /// On Android (X01) the lib ships inside the APK's `jniLibs/<abi>/` (staged
@@ -30,7 +41,7 @@ String findVerovioLibrary() {
     // (linux/CMakeLists.txt installs it there; RPATH is $ORIGIN/lib).
     '${File(Platform.resolvedExecutable).parent.path}/lib/libverovio.so',
     // Dev fallback: built in verovio_flutter_bridge via tool/build_verovio_linux.sh.
-    '/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so',
+    '${verovioBridgeDir()}/verovio/bindings/dart/libverovio.so',
   ];
   for (final c in candidates) {
     if (File(c).existsSync()) return c;

@@ -6,13 +6,27 @@ arquivo (`lib/library/`) e uma delas fica em uso. Gera a cena da música
 escolhida no formato `.vsb` (*Verovio Score Bridge*) em runtime via FFI e a
 desenha com `CustomPaint`.
 
-Os dois pacotes que fazem isso vivem no projeto
-[`/home/mauricio/rust_projects/verovio_flutter_bridge`](https://github.com/mkanada/verovio_flutter_bridge):
+Os dois pacotes que fazem isso vêm do projeto
+[`verovio_flutter_bridge`](https://github.com/mkanada/verovio_flutter_bridge):
 
 - **`verovio`** (`verovio/bindings/dart`) — bindings FFI do fork do Verovio que
   exporta `.vsb` (`renderToBridgeFile`).
 - **`score_bridge`** — parser do `.vsb` e `ScenePainter`, que desenha a página
   com paridade visual contra o SVG do próprio Verovio.
+
+### Repositórios vizinhos
+
+O `pubspec.yaml`, o `linux/CMakeLists.txt`, os scripts de `tool/` e os testes
+procuram dois checkouts **ao lado** deste repositório (um symlink basta):
+
+```
+../verovio_flutter_bridge   # obrigatório: o pacote `verovio` e a libverovio.so
+../Hymn_Grabber             # opcional: só para o pacote de hinos e testes manuais
+```
+
+Por exemplo: `ln -s ~/rust_projects/verovio_flutter_bridge ../verovio_flutter_bridge`.
+Fora do `pubspec.yaml`, as variáveis `VEROVIO_BRIDGE` e `HYMN_GRABBER`
+sobrescrevem esses caminhos.
 
 ## Configurações
 
@@ -65,7 +79,7 @@ para o stable, comparar com `just run-impeller` e largar a flag.
 
 Os artefatos gerados pelos scripts não são versionados:
 
-- `/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart/libverovio.so` —
+- `../verovio_flutter_bridge/verovio/bindings/dart/libverovio.so` —
   `linux/CMakeLists.txt` a instala em `lib/` do bundle (RPATH `$ORIGIN/lib`);
   em `flutter run` ela é achada na árvore do projeto (`lib/native_paths.dart`,
   ou `VEROVIO_LIBRARY_PATH`).
@@ -80,7 +94,7 @@ Os artefatos gerados pelos scripts não são versionados:
   guarde cópia da privada — sem ela nenhum app instalado aceita pacote novo.
   Sem a pública o app compila, mas recusa instalar biblioteca.
 - `dist/hinos.zywny` — a biblioteca de hinos (`just pacote-hinos`), gerada a
-  partir de `/home/mauricio/IdeaProjects/Hymn_Grabber` (`musicxml/` e
+  partir de `../Hymn_Grabber` (`musicxml/` e
   `musicxml_special/`, mais a dificuldade de `musicxml/_dificuldade.csv`). Fora
   do git porque as partituras têm direitos de terceiros: o arquivo passa de mão
   em mão e o app nunca diz de onde baixar.
