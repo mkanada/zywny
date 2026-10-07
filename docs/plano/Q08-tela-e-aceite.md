@@ -68,4 +68,74 @@ Linux, Android e Web, com o teclado MIDI do usuário:
 
 ## Notas de execução
 
-(vazio)
+### Resultado (2026-10-06): código e testes feitos; aceite manual pendente
+
+O aceite manual (1–5) precisa do teclado MIDI do usuário e **não foi feito**:
+a tabela no fim destas notas está em branco para ele preencher. O passo só
+fica **concluído** quando ela estiver preenchida.
+
+Arquivos: `lib/music/tone_choices.dart` (novo: `keySignatureShort`,
+`keySignatureTransposed`, `toneChoices`, `transposeSealText`,
+`toneChangeMessage`), `lib/ui/transpose_widgets.dart` (novo: `TransposeSeal`,
+`TransposeSection`, `showToneList`, `alsoStudiedText`), `lib/main.dart`,
+`lib/settings/general_settings_panel.dart`, `lib/library/library_screen.dart`,
+`lib/trail/trail_widgets.dart` (`TrailDrawer.alsoStudied`),
+`integration_test/telas_celular_test.dart`. Teste novo:
+`test/transpor_tela_test.dart` (26 casos).
+
+**Decisões de execução**
+- **`_stored.transpose` virou `_transposeChoice`** (campo mutável de
+  `_ScoreHomePageState`), como o Q03 mandava; `_transposition` passou a ser
+  `_transpositionFor(_transposeChoice)`, e a escolha é gravada na hora
+  (`onPieceSettingsChanged`, que também leva `setTranspose` à biblioteca), sem o
+  respiro de 400 ms do layout: é uma escolha, não um slider.
+- **"Não" guarda `P1`** (`kTransposeNone`), como o plano manda, mesmo quando a
+  chave geral está desligada. Se a escolha não muda a gravura (ex.: "Não" sem a
+  chave geral), só guarda; não regrava.
+- **A confirmação** usa `toneChangeStartsOver` (Q04) e o `confirmTrailReset`
+  que já existia. O texto cita o tom de destino e o de origem: "Em Dó a trilha
+  começa do zero. A do tom original fica guardada." — de um tom transposto para
+  outro, "A de Dó fica guardada.".
+- **A lista dos 12 tons** vai do Dó ao Si (ordem das notas), com o Fá♯ (6♯) no
+  trítono, que desce. Uma música em 7♯ ou 6♭ troca o tom enarmônico da lista
+  pelo dela, para a "original" sempre existir.
+- **"Também estudada" diz "etapas", não "trechos"**: o que a trilha guarda é
+  feito/total de etapas (`trailProgressText`), e "trecho" é só o corte em
+  compassos. Aparece na gaveta de opções (sob "Transpor") e na gaveta da trilha
+  (sob o progresso). Lido por `studiedTones` a cada trilha montada.
+- **O selo** fica em `PhoneTitleBar.trailing` (celular) e nas ações da barra
+  (desktop), até 230 px com reticências: a barra já existe, então a pauta não
+  perde espaço em paisagem (U10). Mostra o tom **da gravura na tela**, não o
+  pedido. Tocar abre a conferência (Q06); sem teclado ou com o monitor ligado
+  não há o que conferir, e uma mensagem diz por quê.
+- **Desktop**: ganhou o botão "Transpor" na barra (o mesmo item num diálogo),
+  porque a gaveta é do celular e o aceite também roda no Linux.
+- **Biblioteca**: a armadura da música transposta é "3♭ → 0"; as sem
+  transposição seguem com "3 bemóis" (por extenso, como hoje — o plano dizia
+  "3♭" para o que "hoje aparece", mas hoje é por extenso). A ordenação por
+  acidentes continua pela original.
+- **Item sem armadura conhecida** (`Piece.fifths == null`): não aparece. Um
+  intervalo guardado em música sem armadura só nasce de código, não da tela.
+
+**Critérios**
+1. Testes de widget: gaveta (as três escolhas, só "Escolher…" com 0
+   acidentes, nada sem armadura), lista dos 12 tons e o escolhido indo ao
+   Verovio, confirmação (pergunta, cancelar não muda nada, "Trocar" muda; sem
+   trilha começada não pergunta), selo (texto, toque, barra estreita), chave geral
+   nas configurações (grava e regrava o hino) e a linha da biblioteca. ✔
+2. `just telas` atualizado: telas 61–67. ✔
+3. Aceite manual: **pendente** (tabela abaixo).
+
+**`just telas`**: o roteiro ganhou a passagem "transpor (fase Q)" (telas 61–67, já em `docs/telas/celular/` e no `INDICE.md`). Rodei só essa passagem no emulador (`emulator-5554`, hino 005 em Fá, 1♭), com `TELAS_DIR` fora do repositório, para não regravar as 60 fotos de antes; o roteiro inteiro não foi rodado de novo.
+
+### Aceite manual (a preencher com o teclado do usuário)
+
+Teclado (marca e modelo): ____________________
+
+| # | O que fazer | Linux | Android | Web |
+| --- | --- | --- | --- | --- |
+| 1 | Hino em Mi♭: "Sem acidentes"; conferência pede +3; Dó soa Mi♭. **O teclado transpõe a saída MIDI? e a entrada?** | | | |
+| 2 | Modo espera e tempo real passam com as teclas de Dó maior; "ouvir o trecho" soa em Mi♭ junto com o teclado | | | |
+| 3 | Hino com 2♯ ou 4♯: o mesmo, com o TRANSPOSE da tabela | | | |
+| 4 | Voltar a "Não" com o teclado em +3: o detector avisa em até 6 notas erradas (se transpõe a saída) ou o lembrete de voltar a 0 aparece (se não) — ajustar N se precisar | | | |
+| 5 | Hino em 6♯ ou 6♭ (se existir no catálogo; o catálogo de hinos vai de 5♭ a 4♯, então só uma biblioteca de clássicos): o trítono desce | | | |

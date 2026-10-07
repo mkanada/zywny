@@ -7,7 +7,7 @@ Todas as telas do app num só lugar, em ordem de uso. Capturas do app real num c
 - As mesmas telas em retrato e em paisagem, lado a lado: [`ORIENTACAO.md`](ORIENTACAO.md); análise em [`../ux/estudo-ux-orientacao.md`](../ux/estudo-ux-orientacao.md).
 - Protótipo navegável (não é o app): `lib/mockup/` e `lib/main_mockup.dart` — não entra nas fotos.
 
-Total: 60 telas.
+Total: 67 telas.
 
 ## Abertura e biblioteca
 
@@ -106,3 +106,17 @@ Código: `lib/course/ui/courses_screen.dart` · `lib/course/ui/course_screen.dar
 <table><tr><td align="center"><a href="celular/57-licao-8-choice-cartao.png"><img src="celular/57-licao-8-choice-cartao.png" width="200"></a><br><sub><b>57</b> · Cartão do `choice`</sub></td><td align="center"><a href="celular/58-exercicio-choice.png"><img src="celular/58-exercicio-choice.png" width="440"></a><br><sub><b>58</b> · Exercício `choice`</sub></td></tr></table>
 
 <table><tr><td align="center"><a href="celular/59-exercicio-play-notes-antes.png"><img src="celular/59-exercicio-play-notes-antes.png" width="440"></a><br><sub><b>59</b> · `play-notes` antes</sub></td><td align="center"><a href="celular/60-exercicio-play-notes-depois.png"><img src="celular/60-exercicio-play-notes-depois.png" width="440"></a><br><sub><b>60</b> · `play-notes` aprovado</sub></td></tr></table>
+
+## Transpor (fase Q)
+
+Paisagem (61–66) e retrato (67). O item “Transpor” da gaveta, a lista dos 12 tons, a confirmação ao trocar de tom com trilha começada, a conferência do teclado, o selo na barra do título, a chave geral e a armadura “3♭ → 0” na biblioteca.
+
+Código: `lib/ui/transpose_widgets.dart` · `lib/music/tone_choices.dart` · `lib/midi/transpose_check.dart` · `lib/main.dart`
+
+<table><tr><td align="center"><a href="celular/61-opcoes-transpor.png"><img src="celular/61-opcoes-transpor.png" width="440"></a><br><sub><b>61</b> · Gaveta: item “Transpor”</sub></td><td align="center"><a href="celular/62-transpor-12-tons.png"><img src="celular/62-transpor-12-tons.png" width="440"></a><br><sub><b>62</b> · Lista dos 12 tons</sub></td></tr></table>
+
+<table><tr><td align="center"><a href="celular/63-transpor-trocar-de-tom.png"><img src="celular/63-transpor-trocar-de-tom.png" width="440"></a><br><sub><b>63</b> · Confirmação “Trocar de tom?”</sub></td><td align="center"><a href="celular/64-conferir-o-teclado.png"><img src="celular/64-conferir-o-teclado.png" width="440"></a><br><sub><b>64</b> · Conferir o teclado (TRANSPOSE)</sub></td></tr></table>
+
+<table><tr><td align="center"><a href="celular/65-selo-da-transposicao.png"><img src="celular/65-selo-da-transposicao.png" width="440"></a><br><sub><b>65</b> · Selo na barra do título</sub></td><td align="center"><a href="celular/66-configuracoes-sem-acidentes.png"><img src="celular/66-configuracoes-sem-acidentes.png" width="440"></a><br><sub><b>66</b> · Configurações: “Abrir as músicas já sem acidentes”</sub></td></tr></table>
+
+<table><tr><td align="center"><a href="celular/67-biblioteca-transposta.png"><img src="celular/67-biblioteca-transposta.png" width="200"></a><br><sub><b>67</b> · Biblioteca com a armadura “→ 0”</sub></td></tr></table>

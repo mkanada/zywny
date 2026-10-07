@@ -340,7 +340,7 @@ void main() {
       expect(opened!.scoreXml, isEmpty);
 
       // Um treino avaliado terminou com 83% de precisão.
-      opened!.onPracticeScore(83);
+      opened!.onPracticeScore(83, null);
       Navigator.of(tester.element(find.text('partitura'))).pop();
       await tester.pumpAndSettle();
 

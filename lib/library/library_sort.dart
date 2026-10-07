@@ -79,8 +79,11 @@ int _naturalCompare(String a, String b) {
 List<Piece> sortedPieces(
   Iterable<Piece> pieces,
   SortState sort,
-  PieceProgressStore progress,
-) {
+  PieceProgressStore progress, {
+  PieceProgress? Function(Piece piece)? progressOf,
+}) {
+  // A biblioteca ordena pelo progresso do tom em uso de cada música (fase Q).
+  final of = progressOf ?? (Piece p) => progress[p.id];
   final sign = sort.ascending ? 1 : -1;
   // Sem número (biblioteca não numerada): o id desempata, em ordem natural
   // ("2" antes de "10").
@@ -102,13 +105,13 @@ List<Piece> sortedPieces(
         sort.ascending,
       ),
       SortKey.recent => _compareNullLast(
-        progress[a.id]?.lastOpened,
-        progress[b.id]?.lastOpened,
+        of(a)?.lastOpened,
+        of(b)?.lastOpened,
         sort.ascending,
       ),
       SortKey.score => _compareNullLast(
-        progress[a.id]?.bestScore,
-        progress[b.id]?.bestScore,
+        of(a)?.bestScore,
+        of(b)?.bestScore,
         sort.ascending,
       ),
     };

@@ -44,6 +44,7 @@ import 'package:zywny/trail/trail_plan.dart';
 import 'package:zywny/trail/trail_stage.dart';
 import 'package:zywny/trail/trail_widgets.dart';
 import 'package:zywny/ui/phone_chrome.dart';
+import 'package:zywny/ui/transpose_widgets.dart';
 
 /// O hino do roteiro: música de Beethoven (domínio público), nível 1 e
 /// logo no começo da lista.
@@ -182,6 +183,21 @@ Future<void> _until(
     if (DateTime.now().isAfter(end)) fail('não chegou a: $what');
     await tester.pump(const Duration(milliseconds: 50));
   }
+}
+
+/// [finder] aparece em até [seconds]? Para o que pode ou não vir (uma
+/// confirmação que só existe com a trilha começada).
+Future<bool> _appears(
+  WidgetTester tester,
+  Finder finder, {
+  int seconds = 5,
+}) async {
+  final end = DateTime.now().add(Duration(seconds: seconds));
+  while (!_has(finder)) {
+    if (DateTime.now().isAfter(end)) return false;
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  return true;
 }
 
 Future<void> _tap(WidgetTester tester, Finder finder, {int ms = 700}) async {
@@ -1211,5 +1227,77 @@ void main() {
     );
     await _wait(tester, 800);
     await _shot(tester, '60-exercicio-play-notes-depois');
+  }, timeout: const Timeout(Duration(minutes: 12)));
+  testWidgets('transpor (fase Q)', (tester) async {
+    _forceOrientation(tester);
+    await _seedHistory();
+    _keyboard.plug();
+    await _launch(tester, splash: false);
+    await _libraryReady(tester);
+    await _until(
+      tester,
+      () => _has(find.byTooltip('Teclado MIDI: Teclado digital')),
+      what: 'teclado conectado',
+    );
+
+    _forceOrientation(tester, score: true);
+    await tester.tap(find.byTooltip('Continuar estudo'), warnIfMissed: false);
+    await _scoreReady(tester);
+
+    // O item da gaveta e a lista dos 12 tons.
+    await _openOptions(tester);
+    await tester.ensureVisible(find.text('TRANSPOR'));
+    await _wait(tester, 400);
+    await _shot(tester, '61-opcoes-transpor');
+    await _optionsItem(tester, 'Escolher…');
+    await _until(
+      tester,
+      () => _has(find.text('Transpor para…')),
+      what: 'lista dos 12 tons',
+      seconds: 20,
+    );
+    await _shot(tester, '62-transpor-12-tons');
+
+    // O primeiro tom da lista que não é o original: com a trilha do hino
+    // começada, pede a confirmação (Q04).
+    final dialog = find.byType(SimpleDialog);
+    final tones = find.descendant(
+      of: dialog,
+      matching: find.textContaining('teclado'),
+    );
+    await _tap(tester, tones);
+    if (await _appears(tester, find.text('Trocar de tom?'))) {
+      await _shot(tester, '63-transpor-trocar-de-tom');
+      await _tap(tester, find.text('Trocar'));
+    }
+
+    // Com o teclado conectado e ainda não conferido, a conferência abre
+    // sozinha depois da gravura; o selo fica na barra do título.
+    await _until(
+      tester,
+      () => _has(find.text('Conferir o teclado')),
+      what: 'conferência do teclado',
+      seconds: 60,
+    );
+    await _wait(tester, 800);
+    await _shot(tester, '64-conferir-o-teclado');
+    await _tap(tester, find.text('Cancelar'));
+    await _until(
+      tester,
+      () => _has(find.byType(TransposeSeal)),
+      what: 'selo da transposição',
+      seconds: 20,
+    );
+    await _shot(tester, '65-selo-da-transposicao');
+
+    // A chave geral, nas configurações.
+    await _openOptions(tester);
+    await _optionsItem(tester, 'Configurações gerais');
+    await _settingsRow(tester, 'Abrir as músicas já sem acidentes');
+    await _shot(tester, '66-configuracoes-sem-acidentes');
+    await _tap(tester, find.byTooltip('Fechar'));
+
+    await _backToLibrary(tester);
+    await _shot(tester, '67-biblioteca-transposta');
   }, timeout: const Timeout(Duration(minutes: 12)));
 }

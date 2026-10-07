@@ -22,6 +22,7 @@ import 'audio/soundfont_store.dart';
 import 'course/built_in_course.dart';
 import 'layout_options.dart';
 import 'layout_panel.dart';
+import 'library/library_keys.dart' show progressIdFor;
 import 'library/piece.dart';
 import 'library/library_package.dart' show LibraryTerm;
 import 'library/library_screen.dart';
@@ -32,13 +33,18 @@ import 'midi/midi_input_service.dart';
 import 'midi/midi_monitor.dart';
 import 'midi/midi_monitor_panel.dart';
 import 'midi/midi_out_sound_engine.dart';
+import 'midi/transpose_check.dart';
+import 'music/pitch_frame.dart';
 import 'music/performance_track.dart';
+import 'music/tone_choices.dart';
 import 'music/transposition.dart';
 import 'practice/app_hand.dart';
 import 'practice/count_in_overlay.dart';
 import 'practice/hand.dart';
 import 'practice/practice_colors.dart';
 import 'practice/practice_controller.dart';
+import 'practice/shift_banner.dart';
+import 'practice/shift_detector.dart';
 import 'practice/practice_report.dart';
 import 'practice/practice_tools.dart';
 import 'practice/study_mode.dart';
@@ -58,6 +64,7 @@ import 'ui/phone_chrome.dart';
 import 'ui/practice_legend.dart';
 import 'ui/side_panel.dart';
 import 'ui/theme.dart';
+import 'ui/transpose_widgets.dart';
 import 'diag_log.dart';
 import 'render/score_renderer.dart';
 
@@ -208,6 +215,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// O que este hino tinha guardado ao abrir (layout, andamento, mão).
   late final PieceSettings _stored =
       widget.opened?.pieceSettings ?? const PieceSettings();
+
+  /// A escolha de transposição deste hino (fase Q): `null` = a pessoa não
+  /// escolheu (vale a chave geral), [kTransposeNone] = "Não", ou um intervalo.
+  /// Nasce do que estava guardado e muda pelo item "Transpor" da gaveta.
+  late String? _transposeChoice = _stored.transpose;
+
+  /// "Também estudada: original, 3 de 8 etapas" (Q04/Q08): os outros tons em
+  /// que este hino tem trilha. Lido a cada trilha montada.
+  String? _alsoStudied;
 
   /// O layout de um hino em que nada foi mexido.
   static Map<String, Object> get _layoutDefaults =>
@@ -533,7 +549,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     speed: _speed == 1.0 ? null : _speed,
     hand: _hand == _kDefaultHand ? null : _hand,
     trailMeasures: trailMeasures,
-    transpose: _stored.transpose,
+    transpose: _transposeChoice,
   );
 
   void _flushPieceSettings() {
@@ -576,7 +592,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         confirmLabel: 'Trocar',
       );
       if (!ok) return;
-      await _trailStore.reset(opened.piece.id);
+      await _trailStore.reset(
+        progressIdFor(opened.piece.id, _renderedTransposition),
+      );
     }
     opened.onPieceSettingsChanged(_pieceSettingsWith(trailMeasures: value));
     if (!mounted) return;
@@ -595,6 +613,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _resizeDebounce?.cancel();
     _flushPieceSettings();
     _settings.removeListener(_onSettingsChanged);
+    _shiftNotice.dispose();
     if (widget.opened == null) _settings.dispose();
     _silentCountInTimer?.cancel();
     _practice?.dispose();
@@ -667,16 +686,221 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// A transposição com que este hino abre agora (fase Q): a escolha dele, ou
   /// a chave geral. `null` = o tom original — e nesse caso nenhuma opção nova
   /// vai ao Verovio.
-  Transposition? get _transposition {
+  Transposition? get _transposition => _transpositionFor(_transposeChoice);
+
+  /// A transposição que [choice] (`null`, [kTransposeNone] ou um intervalo)
+  /// daria a este hino.
+  Transposition? _transpositionFor(String? choice) {
     final piece = widget.opened?.piece;
     if (piece == null) return null;
     final range = _originalRange;
     return effectiveTransposition(
       piece,
-      _stored,
+      PieceSettings(transpose: choice),
       _settings,
       lowest: range?.lowest ?? kCatalogLowestMidi,
       highest: range?.highest ?? kCatalogHighestMidi,
+    );
+  }
+
+  /// "Sem acidentes" para este hino; `null` sem armadura ou já em Dó.
+  Transposition? get _noAccidentals {
+    final fifths = widget.opened?.piece.fifths;
+    if (fifths == null) return null;
+    final range = _originalRange;
+    return Transposition.toNoAccidentals(
+      fifths,
+      lowest: range?.lowest ?? kCatalogLowestMidi,
+      highest: range?.highest ?? kCatalogHighestMidi,
+    );
+  }
+
+  /// Troca o tom deste hino ("Transpor", Q08): [choice] é [kTransposeNone]
+  /// ou um intervalo. Com trilha começada no tom de agora e nenhuma no novo,
+  /// pergunta antes (Q04); guarda a escolha e grava a partitura de novo.
+  Future<void> _chooseTranspose(String choice) async {
+    final opened = widget.opened;
+    if (opened == null) return;
+    final from = _transposition;
+    final to = _transpositionFor(choice);
+    if (to != from &&
+        await _trailStore.toneChangeStartsOver(opened.piece.id, from, to)) {
+      if (!mounted) return;
+      final ok = await confirmTrailReset(
+        context,
+        title: 'Trocar de tom?',
+        message: toneChangeMessage(
+          opened.piece.fifths ?? 0,
+          from: from,
+          to: to,
+          naming: _settings.noteNaming,
+        ),
+        confirmLabel: 'Trocar',
+      );
+      if (!ok || !mounted) return;
+    }
+    if (choice == _transposeChoice) return;
+    setState(() {
+      _transposeChoice = choice;
+      _optionsOpen = false;
+    });
+    opened.onPieceSettingsChanged(
+      _pieceSettingsWith(trailMeasures: _trailPieceN),
+    );
+    // Mesmo tom (ex.: "Não" quando a chave geral já está desligada): só
+    // guarda a escolha, a partitura é a mesma.
+    if (to != _renderedTransposition) unawaited(_renderAndShow());
+  }
+
+  /// "Escolher…": a lista dos 12 tons.
+  Future<void> _pickTone() async {
+    final fifths = widget.opened?.piece.fifths;
+    if (fifths == null) return;
+    final range = _originalRange;
+    final current = _transposition;
+    final choice = await showToneList(
+      context,
+      choices: toneChoices(
+        fifths,
+        lowest: range?.lowest ?? kCatalogLowestMidi,
+        highest: range?.highest ?? kCatalogHighestMidi,
+        naming: _settings.noteNaming,
+      ),
+      currentFifths: fifths + (current?.fifthsDelta ?? 0),
+    );
+    if (choice == null || !mounted) return;
+    await _chooseTranspose(choice.transposition?.interval ?? kTransposeNone);
+  }
+
+  /// O item "Transpor" (gaveta e diálogo do desktop); [before] roda antes da
+  /// ação — o diálogo fecha a si mesmo. `null` sem armadura conhecida.
+  Widget? _transposeSection({VoidCallback? before}) {
+    final fifths = widget.opened?.piece.fifths;
+    if (fifths == null) return null;
+    final current = _transposition;
+    final none = _noAccidentals;
+    return TransposeSection(
+      fifths: fifths,
+      mode: transposeModeOf(current, none),
+      noAccidentals: none,
+      currentTone: current,
+      alsoStudied: _alsoStudied,
+      onNone: () {
+        before?.call();
+        unawaited(_chooseTranspose(kTransposeNone));
+      },
+      onNoAccidentals: () {
+        before?.call();
+        if (none != null) unawaited(_chooseTranspose(none.interval));
+      },
+      onPick: () {
+        before?.call();
+        unawaited(_pickTone());
+      },
+    );
+  }
+
+  /// Desktop: o mesmo item num diálogo (o celular o tem na gaveta).
+  Future<void> _openTransposeDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Transpor'),
+        content: SizedBox(
+          width: 360,
+          child: _transposeSection(before: () => Navigator.pop(dialog)),
+        ),
+      ),
+    );
+  }
+
+  /// O selo da partitura transposta: "Mi♭ → Dó · teclado +3". Mostra o tom da
+  /// gravura que está na tela. `null` no tom original.
+  Widget? _transposeSeal() {
+    final transposition = _renderedTransposition;
+    if (transposition == null) return null;
+    final fifths = widget.opened?.piece.fifths;
+    return TransposeSeal(
+      text: fifths == null
+          ? 'Transposta · teclado ${transposition.keyboardLabel}'
+          : transposeSealText(
+              fifths,
+              transposition,
+              appIsSound: _midiMonitorOn,
+              naming: _settings.noteNaming,
+            ),
+      onTap: _onSealTap,
+    );
+  }
+
+  /// Tocar no selo abre a conferência do teclado (Q06); sem teclado ou com o
+  /// som só do app não há o que conferir, e a pessoa fica sabendo por quê.
+  void _onSealTap() {
+    final message = _midiDeviceManager.connected.value == null
+        ? 'Conecte o teclado para conferir o TRANSPOSE.'
+        : _midiMonitorOn
+        ? 'O som sai pelo app, no tom original: não há o que ajustar no '
+              'teclado.'
+        : null;
+    if (message != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    unawaited(_openTransposeCheck());
+  }
+
+  /// Lê os outros tons em que este hino tem trilha ([_alsoStudied]).
+  Future<void> _refreshAlsoStudied() async {
+    final piece = widget.opened?.piece;
+    if (piece == null) return;
+    final tones = await _trailStore.studiedTones(piece.id);
+    if (!mounted) return;
+    final text = alsoStudiedText(
+      tones,
+      current: _renderedTransposition,
+      fifths: piece.fifths,
+      naming: _settings.noteNaming,
+    );
+    if (text != _alsoStudied) setState(() => _alsoStudied = text);
+  }
+
+  /// As alturas da música aberta (fase Q): o que se lê, o que se ouve e o que
+  /// chega do teclado. Montado a cada uso — o tom da gravura que está na tela,
+  /// o que se sabe do teclado conectado e se o som é do app — então quem o usa
+  /// por função (casador, agendador, monitor) sempre vê o estado de agora.
+  PitchFrame get _pitchFrame {
+    // O tom da gravura na tela (não o pedido, que ainda pode estar sendo
+    // gravado): as alturas do `midi.json` são as dele.
+    final k = _renderedTransposition?.semitones ?? 0;
+    if (k == 0) return PitchFrame.identity;
+    final behavior = _settings.keyboardTransposeOf(
+      _midiDeviceManager.connected.value?.name,
+    );
+    return PitchFrame(
+      k,
+      keyboardShiftsOut: behavior.shiftsOut ?? false,
+      keyboardShiftsIn: behavior.shiftsIn ?? false,
+      appIsSound: _midiMonitorOn,
+    );
+  }
+
+  /// A altura que o [engine] deve receber para a nota escrita: o teclado MIDI
+  /// lê o que mandamos pela regra dele; o sintetizador do app toca a soada.
+  int Function(int) _enginePitchOf(SoundEngine engine) {
+    final midiKeyboard = engine is MidiOutSoundEngine;
+    return (w) => _pitchFrame.engineFromWritten(w, midiKeyboard: midiKeyboard);
+  }
+
+  /// O monitor MIDI (M02) sobre [engine]: toca a soada da tecla apertada.
+  MidiMonitor _newMidiMonitor(SoundEngine engine) {
+    final midiKeyboard = engine is MidiOutSoundEngine;
+    return MidiMonitor(
+      input: _midiInput,
+      engine: engine,
+      pitchOf: (r) =>
+          _pitchFrame.engineFromReceived(r, midiKeyboard: midiKeyboard),
     );
   }
 
@@ -809,6 +1033,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       });
       unawaited(_setupTrail());
       _restoreSound();
+      _maybeCheckTranspose();
+      _maybeRemindTransposeReset();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -838,7 +1064,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _clearErrorMarks();
     if (!mounted) return;
     if (document == null || track == null || player == null) return;
-    final pieceId = widget.opened?.piece.id;
+    // A trilha é do tom que está na tela (fase Q): cada tom tem a sua, e o
+    // original guarda a de antes, sob o id da música.
+    final pieceId = widget.opened == null
+        ? null
+        : progressIdFor(widget.opened!.piece.id, _renderedTransposition);
     if (pieceId == null) {
       setState(
         () => _trailUnavailable =
@@ -846,6 +1076,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       );
       return;
     }
+    unawaited(_refreshAlsoStudied());
     final n = effectiveTrailMeasures(
       general: _settings.trailMeasures,
       piece: _trailPieceN,
@@ -1041,6 +1272,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (!mounted) return;
     final timed = stage.speed != null;
     final gaps = trailStageGaps(trail.path, stage);
+    _shiftDetector.rearm();
     final practice = PracticeController(
       midiInput: _midiInput,
       track: track,
@@ -1049,6 +1281,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       hand: stage.phase.hand,
       ghosts: _ghosts,
       inputLatencyMs: _inputLatencyMs,
+      writtenFromReceived: (r) => _pitchFrame.writtenFromReceived(r),
+      shiftDetector: _shiftDetector,
+      onShift: _onShiftDetected,
       mode: stage.phase.mode,
       measureIndexAt: player.timeline.measureIndexAt,
       passOf: (i) => player.measures[i].pass,
@@ -1544,6 +1779,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     player.seek(Duration(microseconds: (fromMs * 1000).round()));
     await _loadInputLatency();
     if (!mounted) return;
+    _shiftDetector.rearm();
     final practice = PracticeController(
       midiInput: _midiInput,
       track: track,
@@ -1552,6 +1788,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       hand: _hand,
       ghosts: _ghosts,
       inputLatencyMs: _inputLatencyMs,
+      writtenFromReceived: (r) => _pitchFrame.writtenFromReceived(r),
+      shiftDetector: _shiftDetector,
+      onShift: _onShiftDetected,
       mode: _practiceMode,
       measureIndexAt: player.timeline.measureIndexAt,
       passOf: (i) => player.measures[i].pass,
@@ -1628,7 +1867,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (report != null) {
       final r = report;
       // A biblioteca guarda a melhor precisão do hino ("Pontuação").
-      widget.opened?.onPracticeScore((r.accuracy * 100).round());
+      widget.opened?.onPracticeScore(
+        (r.accuracy * 100).round(),
+        _renderedTransposition,
+      );
       if (mounted) {
         setState(
           () => _markErrors([
@@ -1724,7 +1966,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // O som chegou no meio da contagem muda: daqui em diante quem manda no
     // tempo é o agendador, então o player é solto já.
     if (_cancelSilentCountIn()) _player?.play();
-    final scheduler = ScoreAudioScheduler(engine: engine, track: track);
+    final scheduler = ScoreAudioScheduler(engine: engine, track: track)
+      ..pitchOf = _enginePitchOf(engine);
     _scheduler = scheduler;
     _audioClock = AudioPlaybackClock(scheduler);
     _player?.clock = _audioClock;
@@ -1984,7 +2227,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final player = _player;
     setState(() {
       if (wasMonitorOn) {
-        _midiMonitor = MidiMonitor(input: _midiInput, engine: engine);
+        _midiMonitor = _newMidiMonitor(engine);
       }
       if (wasSoundOn && track != null) {
         _attachAudio(engine, track);
@@ -2015,7 +2258,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (engine == null) return;
     setState(() {
       _midiMonitor?.dispose();
-      _midiMonitor = MidiMonitor(input: _midiInput, engine: engine);
+      _midiMonitor = _newMidiMonitor(engine);
       _midiMonitorOn = true;
     });
     final device = _midiDeviceManager.connected.value;
@@ -2049,6 +2292,157 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _midiMonitor?.allNotesOff();
     _tearDownMidiOutEngine();
     unawaited(_syncMidiMonitorToDevice());
+    _maybeCheckTranspose();
+  }
+
+  /// Teclados para os quais a conferência do TRANSPOSE (Q06) já foi oferecida
+  /// nesta tela: quem a fechou não é incomodado a cada regravação.
+  final Set<String> _transposeCheckAsked = {};
+  bool _transposeCheckOpen = false;
+
+  /// Q07: o aviso da faixa no topo da partitura (detector de deslocamento ou
+  /// lembrete de voltar o TRANSPOSE a 0) e o detector, que vigia só onde o
+  /// TRANSPOSE errado muda o número que chega: teclado que transpõe a saída
+  /// (ou ainda não conferido) e som que sai do teclado, não do app.
+  final ValueNotifier<ShiftNotice?> _shiftNotice = ValueNotifier(null);
+  late final ShiftDetector _shiftDetector = ShiftDetector(
+    enabled: () =>
+        !_midiMonitorOn &&
+        _settings
+                .keyboardTransposeOf(_midiDeviceManager.connected.value?.name)
+                .shiftsOut !=
+            false,
+  );
+
+  /// O detector disparou com a distância [d]: diz à pessoa o que ajustar e, num
+  /// teclado ainda não conferido, guarda que ele transpõe a saída (só quem
+  /// transpõe manda o número deslocado). Se o teclado já estava no valor
+  /// pedido, só fica sabendo disso — não há o que avisar.
+  void _onShiftDetected(int d) {
+    if (!mounted) return;
+    final frame = _pitchFrame;
+    final frameShiftsOut = frame.keyboardShiftsOut && !frame.appIsSound;
+    final name = _midiDeviceManager.connected.value?.name;
+    final behavior = _settings.keyboardTransposeOf(name);
+    if (name != null && !behavior.isChecked) {
+      _settings.setKeyboardTranspose(
+        name,
+        KeyboardTransposeBehavior(shiftsOut: true, shiftsIn: behavior.shiftsIn),
+      );
+    }
+    if (shiftIsAlreadyRight(d: d, k: frame.k, frameShiftsOut: frameShiftsOut)) {
+      return;
+    }
+    _shiftNotice.value = shiftNoticeFor(
+      d: d,
+      k: frame.k,
+      frameShiftsOut: frameShiftsOut,
+    );
+  }
+
+  /// Lembra de voltar o TRANSPOSE a 0 ao passar de uma música transposta (nesta
+  /// execução do app) a uma sem transposição, num teclado que não transpõe a
+  /// saída: nele o detector não vê nada. Sair do app com a transposta aberta
+  /// não avisa: no celular não há um momento confiável para isso.
+  void _maybeRemindTransposeReset() {
+    final now = (_renderedTransposition?.semitones ?? 0) != 0;
+    final previous = _settings.lastPieceTransposed;
+    _settings.lastPieceTransposed = now;
+    final name = _midiDeviceManager.connected.value?.name;
+    if (shouldRemindTransposeReset(
+      previousWasTransposed: previous,
+      nowTransposed: now,
+      hasKeyboard: name != null,
+      keyboardShiftsOut: _settings.keyboardTransposeOf(name).shiftsOut,
+      appIsSound: _midiMonitorOn,
+    )) {
+      _shiftNotice.value = const ShiftNotice(
+        kShiftReminderMessage,
+        hideOnPlay: false,
+      );
+    }
+  }
+
+  /// Oferece a conferência sozinha quando há transposição, um teclado
+  /// conectado e ainda não conferido ([shouldAutoCheckTranspose]).
+  void _maybeCheckTranspose() {
+    if (!mounted || _transposeCheckOpen) return;
+    final name = _midiDeviceManager.connected.value?.name;
+    if (!shouldAutoCheckTranspose(
+      transposition: _renderedTransposition,
+      deviceName: name,
+      behavior: _settings.keyboardTransposeOf(name),
+      appIsSound: _midiMonitorOn,
+      alreadyAsked: _transposeCheckAsked.contains(name),
+    )) {
+      return;
+    }
+    _transposeCheckAsked.add(name!);
+    unawaited(_openTransposeCheck());
+  }
+
+  /// A conferência do TRANSPOSE (Q06): também é o que o selo da partitura
+  /// abre (Q08). Sem teclado, sem transposição na tela ou com o som só do app
+  /// não há o que ajustar, e não abre. O que se descobre fica guardado pelo
+  /// nome do teclado.
+  Future<void> _openTransposeCheck() async {
+    final transposition = _renderedTransposition;
+    final device = _midiDeviceManager.connected.value;
+    if (transposition == null ||
+        device == null ||
+        _midiMonitorOn ||
+        _transposeCheckOpen ||
+        !mounted) {
+      return;
+    }
+    _transposeCheckOpen = true;
+    try {
+      final behavior = await showTransposeCheck(
+        context,
+        transposition: transposition,
+        deviceName: device.name,
+        input: _midiInput,
+        previous: _settings.keyboardTransposeOf(device.name),
+        naming: _settings.noteNaming,
+        playOwnSound: _playOwnTone,
+        playOnKeyboard: _output == SoundOutput.midiKeyboard
+            ? _playKeyboardTone
+            : null,
+      );
+      if (behavior != null) {
+        _settings.setKeyboardTranspose(device.name, behavior);
+      }
+    } finally {
+      _transposeCheckOpen = false;
+    }
+  }
+
+  /// Toca [pitch] pelo sintetizador do app, para o teste de ouvido da
+  /// conferência; `false` se ele não está aberto (então vale a palavra da
+  /// pessoa). Pelo canal do monitor, que a partitura não usa.
+  Future<bool> _playOwnTone(int pitch) async {
+    final engine = _appEngine;
+    if (engine == null) return false;
+    await _beep(engine, pitch, channel: kMidiMonitorChannel);
+    return true;
+  }
+
+  /// Manda [pitch] cru ao teclado (M03), sem conversão: é o que a conferência
+  /// da entrada compara.
+  Future<void> _playKeyboardTone(int pitch) async {
+    final engine = _ensureMidiOutEngine();
+    // Canal 1: alguns teclados só respondem nele.
+    if (engine != null) await _beep(engine, pitch, channel: 0);
+  }
+
+  Future<void> _beep(
+    SoundEngine engine,
+    int pitch, {
+    required int channel,
+  }) async {
+    engine.send([0x90 | channel, pitch, 100]);
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+    engine.send([0x80 | channel, pitch, 0]);
   }
 
   /// Descarta o motor de saída MIDI (M03): seu `deviceId` só vale para o
@@ -2080,7 +2474,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     setState(() {
       _midiMonitor?.dispose();
       if (wanted && engine != null) {
-        _midiMonitor = MidiMonitor(input: _midiInput, engine: engine);
+        _midiMonitor = _newMidiMonitor(engine);
         _midiMonitorOn = true;
       } else {
         _midiMonitor = null;
@@ -2370,6 +2764,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       center: _trailChip(),
       trailing: [
         _phoneSoundButton(),
+        ?_transposeSeal(),
         if (_trailMode)
           ValueListenableBuilder(
             valueListenable: _midiDeviceManager.connected,
@@ -2528,6 +2923,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       currentId: trail.progress.current(trail.plan)?.id,
       blocks: trail.blockViews,
       footer: _practiceLegend(),
+      alsoStudied: _alsoStudied,
       onClose: () => setState(() => _trailDrawerOpen = false),
       onSelectStage: (id) {
         // Etapa rodando: escolher outra encerra a que roda (sem registro),
@@ -2738,6 +3134,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   },
           ),
         ],
+        ?_transposeSection(),
         // O que é só deste hino: cada um guarda o seu tamanho e layout.
         PhoneSectionLabel('${_term.este} ${_term.singular}'.toUpperCase()),
         if (widget.opened != null) ...[
@@ -2956,6 +3353,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 right: 0,
                 child: LinearProgressIndicator(),
               ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ShiftBanner(notice: _shiftNotice, notes: _midiInput.notes),
+            ),
             if (_midiPanelOpen)
               _scorePanel(
                 phone: phone,
@@ -2966,6 +3369,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   input: _midiInput,
                   onClose: () => setState(() => _midiPanelOpen = false),
                   wrong: _practice?.wrongPitches,
+                  heldPitchOf: (r) => _pitchFrame.writtenFromReceived(r),
                 ),
               )
             else if (!phone)
@@ -3116,6 +3520,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           null => const ScoreTitle(title: 'nenhuma partitura'),
         },
         actions: [
+          ?_transposeSeal(),
+          if (widget.opened?.piece.fifths != null)
+            IconButton(
+              tooltip: 'Transpor',
+              onPressed: _openTransposeDialog,
+              icon: const Icon(Icons.swap_vert),
+            ),
           MidiDevicePickerButton(
             deviceManager: _midiDeviceManager,
             onCalibrate: () => unawaited(_openCalibration()),

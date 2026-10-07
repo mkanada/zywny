@@ -365,7 +365,7 @@ void main() {
               piece: _piece(13, 'Hino', fifths: fifths),
               scoreXml: Uint8List(1),
               midiDeviceManager: MidiDeviceManager(),
-              onPracticeScore: (_) {},
+              onPracticeScore: (_, _) {},
               appSettings: app,
               pieceSettings: pieceSettings,
               onPieceSettingsChanged: (_) {},

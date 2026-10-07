@@ -67,4 +67,48 @@ gaveta (Q08).
 
 ## Notas de execução
 
-(vazio)
+### Resultado (2026-10-06): concluído
+
+Arquivos: `lib/midi/transpose_check.dart` (a leitura da tecla `classifyCheckKey`,
+a decisão `shouldAutoCheckTranspose` e a folha `showTransposeCheck`),
+`lib/settings/app_settings.dart` (`KeyboardTransposeBehavior.isChecked`),
+`lib/main.dart` (`_maybeCheckTranspose`, `_openTransposeCheck`, `_playOwnTone`,
+`_playKeyboardTone`). Teste novo: `test/transpose_check_test.dart` (26 casos).
+
+**Decisões de execução**
+- **Diálogo central, não folha inferior**, no celular e no desktop: a regra do
+  U18 diz que "o que pede uma resposta antes de continuar é diálogo central" e
+  que a folha inferior cobre a pauta em paisagem. (O texto acima falava em
+  bottom sheet.)
+- **Instrução e "toque o Dó" são duas telas.** A escuta só começa em "Já
+  ajustei": quem toca antes de ajustar não gasta a leitura.
+- **Outras oitavas do Dó** (`60 ± 12n`) não são lidas como TRANSPOSE ±12: a
+  tela pede "o Dó do meio do teclado" e não guarda nada. Tocar o Dó do lado é um
+  engano bem mais comum que um TRANSPOSE de ±12, que nem cabe na faixa (|k| ≤ 6).
+- **O que se guarda é a última descoberta**, só quando a pessoa chega a
+  "Concluir": fechar no meio não grava nada. Se o app não pergunta pela entrada
+  (som não sai pelo teclado), o `shiftsIn` que já estava guardado fica como
+  estava.
+- **Teste de ouvido** usa só o sintetizador do app **já aberto** (o app o deixa
+  armado ao abrir a música); com a saída no teclado e o motor do app fechado, ou
+  sem som, vale "Já ajustei" e guarda `shiftsOut: false`. Toca no canal do
+  monitor (16), que a partitura não usa.
+- **Teste da entrada** manda as notas cruas ao teclado (60 e `60 − k`) no canal
+  1, com 1,2 s entre elas; só dá para responder depois das duas. "Ouvir de
+  novo" repete.
+- **Quando abre sozinha** (`_maybeCheckTranspose`): depois de cada gravura com
+  transposição e quando um teclado se conecta, se ele não foi conferido, o som
+  não é só do app e a pessoa não a fechou antes **nesta tela**. Uma por teclado
+  por tela: quem fecha não é incomodado a cada regravação, mas é perguntado de
+  novo na próxima música transposta, até responder. `_openTransposeCheck` é o
+  que o selo do Q08 vai chamar (sem teclado, sem transposição na tela ou com o
+  monitor ligado, não abre).
+
+**Critérios**
+1. Os três caminhos do passo 3 (63, 60 com ouvido sim/não/sem som, outro
+   valor), as duas respostas do passo 4 e o `AppSettings` por nome do
+   dispositivo: `test/transpose_check_test.dart`. ✔
+2. Teclado já conferido não abre (`shouldAutoCheckTranspose`, testada com o
+   `AppSettings`). A decisão é função pura; a ligação com a tela (`main.dart`)
+   não tem teste de widget, só o aceite manual do Q08. ✔ (parcial)
+3. Prazo sem nota: mensagem e "Tentar de novo". ✔

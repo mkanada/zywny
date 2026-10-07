@@ -383,11 +383,11 @@ zywny
 | [Q01](Q01-verovio-transpondo.md) | Transpor: medir o Verovio transpondo (`.vsb`, repetições, determinismo, faixa) | — | — | concluído (469 hinos, 0 problemas; ids mudam a cada render — ver as notas) |
 | [Q02](Q02-calculo-da-transposicao.md) | Transpor: `Transposition` e `PitchFrame` (cálculo puro) | — | D-TRP | concluído |
 | [Q03](Q03-guardar-e-renderizar.md) | Transpor: guardar por música, chave geral, render transposto | Q01, Q02 | D-TRP | **concluído** (2026-10-06) |
-| [Q04](Q04-progresso-por-tom.md) | Transpor: progresso separado por tom | Q03 | D-TRP | pendente |
-| [Q05](Q05-as-alturas-no-app.md) | Transpor: casador na altura escrita, som no tom original | Q02, Q03 | D-TRP | pendente |
-| [Q06](Q06-conferencia-no-teclado.md) | Transpor: conferência no teclado | Q05 | D-TRP | pendente |
-| [Q07](Q07-lembretes-e-detector.md) | Transpor: lembrete de voltar a 0 e detector de deslocamento | Q05 | — | pendente |
-| [Q08](Q08-tela-e-aceite.md) | Transpor: gaveta, selo, lista dos 12 tons e aceite manual | Q04, Q06, Q07 | D-TRP | pendente |
+| [Q04](Q04-progresso-por-tom.md) | Transpor: progresso separado por tom | Q03 | D-TRP | **concluído** (2026-10-06) |
+| [Q05](Q05-as-alturas-no-app.md) | Transpor: casador na altura escrita, som no tom original | Q02, Q03 | D-TRP | **concluído** (2026-10-06) |
+| [Q06](Q06-conferencia-no-teclado.md) | Transpor: conferência no teclado | Q05 | D-TRP | **concluído** (2026-10-06) |
+| [Q07](Q07-lembretes-e-detector.md) | Transpor: lembrete de voltar a 0 e detector de deslocamento | Q05 | — | **concluído** (2026-10-06) |
+| [Q08](Q08-tela-e-aceite.md) | Transpor: gaveta, selo, lista dos 12 tons e aceite manual | Q04, Q06, Q07 | D-TRP | código, testes e `just telas` feitos (2026-10-06); **aceite manual pendente** (teclado do usuário) |
 
 Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
 Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em

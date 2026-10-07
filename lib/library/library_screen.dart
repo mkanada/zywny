@@ -20,6 +20,9 @@ import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
 import '../midi/midi_input_service.dart';
 import '../midi/midi_out_sound_engine.dart';
+import '../music/tone_choices.dart';
+import '../music/transposition.dart';
+import '../settings/effective_transposition.dart';
 import '../settings/app_settings.dart';
 import '../settings/general_settings_panel.dart';
 import '../settings/piece_settings.dart';
@@ -27,6 +30,7 @@ import '../trail/trail_progress.dart';
 import '../trail/trail_widgets.dart' show TrailProgressBar, trailResumeText;
 import '../ui/orientation.dart';
 import '../ui/theme.dart';
+import 'library_keys.dart';
 import 'piece.dart';
 import 'piece_progress.dart';
 import 'library_installer.dart';
@@ -64,8 +68,9 @@ class OpenedPiece {
   /// conectado na partitura (e vice-versa).
   final MidiDeviceManager midiDeviceManager;
 
-  /// Precisão (0–100) de um treino avaliado que terminou.
-  final ValueChanged<int> onPracticeScore;
+  /// Precisão (0–100) de um treino avaliado que terminou, e o tom em que foi
+  /// tocado: cada tom tem a sua pontuação (fase Q).
+  final PracticeScoreCallback onPracticeScore;
 
   /// As configurações gerais do app (som, MIDI, cores) — as mesmas que a
   /// biblioteca edita.
@@ -80,6 +85,13 @@ class OpenedPiece {
   /// atualizar ao voltar da partitura sem reabrir nada — J09).
   final TrailProgressStore trailProgress;
 }
+
+/// Um treino avaliado terminou com [score] (0–100) no tom [transposition]
+/// (`null` = o original).
+typedef PracticeScoreCallback = void Function(
+  int score,
+  Transposition? transposition,
+);
 
 /// Abaixo desta altura, com a janela mais larga que alta, a biblioteca vira
 /// duas colunas (um celular deitado tem ~390–430 dp; um tablet ou uma janela
@@ -428,6 +440,34 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _refreshCourses();
   }
 
+  /// O tom em que [piece] abre agora (fase Q): a escolha que a música tem
+  /// (guardada junto do progresso) ou, sem escolha, a chave geral. É o tom
+  /// cujo progresso a biblioteca mostra.
+  Transposition? _toneInUse(Piece piece) => effectiveTransposition(
+    piece,
+    PieceSettings(transpose: _progress.transposeChoice(piece.id)),
+    _settings,
+  );
+
+  PieceProgress? _progressOf(Piece piece) =>
+      _progress.forTone(piece.id, _toneInUse(piece));
+
+  TrailProgress _trailOf(Piece piece) =>
+      _trail[progressIdFor(piece.id, _toneInUse(piece))];
+
+  /// Lê a trilha dos tons que passaram a estar em uso (a chave geral mudou, ou
+  /// a música foi aberta noutro tom) — só as que ainda não foram lidas.
+  Future<void> _syncTrails() async {
+    try {
+      final catalog = await _catalog;
+      await _trail.loadMissing([
+        for (final p in catalog.pieces) progressIdFor(p.id, _toneInUse(p)),
+      ]);
+    } on Object {
+      // Catálogo com erro: a tela já mostra o erro.
+    }
+  }
+
   /// Lê o progresso e a trilha da biblioteca do catálogo (e só ela).
   Future<void> _loadProgress() async {
     try {
@@ -440,7 +480,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       final id = catalog.libraryId;
       if (id != null) {
         await _progress.load(id);
-        await _trail.load([for (final p in catalog.pieces) p.id], id);
+        // O tom em uso depende da chave geral: as configurações primeiro.
+        await _settingsLoaded;
+        await _trail.load([
+          for (final p in catalog.pieces) progressIdFor(p.id, _toneInUse(p)),
+        ], id);
       }
     } on Object {
       // Catálogo com erro: a tela já mostra o erro.
@@ -461,7 +505,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
       await _settingsLoaded;
       if (!mounted) return;
-      unawaited(_progress.markOpened(piece.id));
+      unawaited(
+        _progress.markOpened(piece.id, transpose: pieceSettings.transpose),
+      );
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) => widget.scoreBuilder(
@@ -470,13 +516,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
               piece: piece,
               scoreXml: scoreXml,
               midiDeviceManager: _midi,
-              onPracticeScore: (score) =>
-                  unawaited(_progress.recordScore(piece.id, score)),
+              onPracticeScore: (score, transposition) => unawaited(
+                _progress.recordScore(
+                  progressIdFor(piece.id, transposition),
+                  score,
+                ),
+              ),
               appSettings: _settings,
               pieceSettings: pieceSettings,
-              onPieceSettingsChanged: (changed) => unawaited(
-                _pieceSettings.save(piece.libraryId, piece.id, changed),
-              ),
+              onPieceSettingsChanged: (changed) {
+                unawaited(
+                  _pieceSettings.save(piece.libraryId, piece.id, changed),
+                );
+                unawaited(_progress.setTranspose(piece.id, changed.transpose));
+              },
               trailProgress: _trail,
               term: catalog.term,
               numbered: catalog.numbered,
@@ -491,7 +544,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     } finally {
       _opening = false;
-      if (mounted) _followDevice();
+      if (mounted) {
+        _followDevice();
+        unawaited(_syncTrails());
+      }
     }
   }
 
@@ -527,7 +583,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
     // Ao fechar o painel, a lista acompanha a biblioteca que ficou em uso
     // (trocada, substituída, instalada ou removida).
-    if (mounted && _shownLibrary != _librarySignature()) _reloadCatalog();
+    if (mounted && _shownLibrary != _librarySignature()) {
+      _reloadCatalog();
+    } else if (mounted) {
+      // A chave "abrir já sem acidentes" pode ter mudado o tom em uso.
+      unawaited(_syncTrails());
+    }
   }
 
   /// Qual biblioteca (e versão) a lista mostra: muda quando a em uso troca,
@@ -582,7 +643,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               child: FutureBuilder<PieceCatalog>(
                 future: _catalog,
                 builder: (context, snapshot) => ListenableBuilder(
-                  listenable: Listenable.merge([_progress, _trail]),
+                  listenable: Listenable.merge([_progress, _trail, _settings]),
                   builder: (context, _) => sideBySide
                       ? _contentSideBySide(snapshot)
                       : _content(snapshot),
@@ -946,8 +1007,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Widget _continueCard(Piece piece, LibraryTerm term) {
-    final progress = _progress[piece.id];
-    final trail = _trail[piece.id];
+    final progress = _progressOf(piece);
+    final trail = _trailOf(piece);
     final started = trail.total > 0;
     // A etapa em que parou, numa linha própria; o resto, menor, embaixo.
     final resume = trail.resume;
@@ -1206,7 +1267,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _list(PieceCatalog catalog) {
     final pieces = filterPieces(
-      sortedPieces(catalog.pieces, _sort, _progress),
+      sortedPieces(catalog.pieces, _sort, _progress, progressOf: _progressOf),
       _query,
     );
     if (pieces.isEmpty) {
@@ -1246,8 +1307,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         final piece = pieces[i];
         return _PieceRow(
           piece: piece,
-          progress: _progress[piece.id],
-          trail: _trail[piece.id],
+          progress: _progressOf(piece),
+          trail: _trailOf(piece),
+          tone: _toneInUse(piece),
           now: now,
           match: pieceMatch(piece, _query),
           numbered: catalog.numbered,
@@ -1509,6 +1571,7 @@ class _PieceRow extends StatelessWidget {
     required this.trail,
     required this.now,
     required this.onTap,
+    this.tone,
     this.numbered = true,
     this.match,
   });
@@ -1528,6 +1591,17 @@ class _PieceRow extends StatelessWidget {
   final TrailProgress trail;
   final DateTime now;
   final VoidCallback onTap;
+
+  /// A transposição em uso (fase Q): a armadura aparece como "3♭ → 0".
+  final Transposition? tone;
+
+  /// A armadura da linha: "2 sustenidos", ou "3♭ → 0" com a música
+  /// transposta. Vazio sem armadura no catálogo.
+  String? get _keyText => switch (piece.fifths) {
+    final f? when tone != null => keySignatureTransposed(f, tone),
+    final f? => keySignatureLabel(f),
+    null => null,
+  };
 
   /// O começo da segunda linha: a armadura ("2 sustenidos"). A autoria só
   /// aparece quando a busca casou nela (letrista, compositor ou título
@@ -1570,13 +1644,7 @@ class _PieceRow extends StatelessWidget {
         style: style,
       );
     }
-    return TextSpan(
-      text: switch (piece.fifths) {
-        final f? => keySignatureLabel(f),
-        null => '',
-      },
-      style: style,
-    );
+    return TextSpan(text: _keyText ?? '', style: style);
   }
 
   @override
@@ -1588,8 +1656,7 @@ class _PieceRow extends StatelessWidget {
     final lead = _lead();
     final parts = [
       // A armadura, que nas numeradas abre a linha.
-      if (!numbered)
-        if (piece.fifths case final f?) keySignatureLabel(f),
+      if (!numbered) ?_keyText,
       if (piece.level case final level?) 'nível $level de 5',
       if (progress?.lastOpened case final at?) whenStudied(at, now),
       if (score != null) 'melhor $score%',

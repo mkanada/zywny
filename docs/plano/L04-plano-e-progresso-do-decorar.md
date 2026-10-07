@@ -77,3 +77,10 @@ construiu. Sem tela.
 ## Notas de execução
 
 _(preencher ao executar)_
+
+**Da fase Q (Q04, 2026-10-06):** o progresso é separado por tom da música
+transposta. O id do decorar (`memo_<id>`) deve ser montado com
+`progressIdFor(pieceId, transposition)` (`lib/library/library_keys.dart`) —
+o original mantém `memo_<id>`, um tom transposto vira `memo_<id>@-m3` —, e
+quem lê "tons com progresso" (`TrailProgressStore.studiedTones`) deve ter o
+equivalente para o decorar. Ninguém concatena o sufixo à mão.

@@ -175,6 +175,26 @@ void main() {
     });
   });
 
+  test(
+    'para o motor: o teclado MIDI lê pela regra dele, o app toca a soada',
+    () {
+      const plain = PitchFrame(-3);
+      const shiftsIn = PitchFrame(-3, keyboardShiftsIn: true);
+      expect(plain.engineFromWritten(60, midiKeyboard: false), 63);
+      expect(shiftsIn.engineFromWritten(60, midiKeyboard: false), 63);
+      expect(plain.engineFromWritten(60, midiKeyboard: true), 63);
+      expect(shiftsIn.engineFromWritten(60, midiKeyboard: true), 60);
+      // Da tecla apertada ao motor: o monitor soma a conversão da entrada.
+      const shiftsOut = PitchFrame(-3, keyboardShiftsOut: true);
+      expect(shiftsOut.engineFromReceived(63, midiKeyboard: false), 63);
+      expect(plain.engineFromReceived(60, midiKeyboard: false), 63);
+      expect(
+        PitchFrame.identity.engineFromReceived(60, midiKeyboard: true),
+        60,
+      );
+    },
+  );
+
   test('igualdade e texto', () {
     expect(const PitchFrame(-3), const PitchFrame(-3));
     expect(const PitchFrame(-3), isNot(const PitchFrame(-3, appIsSound: true)));

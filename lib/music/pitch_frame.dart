@@ -79,6 +79,20 @@ class PitchFrame {
   /// altura escrita [written] soar no tom original.
   int outFromWritten(int written) => _in ? written : written - k;
 
+  /// O número a mandar ao motor de som para a nota de altura escrita
+  /// [written]: o teclado MIDI ([midiKeyboard], M03) lê pela regra dele
+  /// ([outFromWritten]); o sintetizador do app toca a soada.
+  int engineFromWritten(int written, {required bool midiKeyboard}) =>
+      midiKeyboard ? outFromWritten(written) : soundingFromWritten(written);
+
+  /// O mesmo para a nota [received] que chegou do teclado e o monitor (M02)
+  /// repassa ao motor.
+  int engineFromReceived(int received, {required bool midiKeyboard}) =>
+      engineFromWritten(
+        writtenFromReceived(received),
+        midiKeyboard: midiKeyboard,
+      );
+
   @override
   bool operator ==(Object other) =>
       other is PitchFrame &&

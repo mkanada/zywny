@@ -113,6 +113,13 @@ O que as fotos **não** mostram:
 | `58-exercicio-choice` | Exercício `choice` |
 | `59-exercicio-play-notes-antes` | Exercício `play-notes` antes da rodada (paisagem) |
 | `60-exercicio-play-notes-depois` | Exercício `play-notes` aprovado (100%) |
+| `61-opcoes-transpor` | Gaveta: item “Transpor” |
+| `62-transpor-12-tons` | Lista dos 12 tons |
+| `63-transpor-trocar-de-tom` | Confirmação “Trocar de tom?” |
+| `64-conferir-o-teclado` | Conferir o teclado (TRANSPOSE) |
+| `65-selo-da-transposicao` | Selo na barra do título |
+| `66-configuracoes-sem-acidentes` | Configurações: “Abrir as músicas já sem acidentes” |
+| `67-biblioteca-transposta` | Biblioteca com a armadura “→ 0” |
 
 ## O que mudou na fase U
 
