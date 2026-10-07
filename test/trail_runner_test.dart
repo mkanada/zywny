@@ -3,6 +3,7 @@
 // relógio andado pelo teste, e o aluno toca pelo [FakeMidiInput] — a
 // primeira etapa é "notas da direita", no modo espera.
 
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' show Size;
 
@@ -254,6 +255,49 @@ void main() {
     // Os compassos marcados são os do trecho da etapa.
     final marked = h.runner.markedIds().toSet();
     expect(h.runner.errorMeasureIds.difference(marked), isEmpty);
+    h.dispose();
+  });
+
+  testWidgets('as notas erradas da etapa ficam para a revisão na partitura', (
+    tester,
+  ) async {
+    final h = await _Harness.create(tester);
+    // A partitura do harness não tem as posições de altura; a da fantasma
+    // tem, e é a mesma peça.
+    h.ghosts.attachDocument(
+      VsbDocument.fromBytes(
+        File('test/fixtures/satie-fantasma.vsb').readAsBytesSync(),
+      ),
+    );
+
+    await h.playStage(tester, wrongEvery: 2);
+    final marks = h.runner.wrongMarks;
+    expect(marks, isNotEmpty);
+    expect(marks.every((m) => m.pitch == 22), isTrue);
+    // Modo espera: não há tempo certo para errar, então sem lado.
+    expect(marks.every((m) => m.side == 0), isTrue);
+    expect(h.runner.reviewing, isFalse);
+    expect(h.ghosts.review, isEmpty);
+
+    h.runner.startReview();
+    expect(h.runner.reviewing, isTrue);
+    expect(h.ghosts.review, isNotEmpty);
+    expect(h.ghosts.review.every((g) => g.key == 22), isTrue);
+
+    // Fechar a revisão esquece as notas e tira as fantasmas da pauta.
+    h.runner.discardWrongMarks();
+    expect(h.runner.wrongMarks, isEmpty);
+    expect(h.runner.reviewing, isFalse);
+    expect(h.ghosts.review, isEmpty);
+    h.dispose();
+  });
+
+  testWidgets('uma etapa sem erro não oferece revisão', (tester) async {
+    final h = await _Harness.create(tester);
+    await h.playStage(tester);
+    expect(h.runner.wrongMarks, isEmpty);
+    h.runner.startReview();
+    expect(h.runner.reviewing, isFalse);
     h.dispose();
   });
 

@@ -56,6 +56,7 @@ import 'practice/shift_banner.dart';
 import 'practice/shift_detector.dart';
 import 'practice/practice_report.dart';
 import 'practice/practice_tools.dart';
+import 'practice/review_bar.dart';
 import 'practice/study_mode.dart';
 import 'settings/app_settings.dart';
 import 'settings/effective_transposition.dart';
@@ -66,6 +67,7 @@ import 'trail/stage_result.dart' show kTrailPassAccuracy;
 import 'trail/trail_progress.dart';
 import 'trail/trail_stage.dart' show kTrailMinMeasures;
 import 'trail/trail_widgets.dart';
+import 'ui/page_pager.dart';
 import 'ui/phone_chrome.dart';
 import 'ui/practice_legend.dart';
 import 'ui/side_panel.dart';
@@ -768,7 +770,29 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     legend: _practiceLegend(),
     sidePanel: _phoneLayout,
     onRepeatWorst: _repeatWorst,
+    wrongCount: _runner.wrongMarks.length,
+    onReview: _runner.wrongMarks.isEmpty ? null : _startReview,
   );
+
+  /// "Revisar" (fim do treino): as notas erradas ficam fixas na partitura e
+  /// a primeira página com erro abre.
+  void _startReview() {
+    _runner.startReview();
+    final pages = _reviewPages();
+    if (pages.isNotEmpty) _viewController.goToPage(pages.first);
+  }
+
+  /// Páginas (índices) que têm nota errada fixa, em ordem.
+  List<int> _reviewPages() =>
+      ({for (final g in _ghosts.review) g.page.index}.toList()..sort());
+
+  /// Pula para a página com erro depois (ou antes) da de agora.
+  void _goToReviewPage({required bool forward}) {
+    final here = _session.pageIndex;
+    final pages = _reviewPages().where((p) => forward ? p > here : p < here);
+    if (pages.isEmpty) return;
+    _viewController.goToPage(forward ? pages.first : pages.last);
+  }
 
   /// "Repetir os compassos com mais erros" (T03 + loop do T04): o intervalo
   /// que cobre os piores compassos se forem próximos (até 4 compassos);
@@ -1011,6 +1035,27 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     engine.send([0x90 | channel, pitch, 100]);
     await Future<void>.delayed(const Duration(milliseconds: 800));
     engine.send([0x80 | channel, pitch, 0]);
+  }
+
+  /// Só quem está ouvindo ou treinando vê a página virar com animação (a
+  /// haste varre a pauta no compasso da música). Para só olhar, a página
+  /// muda de uma vez.
+  bool get _pageTurnAnimated => _playback.playing || _runner.practice != null;
+
+  /// Os botões de página à vista: a pessoa não está tocando nem treinando e
+  /// a música tem mais de uma página.
+  bool get _pagerVisible => !_pageTurnAnimated && _session.pageCount > 1;
+
+  bool get _canPageBack => _session.pageIndex > 0 && !_session.busy;
+  bool get _canPageForward =>
+      _session.pageIndex < _session.pageCount - 1 && !_session.busy;
+
+  void _previousPage() {
+    _viewController.previousPage(animate: _pageTurnAnimated);
+  }
+
+  void _nextPage() {
+    _viewController.nextPage(animate: _pageTurnAnimated);
   }
 
   void _onPageChanged(int target) {
@@ -1656,7 +1701,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           icon: Icons.chevron_left,
           label: 'Página anterior',
           onTap: _session.pageIndex > 0 && !_session.busy
-              ? _viewController.previousPage
+              ? _previousPage
               : null,
           trailing: Text(
             _session.pageCount == 0
@@ -1669,7 +1714,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           icon: Icons.chevron_right,
           label: 'Próxima página',
           onTap: _session.pageIndex < _session.pageCount - 1 && !_session.busy
-              ? _viewController.nextPage
+              ? _nextPage
               : null,
         ),
         // O que vale para todos os hinos fica num painel só.
@@ -1726,6 +1771,31 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Treino com a música andando (tempo real, livre ou na trilha).
   bool get _timedPractice => _runner.practice?.mode == PracticeMode.realtime;
+
+  /// A faixa da revisão do treino: oferta de "Revisar" depois do treino e,
+  /// aberta, a navegação entre as páginas com nota errada.
+  bool get _reviewBarVisible =>
+      _runner.wrongMarks.isNotEmpty &&
+      _runner.practice == null &&
+      !_playback.playing;
+
+  Widget _buildReviewBar() {
+    final here = _session.pageIndex;
+    final pages = _reviewPages();
+    return ReviewBar(
+      count: _runner.wrongMarks.length,
+      reviewing: _runner.reviewing,
+      hasSides: _runner.wrongMarks.any((m) => m.side != 0),
+      onReview: _startReview,
+      onPrevious: pages.any((p) => p < here)
+          ? () => _goToReviewPage(forward: false)
+          : null,
+      onNext: pages.any((p) => p > here)
+          ? () => _goToReviewPage(forward: true)
+          : null,
+      onClose: _runner.discardWrongMarks,
+    );
+  }
 
   Widget _buildScoreArea({bool phone = false}) {
     // The page is engraved for this box, so its size has to be known before
@@ -1848,6 +1918,28 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 left: 0,
                 right: 0,
                 child: LinearProgressIndicator(),
+              ),
+            if (_reviewBarVisible || (phone && _pagerVisible))
+              Positioned(
+                left: 8,
+                right: 8,
+                bottom: 8,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_reviewBarVisible) _buildReviewBar(),
+                    if (_reviewBarVisible && phone && _pagerVisible)
+                      const SizedBox(height: 6),
+                    // No layout largo a barra de baixo já tem os botões.
+                    if (phone && _pagerVisible)
+                      PagePager(
+                        page: _session.pageIndex,
+                        pageCount: _session.pageCount,
+                        onPrevious: _canPageBack ? _previousPage : null,
+                        onNext: _canPageForward ? _nextPage : null,
+                      ),
+                  ],
+                ),
               ),
             Positioned(
               top: 0,
@@ -2298,7 +2390,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     IconButton.filledTonal(
                       tooltip: 'Página anterior',
                       onPressed: _session.pageIndex > 0 && !_session.busy
-                          ? _viewController.previousPage
+                          ? _previousPage
                           : null,
                       icon: const Icon(Icons.chevron_left),
                     ),
@@ -2313,7 +2405,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                       onPressed:
                           _session.pageIndex < _session.pageCount - 1 &&
                               !_session.busy
-                          ? _viewController.nextPage
+                          ? _nextPage
                           : null,
                       icon: const Icon(Icons.chevron_right),
                     ),

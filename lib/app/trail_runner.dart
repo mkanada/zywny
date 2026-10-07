@@ -159,6 +159,12 @@ class TrailRunner extends ChangeNotifier {
   Set<String> _errorMeasureIds = const {};
   String? _errorStageId;
 
+  /// Notas erradas do último treino, guardadas para a revisão na partitura
+  /// (a mesma vida das marcas de erro: até o próximo treino, a troca de
+  /// etapa ou a nova gravura) e se a revisão está aberta.
+  List<WrongMark> _wrongMarks = const [];
+  bool _reviewing = false;
+
   /// Id da etapa para a qual a partitura já foi levada (U02).
   String? _armedStageId;
 
@@ -196,6 +202,13 @@ class TrailRunner extends ChangeNotifier {
 
   /// Compassos com erro na última passagem (ids da cena).
   Set<String> get errorMeasureIds => _errorMeasureIds;
+
+  /// As notas erradas do último treino que terminou; vazio se não houve
+  /// nenhuma, ou depois de [discardWrongMarks].
+  List<WrongMark> get wrongMarks => _wrongMarks;
+
+  /// A revisão está aberta: as notas erradas fixas na partitura.
+  bool get reviewing => _reviewing;
 
   /// Compassos do trecho da etapa selecionada, para marcar na pauta (U02).
   /// Vazio no treino livre, sem trilha e na fase final.
@@ -385,7 +398,8 @@ class TrailRunner extends ChangeNotifier {
   void _onTrailChanged() {
     if (_disposed) return;
     // Trocou de etapa: as marcas de erro eram da anterior.
-    if (_errorMeasureIds.isNotEmpty && _trail?.selected?.id != _errorStageId) {
+    if ((_errorMeasureIds.isNotEmpty || _wrongMarks.isNotEmpty) &&
+        _trail?.selected?.id != _errorStageId) {
       clearErrorMarks();
     }
     _changed();
@@ -405,9 +419,42 @@ class TrailRunner extends ChangeNotifier {
   }
 
   void clearErrorMarks() {
-    if (_errorMeasureIds.isEmpty) return;
+    if (_errorMeasureIds.isEmpty && _wrongMarks.isEmpty) return;
     _errorMeasureIds = const {};
     _errorStageId = null;
+    _dropWrongMarks();
+    _changed();
+  }
+
+  /// Guarda as notas erradas de um treino que acabou, para o aluno poder
+  /// revê-las na partitura. Sem nenhuma, não oferece nada.
+  void _keepWrongMarks(List<WrongMark> marks) {
+    _dropWrongMarks();
+    if (marks.isEmpty || _disposed) return;
+    _wrongMarks = marks;
+    _errorStageId = _trail?.selected?.id;
+    _changed();
+  }
+
+  void _dropWrongMarks() {
+    _wrongMarks = const [];
+    _reviewing = false;
+    ghosts.clearReview();
+  }
+
+  /// "Revisar": fixa na partitura as notas erradas do último treino — as
+  /// tocadas antes do tempo à esquerda da nota, as depois à direita.
+  void startReview() {
+    if (_wrongMarks.isEmpty || _practice != null || _disposed) return;
+    ghosts.setReview([for (final m in _wrongMarks) m.ghostRequest]);
+    _reviewing = true;
+    _changed();
+  }
+
+  /// Fecha a revisão (ou a oferta dela) e esquece as notas erradas.
+  void discardWrongMarks() {
+    if (_wrongMarks.isEmpty && !_reviewing) return;
+    _dropWrongMarks();
     _changed();
   }
 
@@ -614,17 +661,19 @@ class TrailRunner extends ChangeNotifier {
     if (_disposed || !identical(_practice, practice)) return;
     final trail = _trail;
     final result = practice.stageResult;
+    final wrongMarks = practice.wrongMarks;
     _endRun();
     if (trail == null || result == null || _disposed) return;
     final blockIndex = trail.blockIndexOf(stage);
     unawaited(() async {
       if (blockIndex != null) {
-        await _onBlockDone(trail, blockIndex, stage, result);
+        await _onBlockDone(trail, blockIndex, stage, result, wrongMarks);
         return;
       }
       await trail.recordDone(result);
       if (_disposed) return;
       markErrors(result.badMeasures);
+      _keepWrongMarks(wrongMarks);
       // Aprovou a final.100: concluiu a trilha (tela própria, J07).
       if (result.passed && stage.id == 'final.100') {
         final action = await host.conclusion();
@@ -683,10 +732,12 @@ class TrailRunner extends ChangeNotifier {
     int blockIndex,
     TrailStage stage,
     StageResult result,
+    List<WrongMark> wrongMarks,
   ) async {
     trail.recordBlockDone(blockIndex, result);
     if (_disposed) return;
     markErrors(result.badMeasures);
+    _keepWrongMarks(wrongMarks);
     final action = await host.stageSummary(
       stageRef: stage.label,
       result: result,
@@ -854,16 +905,20 @@ class TrailRunner extends ChangeNotifier {
       practice.finish();
       report = practice.report;
     }
+    final wrongMarks = practice.wrongMarks;
     practice.stop();
     practice.dispose();
     _practice = null;
     _changed();
-    if (report == null || _disposed) return;
-    markErrors([
-      for (final m in report.measures)
-        if (m.errors + m.imprecise > 0) m.index,
-    ]);
-    host.practiceReport(report);
+    if (_disposed) return;
+    if (report != null) {
+      markErrors([
+        for (final m in report.measures)
+          if (m.errors + m.imprecise > 0) m.index,
+      ]);
+    }
+    _keepWrongMarks(wrongMarks);
+    if (report != null) host.practiceReport(report);
   }
 
   /// Para o treino em curso e volta ao estado pausado normal —
