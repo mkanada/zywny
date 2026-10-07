@@ -42,7 +42,7 @@ saídas temporárias em `compare/out/`, não alterar `View`/`SvgDeviceContext`,
 a spec `docs/formato/especificacao-v1.md` é atualizada junto com o formato).
 O plano **daquele** repo usa os prefixos F/S/R/A/E/P (+ G, ver abaixo); os
 passos deste plano usam prefixos próprios (X, N, C, K, M, T, W, V, J, L,
-U, B, I, Q) para não colidir.
+U, B, I, Q, O) para não colidir.
 
 A fase **J** (trilha de estudo: a música em trechos, com etapas que se
 desbloqueiam como fases de um jogo) tem especificação própria em

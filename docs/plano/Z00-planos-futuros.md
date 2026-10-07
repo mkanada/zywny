@@ -31,3 +31,9 @@ para teoria musical e improvisação.
 O usuário ouve um acorde (maior, menor, diminuto, aumentado, dominante, etc.) e
 identifica qual é. Desenvolve a capacidade de reconhecer qualidades harmônicas
 apenas pelo som.
+
+## Letra no telão, em sincronia com o pianista
+
+Projetar a letra dos hinos acompanhando o que o pianista toca ao vivo (ou o
+playback do próprio zywny). Pesquisa, desenho e passos em
+[O00-letra-no-telao.md](O00-letra-no-telao.md).
