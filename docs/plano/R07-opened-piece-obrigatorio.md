@@ -65,3 +65,30 @@ Mudar `OpenedPiece` de arquivo ou de forma. Extrair controllers (R08+).
 
 ## Notas de execução
 
+
+Feito em 2026-10-06.
+
+- `ScoreHomePage({required this.opened, …})`; `OpenedPiece` não mudou. Na
+  tela, um getter `_piece` substitui os `widget.opened?.piece`; `_scoreName`
+  e `_scoreXml` deixaram de ser anuláveis. Saíram o `_settings.load()` da
+  tela, os três descartes condicionais, o `if (opened == null) return` de
+  `_setPieceTrailN`/`_chooseTranspose`, a mensagem "Trilha indisponível sem
+  uma música aberta", o `if (widget.opened != null)` em volta do N da
+  trilha na gaveta e o título "nenhuma partitura" da barra do desktop. O
+  status inicial `nenhuma partitura` ficou: vale até a primeira gravura.
+- `test/support/score_page_fakes.dart`: `RecordingRenderer` (o de
+  `settings_test`, com o `next`/`empty` que o `transpor_tela_test` tinha),
+  `fakePiece` e `fakeOpenedPiece`. O fake cria o que o teste não passar
+  (configurações com os padrões, sem `load()` — o mesmo que ler
+  preferências vazias —, store da trilha e gerenciador MIDI) e o descarta
+  num `addTearDown` feito por ele mesmo; o que o teste passar é do teste.
+- `test/widget_test.dart` abre um hino de mentira (244, "Ó Vem à Igreja
+  Comigo"). Só o primeiro teste dependia de **não** haver partitura ("sem
+  hino, a tela fica vazia"): virou "a tela grava o hino na primeira caixa e
+  oferece voltar à biblioteca" — antes do primeiro layout, status
+  `nenhuma partitura` e nada desenhado; depois do layout, a página na
+  tela. Os de zoom e painéis como camadas não mudaram.
+- `settings_test` (três testes de painéis + grupo do transpor) e
+  `transpor_tela_test` usam o helper; os `_RecordingRenderer` locais saíram.
+- Aceite: os dois `grep` não acham nada; `just analyze` limpo; `just test`
+  878 passaram, 10 pulados. **Critério 3 (manual, teclado MIDI) pendente.**

@@ -2,14 +2,12 @@
 // 12 tons, o selo da partitura, a chave geral, a linha da biblioteca e o
 // "Também estudada". A conta (intervalos, TRANSPOSE) é do Q02.
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-import 'package:score_bridge/score_bridge.dart' show ScoreView, VsbDocument;
+import 'package:score_bridge/score_bridge.dart' show ScoreView;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -17,16 +15,16 @@ import 'package:zywny/app/library_screen.dart';
 import 'package:zywny/library/piece.dart';
 import 'package:zywny/library/piece_progress.dart';
 import 'package:zywny/main.dart';
-import 'package:zywny/midi/midi_device_manager.dart';
 import 'package:zywny/music/tone_choices.dart';
 import 'package:zywny/music/transposition.dart';
-import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/settings/app_settings.dart';
 import 'package:zywny/settings/piece_settings.dart';
 import 'package:zywny/trail/trail_progress.dart';
 import 'package:zywny/trail/trail_stage.dart';
 import 'package:zywny/ui/theme.dart';
 import 'package:zywny/ui/transpose_widgets.dart';
+
+import 'support/score_page_fakes.dart';
 
 class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
     with MockPlatformInterfaceMixin {
@@ -38,32 +36,6 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
 
   @override
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
-}
-
-class _RecordingRenderer implements ScoreRenderer {
-  _RecordingRenderer()
-    : _document = VsbDocument.fromBytes(
-        File('test/fixtures/erik-satie.vsb').readAsBytesSync(),
-      );
-
-  final VsbDocument _document;
-  final List<Map<String, Object>> options = [];
-
-  /// Devolvido no lugar da gravura do fixture enquanto não for `null`.
-  VsbDocument? next;
-
-  /// A gravura do fixture sem nenhuma página.
-  VsbDocument get empty => VsbDocument(
-    manifest: _document.manifest,
-    glyphs: _document.glyphs,
-    pages: const [],
-  );
-
-  @override
-  Future<RenderedScore> render(ScoreRenderRequest request) async {
-    options.add(request.options);
-    return RenderedScore(next ?? _document);
-  }
 }
 
 Piece _piece(int n, {int? fifths}) => Piece(
@@ -353,7 +325,7 @@ void main() {
 
     PieceSettings? saved;
 
-    Future<_RecordingRenderer> open(
+    Future<RecordingRenderer> open(
       WidgetTester tester, {
       int? fifths = -3,
       PieceSettings pieceSettings = const PieceSettings(),
@@ -365,24 +337,20 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       saved = null;
-      final app = appSettings ?? AppSettings();
-      settings.add(app);
-      final renderer = _RecordingRenderer();
+      if (appSettings != null) settings.add(appSettings);
+      final renderer = RecordingRenderer();
       if (emptyFirst) renderer.next = renderer.empty;
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
           home: ScoreHomePage(
             renderer: renderer,
-            opened: OpenedPiece(
+            opened: fakeOpenedPiece(
               piece: _piece(13, fifths: fifths),
-              scoreXml: Uint8List(1),
-              midiDeviceManager: MidiDeviceManager(),
-              onPracticeScore: (_, _) {},
-              appSettings: app,
+              appSettings: appSettings,
               pieceSettings: pieceSettings,
               onPieceSettingsChanged: (s) => saved = s,
-              trailProgress: trail ?? TrailProgressStore(),
+              trailProgress: trail,
             ),
           ),
         ),

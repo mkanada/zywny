@@ -401,8 +401,8 @@ zywny
 | [R04](R04-pratica-sem-trilha.md) | Revisão: `practice/` sem `trail/` (achado 8) | R01 | — | **concluído** (2026-10-06) |
 | [R05](R05-telas-do-app-em-lib-app.md) | Revisão: biblioteca e painéis de configuração em `lib/app/` (achado 8) | R03 | — | **concluído** (2026-10-06) |
 | [R06](R06-arquivos-soltos-da-raiz.md) | Revisão: arquivos soltos da raiz de `lib/`; lista de desvios vazia (achado 8) | R03, R04, R05 | — | **concluído** (2026-10-06) |
-| [R07](R07-opened-piece-obrigatorio.md) | Revisão: `OpenedPiece` obrigatório (achado 6) | R05 | — | pendente |
-| [R08](R08-sound-output-controller.md) | Revisão: `SoundOutputController` (achado 5) | R07 | — | pendente |
+| [R07](R07-opened-piece-obrigatorio.md) | Revisão: `OpenedPiece` obrigatório (achado 6) | R05 | — | código e testes feitos (2026-10-06); **aceite manual pendente** |
+| [R08](R08-sound-output-controller.md) | Revisão: `SoundOutputController` (achado 5) | R07 | — | código e testes feitos (2026-10-06); **aceite manual pendente** |
 | [R09](R09-score-render-session.md) | Revisão: `ScoreRenderSession` (achado 5) | R08 | — | pendente |
 | [R10](R10-playback-controller.md) | Revisão: `PlaybackController` (achado 5) | R09 | — | pendente |
 | [R11](R11-trail-runner.md) | Revisão: `TrailRunner` (achado 5) | R10 | — | pendente |

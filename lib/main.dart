@@ -13,12 +13,10 @@ import 'package:score_bridge/score_bridge.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'audio/audio_playback_clock.dart';
-import 'audio/engine_opener.dart';
 import 'audio/metronome.dart';
 import 'audio/score_audio_scheduler.dart';
 import 'audio/sound_engine.dart';
 import 'audio/sound_engine_debug_panel.dart';
-import 'audio/soundfont_store.dart';
 import 'course/built_in_course.dart';
 import 'render/layout_options.dart';
 import 'app/layout_panel.dart';
@@ -26,6 +24,7 @@ import 'library/library_keys.dart' show progressIdFor;
 import 'library/piece.dart';
 import 'library/library_package.dart' show LibraryTerm;
 import 'app/library_screen.dart';
+import 'app/sound_output_controller.dart';
 import 'library/library_term_scope.dart';
 import 'midi/midi_device_manager.dart';
 import 'midi/midi_device_picker.dart';
@@ -142,8 +141,8 @@ class MyApp extends StatelessWidget {
 class ScoreHomePage extends StatefulWidget {
   const ScoreHomePage({
     super.key,
+    required this.opened,
     this.debugMode = false,
-    this.opened,
     this.renderer,
   });
 
@@ -152,9 +151,10 @@ class ScoreHomePage extends StatefulWidget {
   @visibleForTesting
   final ScoreRenderer? renderer;
 
-  /// O hino que a biblioteca abriu. `null` só nos testes de widget, que
-  /// exercitam a tela sem partitura (nada nativo é tocado).
-  final OpenedPiece? opened;
+  /// O hino que a biblioteca abriu, com os recursos que ela compartilha
+  /// (configurações, trilha, MIDI): são dela, e é ela quem os descarta. Os
+  /// testes passam um feito de fakes (`test/support/score_page_fakes.dart`).
+  final OpenedPiece opened;
 
   /// `--debug` on the command line: asks Verovio to also embed the
   /// effective options and source document inside the rendered `.vsb`
@@ -172,15 +172,15 @@ const double kZoomMin = 0.5;
 const double kZoomMax = 8.0;
 
 class _ScoreHomePageState extends State<ScoreHomePage> {
-  /// Como a biblioteca chama a música (o hinário, sem partitura aberta).
-  LibraryTerm get _term => widget.opened?.term ?? LibraryTerm.hymn;
+  /// Como a biblioteca chama a música.
+  LibraryTerm get _term => widget.opened.term;
 
-  late final String? _scoreName = switch (widget.opened?.piece) {
-    final piece? =>
-      piece.number == null ? piece.title : '${piece.number} · ${piece.title}',
-    null => null,
-  };
-  late final Uint8List? _scoreXml = widget.opened?.scoreXml;
+  Piece get _piece => widget.opened.piece;
+
+  late final String _scoreName = _piece.number == null
+      ? _piece.title
+      : '${_piece.number} · ${_piece.title}';
+  late final Uint8List _scoreXml = widget.opened.scoreXml;
   late final ScoreRenderer _renderer = widget.renderer ?? createScoreRenderer();
   VsbDocument? _document;
   int _pageIndex = 0;
@@ -208,15 +208,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Size? _boxDevicePx;
   Timer? _resizeDebounce;
 
-  /// Configurações gerais (som, MIDI, cores…): as da biblioteca quando ela
-  /// abriu o hino; só são desta tela — e lidas e descartadas por ela —
-  /// quando não vieram de fora. Ver [_onSettingsChanged].
-  late final AppSettings _settings =
-      widget.opened?.appSettings ?? AppSettings();
+  /// Configurações gerais (som, MIDI, cores…): as da biblioteca, já lidas
+  /// por ela. Ver [_onSettingsChanged].
+  late final AppSettings _settings = widget.opened.appSettings;
 
   /// O que este hino tinha guardado ao abrir (layout, andamento, mão).
-  late final PieceSettings _stored =
-      widget.opened?.pieceSettings ?? const PieceSettings();
+  late final PieceSettings _stored = widget.opened.pieceSettings;
 
   /// A escolha de transposição deste hino (fase Q): `null` = a pessoa não
   /// escolheu (vale a chave geral), [kTransposeNone] = "Não", ou um intervalo.
@@ -276,17 +273,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// gravura junto com [_player] — o que [ScoreAudioScheduler] agenda.
   PerformanceTrack? _track;
 
-  /// Motor de áudio (K03): criado sob demanda no primeiro "ligar som", não
-  /// no início do app — mudo por padrão, como antes de K04. Sobrevive a
-  /// novas gravuras (só [_scheduler] é recriado, um por `.vsb`).
-  ///
-  /// Um motor por [SoundOutput] (M03): trocar de saída não descarta o
-  /// sintetizador do app (com `.sf2` já carregado) nem o motor MIDI (que é
-  /// recriado se o dispositivo conectado mudar — ver [_onMidiDeviceChanged]).
-  SoundEngine? _appEngine;
-  MidiOutSoundEngine? _midiOutEngine;
-  SoundEngine? get _engine =>
-      _output == SoundOutput.midiKeyboard ? _midiOutEngine : _appEngine;
+  /// Por onde sai o som (R08): os dois motores, a saída em uso, o `.sf2` e
+  /// o monitor MIDI. Sobrevive a novas gravuras (só [_scheduler] é
+  /// recriado, um por `.vsb`).
+  late final SoundOutputController _sound;
   ScoreAudioScheduler? _scheduler;
   AudioPlaybackClock? _audioClock;
 
@@ -310,9 +300,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// `lib/trail/`.
   ///
   /// O store é o da biblioteca (a linha do hino atualiza ao voltar sem
-  /// reabrir nada — J09); só é desta tela quando não veio de fora.
-  late final TrailProgressStore _trailStore =
-      widget.opened?.trailProgress ?? TrailProgressStore();
+  /// reabrir nada — J09).
+  late final TrailProgressStore _trailStore = widget.opened.trailProgress;
   TrailController? _trail;
 
   /// Por que não há trilha (explicação no lugar da faixa); `null` com trilha
@@ -346,28 +335,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Latência de entrada+saída calibrada para o teclado/saída correntes.
   double _inputLatencyMs = 0;
 
-  /// Saída **em uso** (M03). A escolhida mora em [_settings]; quando ela
-  /// muda, [_onSettingsChanged] troca o motor e só então atualiza esta.
-  SoundOutput _output = SoundOutput.appSynth;
-
   /// Program Change (M03) — configuração geral.
   bool get _useScoreInstruments => _settings.useScoreInstruments;
-
-  /// Interruptor "som" (K04): liga o agendador de áudio sobre [_player];
-  /// desligado, o player volta ao próprio relógio interno (`speed`), o
-  /// modo mudo de sempre.
-  ///
-  /// É o estado **de agora**; o que o usuário quer ao abrir um hino é
-  /// `_settings.soundOn` ([_soundSetting] guarda o último valor visto, para
-  /// distinguir "o usuário mexeu" de "o treino ligou o som por conta").
-  bool _soundOn = false;
-  bool _soundSetting = false;
-  bool _autoSoundDone = false;
-  bool _loadingSoundFont = false;
-  final SoundFontStore _soundFonts = const SoundFontStore();
-
-  /// O usuário escolheu um `.sf2` próprio (senão vale o TimGM6mb embutido).
-  bool _customSoundFont = false;
 
   /// Entrada MIDI (M01): lista/conecta dispositivos e reconecta sozinho ao
   /// último escolhido; converte mensagens em [PlayedNote] para o monitor.
@@ -377,25 +346,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   final Stopwatch _appClock = Stopwatch()..start();
 
   ///
-  /// O gerenciador de dispositivos é o da biblioteca quando ela abriu o
-  /// hino (o teclado conectado lá continua conectado aqui); só é desta tela
-  /// — e descartado com ela — quando não veio de fora.
+  /// O gerenciador de dispositivos é o da biblioteca (o teclado conectado
+  /// lá continua conectado aqui).
   late final MidiDeviceManager _midiDeviceManager =
-      widget.opened?.midiDeviceManager ?? MidiDeviceManager();
+      widget.opened.midiDeviceManager;
   late final MidiInputService _midiInput = FlutterMidiInputService(
     nowSeconds: () =>
-        _engine?.nowSeconds ?? _appClock.elapsedMicroseconds / 1e6,
+        _sound.engine?.nowSeconds ?? _appClock.elapsedMicroseconds / 1e6,
   );
   bool _midiPanelOpen = false;
-
-  /// Monitor MIDI pelo sintetizador do app (M02): o que chega em
-  /// [_midiInput] sai por [_engine] num canal reservado, para teclados
-  /// controladores sem som próprio. Mesmo motor de [_toggleSound] (K04) —
-  /// [_ensureEngine] pede um `.sf2` só na primeira vez, para qualquer um
-  /// dos dois. Preferência guardada por dispositivo em
-  /// [MidiDeviceManager].
-  MidiMonitor? _midiMonitor;
-  bool _midiMonitorOn = false;
 
   /// 0,5×–1,5×; alimenta [_scheduler] com som ligado, ou `ScorePlayer.speed`
   /// mudo (C01: o relógio externo ignora `speed`).
@@ -456,19 +415,23 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   @override
   void initState() {
     super.initState();
-    _midiDeviceManager.connected.addListener(_onMidiDeviceChanged);
-    // Lidos já aqui (e não na primeira vez que forem usados): é contra
-    // eles que [_onSettingsChanged] compara para saber o que mudou.
-    _output = _settings.output;
-    _soundSetting = _settings.soundOn;
+    _sound = SoundOutputController(
+      settings: _settings,
+      devices: _midiDeviceManager,
+      input: _midiInput,
+      monitorPitch: (r, {required midiKeyboard}) =>
+          _pitchFrame.engineFromReceived(r, midiKeyboard: midiKeyboard),
+      playback: SoundOutputPlayback(
+        hasTrack: () => _track != null,
+        attach: _attachSound,
+        detach: _detachSound,
+        endPractice: _endPractice,
+      ),
+      onMessage: _showMessage,
+    )..addListener(_onSoundChanged);
+    _midiDeviceManager.connected.addListener(_maybeCheckTranspose);
     _trailPieceN = _stored.trailMeasures;
     _settings.addListener(_onSettingsChanged);
-    if (widget.opened == null) unawaited(_settings.load());
-    unawaited(
-      _soundFonts.hasCustom().then((v) {
-        if (mounted) setState(() => _customSoundFont = v);
-      }),
-    );
     // A partitura é para ler em paisagem no celular (a biblioteca, em
     // retrato, volta a travar a orientação dela quando esta tela fecha); no
     // desktop isto não vale nada.
@@ -493,8 +456,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// agendador, player) e redesenha.
   void _onSettingsChanged() {
     if (!mounted) return;
-    if (_settings.output != _output) unawaited(_applyOutput(_settings.output));
-    _midiOutEngine?.useScoreInstruments = _settings.useScoreInstruments;
     _scheduler?.metronomeOn = _settings.metronomeOn;
     // O N geral mudou e o hino usa o padrão: o corte muda junto (a trilha
     // antiga cai ao abrir, em `_setupTrail`).
@@ -519,12 +480,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       ?..correctColor = _settings.highlightColor
       ..wrongColor = _settings.practiceWrongColor
       ..pendingColor = _settings.practicePendingColor;
-    if (_settings.soundOn != _soundSetting) {
-      _soundSetting = _settings.soundOn;
-      if (_soundSetting != _soundOn && !_loadingSoundFont) {
-        unawaited(_toggleSound());
-      }
-    }
     // "Abrir as músicas já sem acidentes" mudou e este hino não tem escolha
     // própria: a partitura é regravada no outro tom.
     if (_document != null && _transposition != _renderedTransposition) {
@@ -558,7 +513,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (_saveDebounce == null) return;
     _saveDebounce?.cancel();
     _saveDebounce = null;
-    widget.opened?.onPieceSettingsChanged(
+    widget.opened.onPieceSettingsChanged(
       _pieceSettingsWith(trailMeasures: _trailPieceN),
     );
   }
@@ -574,7 +529,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// progresso pede confirmação e zera a trilha do hino (J06).
   Future<void> _setPieceTrailN(int? value) async {
     final opened = widget.opened;
-    if (opened == null) return;
     final oldEffective = effectiveTrailMeasures(
       general: _settings.trailMeasures,
       piece: _trailPieceN,
@@ -616,19 +570,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _flushPieceSettings();
     _settings.removeListener(_onSettingsChanged);
     _shiftNotice.dispose();
-    if (widget.opened == null) _settings.dispose();
     _silentCountInTimer?.cancel();
     _practice?.dispose();
     _trail?.removeListener(_onTrailChanged);
     _trail?.dispose();
-    if (widget.opened == null) _trailStore.dispose();
-    _midiDeviceManager.connected.removeListener(_onMidiDeviceChanged);
-    _midiMonitor?.dispose();
-    _midiInput.dispose();
-    if (widget.opened == null) _midiDeviceManager.dispose();
+    _midiDeviceManager.connected.removeListener(_maybeCheckTranspose);
     _scheduler?.dispose();
-    unawaited(_appEngine?.dispose());
-    unawaited(_midiOutEngine?.dispose());
+    _sound
+      ..removeListener(_onSoundChanged)
+      ..dispose();
+    _midiInput.dispose();
     _player?.dispose();
     _viewController.dispose();
     _controller.dispose();
@@ -653,7 +604,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         if (mounted) setState(() {});
       });
     }
-    if (_scoreXml == null) return;
     // No celular esta tela é travada em paisagem, mas abre a partir da
     // biblioteca em retrato: uma caixa mais alta que larga é só o aparelho
     // ainda girando, e gravar a partitura para ela seria trabalho jogado
@@ -693,11 +643,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// A transposição que [choice] (`null`, [kTransposeNone] ou um intervalo)
   /// daria a este hino.
   Transposition? _transpositionFor(String? choice) {
-    final piece = widget.opened?.piece;
-    if (piece == null) return null;
     final range = _originalRange;
     return effectiveTransposition(
-      piece,
+      _piece,
       PieceSettings(transpose: choice),
       _settings,
       lowest: range?.lowest ?? kCatalogLowestMidi,
@@ -707,7 +655,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// "Sem acidentes" para este hino; `null` sem armadura ou já em Dó.
   Transposition? get _noAccidentals {
-    final fifths = widget.opened?.piece.fifths;
+    final fifths = _piece.fifths;
     if (fifths == null) return null;
     final range = _originalRange;
     return Transposition.toNoAccidentals(
@@ -722,7 +670,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// pergunta antes (Q04); guarda a escolha e grava a partitura de novo.
   Future<void> _chooseTranspose(String choice) async {
     final opened = widget.opened;
-    if (opened == null) return;
     final from = _transposition;
     final to = _transpositionFor(choice);
     if (to != from &&
@@ -756,7 +703,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// "Escolher…": a lista dos 12 tons.
   Future<void> _pickTone() async {
-    final fifths = widget.opened?.piece.fifths;
+    final fifths = _piece.fifths;
     if (fifths == null) return;
     final range = _originalRange;
     final current = _transposition;
@@ -777,7 +724,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// O item "Transpor" (gaveta e diálogo do desktop); [before] roda antes da
   /// ação — o diálogo fecha a si mesmo. `null` sem armadura conhecida.
   Widget? _transposeSection({VoidCallback? before}) {
-    final fifths = widget.opened?.piece.fifths;
+    final fifths = _piece.fifths;
     if (fifths == null) return null;
     final current = _transposition;
     final none = _noAccidentals;
@@ -821,14 +768,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Widget? _transposeSeal() {
     final transposition = _renderedTransposition;
     if (transposition == null) return null;
-    final fifths = widget.opened?.piece.fifths;
+    final fifths = _piece.fifths;
     return TransposeSeal(
       text: fifths == null
           ? 'Transposta · teclado ${transposition.keyboardLabel}'
           : transposeSealText(
               fifths,
               transposition,
-              appIsSound: _midiMonitorOn,
+              appIsSound: _sound.midiMonitorOn,
               naming: _settings.noteNaming,
             ),
       onTap: _onSealTap,
@@ -840,7 +787,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void _onSealTap() {
     final message = _midiDeviceManager.connected.value == null
         ? 'Conecte o teclado para conferir o TRANSPOSE.'
-        : _midiMonitorOn
+        : _sound.midiMonitorOn
         ? 'O som sai pelo app, no tom original: não há o que ajustar no '
               'teclado.'
         : null;
@@ -855,8 +802,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Lê os outros tons em que este hino tem trilha ([_alsoStudied]).
   Future<void> _refreshAlsoStudied() async {
-    final piece = widget.opened?.piece;
-    if (piece == null) return;
+    final piece = _piece;
     final tones = await _trailStore.studiedTones(piece.id);
     if (!mounted) return;
     final text = alsoStudiedText(
@@ -884,7 +830,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       k,
       keyboardShiftsOut: behavior.shiftsOut ?? false,
       keyboardShiftsIn: behavior.shiftsIn ?? false,
-      appIsSound: _midiMonitorOn,
+      appIsSound: _sound.midiMonitorOn,
     );
   }
 
@@ -893,17 +839,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   int Function(int) _enginePitchOf(SoundEngine engine) {
     final midiKeyboard = engine is MidiOutSoundEngine;
     return (w) => _pitchFrame.engineFromWritten(w, midiKeyboard: midiKeyboard);
-  }
-
-  /// O monitor MIDI (M02) sobre [engine]: toca a soada da tecla apertada.
-  MidiMonitor _newMidiMonitor(SoundEngine engine) {
-    final midiKeyboard = engine is MidiOutSoundEngine;
-    return MidiMonitor(
-      input: _midiInput,
-      engine: engine,
-      pitchOf: (r) =>
-          _pitchFrame.engineFromReceived(r, midiKeyboard: midiKeyboard),
-    );
   }
 
   /// A nota mais grave e a mais aguda da música **original** em [document],
@@ -937,7 +872,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// be compared at the same zoom and pan.
   Future<void> _renderAndShow() async {
     final scoreXml = _scoreXml;
-    if (scoreXml == null || _boxDevicePx == null || !mounted) return;
+    if (_boxDevicePx == null || !mounted) return;
     if (_busy) {
       _renderQueued = true;
       return;
@@ -959,7 +894,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
     var wrongDirection = false;
     try {
-      final name = _scoreName ?? '';
+      final name = _scoreName;
 
       setState(() => _status = 'renderizando $name ($pageWidth×$pageHeight)…');
 
@@ -967,7 +902,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       final rendered = await _renderer.render(
         ScoreRenderRequest(
           source: scoreXml,
-          fileName: '${widget.opened?.piece.id ?? 'score'}.musicxml',
+          fileName: '${_piece.id}.musicxml',
           pageWidth: pageWidth,
           pageHeight: pageHeight,
           options: options,
@@ -1020,8 +955,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 mergeTies: true,
               )
             : null;
-        final engine = _engine;
-        if (_player != null && _soundOn && engine != null) {
+        final engine = _sound.engine;
+        if (_player != null && _sound.soundOn && engine != null) {
           _attachAudio(engine, track);
         }
         _document = document;
@@ -1038,7 +973,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         _busy = false;
       });
       unawaited(_setupTrail());
-      _restoreSound();
+      _sound.restoreSound();
       _maybeCheckTranspose();
       _maybeRemindTransposeReset();
     } catch (e) {
@@ -1072,16 +1007,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (document == null || track == null || player == null) return;
     // A trilha é do tom que está na tela (fase Q): cada tom tem a sua, e o
     // original guarda a de antes, sob o id da música.
-    final pieceId = widget.opened == null
-        ? null
-        : progressIdFor(widget.opened!.piece.id, _renderedTransposition);
-    if (pieceId == null) {
-      setState(
-        () => _trailUnavailable =
-            'Trilha indisponível sem uma música aberta — treino livre',
-      );
-      return;
-    }
+    final pieceId = progressIdFor(_piece.id, _renderedTransposition);
     unawaited(_refreshAlsoStudied());
     final n = effectiveTrailMeasures(
       general: _settings.trailMeasures,
@@ -1258,9 +1184,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (_midiDeviceManager.connected.value == null) return;
     _clearErrorMarks();
     _stopListening();
-    final engine = await _ensureEngine();
+    final engine = await _sound.ensureEngine();
     if (engine == null || !mounted) return;
-    if (_scheduler == null || !_soundOn) {
+    if (_scheduler == null || !_sound.soundOn) {
       _attachAudio(engine, track);
     }
     final scheduler = _scheduler;
@@ -1319,9 +1245,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     player.highlightColor = _settings.practicePendingColor;
     trail.setRunning(true);
     trail.clearResult();
+    _sound.markSoundOn();
     setState(() {
       _practice = practice;
-      _soundOn = true;
       _setPlaying(true);
     });
   }
@@ -1345,9 +1271,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (stage == null) return;
     if (trail.running) _abandonTrailStage();
     _clearErrorMarks();
-    final engine = await _ensureEngine();
+    final engine = await _sound.ensureEngine();
     if (engine == null || !mounted || _listening) return;
-    if (_scheduler == null || !_soundOn) _attachAudio(engine, track);
+    if (_scheduler == null || !_sound.soundOn) _attachAudio(engine, track);
     final scheduler = _scheduler;
     if (scheduler == null || !mounted) return;
     _cancelSilentCountIn();
@@ -1368,9 +1294,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         _stopListening();
       }
     });
+    _sound.markSoundOn();
     setState(() {
       _listening = true;
-      _soundOn = true;
       _setPlaying(true);
     });
   }
@@ -1577,7 +1503,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     }
     // Do fim, o play recomeça a música: a contagem é a do 1º compasso.
     if (player.position >= player.duration) player.seek(Duration.zero);
-    if (_soundOn) {
+    if (_sound.soundOn) {
       final fromMs = player.position.inMicroseconds / 1000;
       final scheduler = _scheduler;
       if (scheduler == null) {
@@ -1607,7 +1533,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final speed = _speed;
     // Segundos desde o 1º clique (negativo enquanto ele não soa).
     double Function() elapsed;
-    final engine = _appEngine;
+    final engine = _sound.appEngine;
     if (engine != null) {
       final t0 = engine.earliestScheduleSeconds;
       engine.schedule([
@@ -1760,7 +1686,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// "Praticar" (T02): modo espera com o app tocando a outra mão. Precisa
   /// de som ligado — o agendador que toca a mão do app é o mesmo do
   /// interruptor "som" — e abre o motor/pede um `.sf2` na primeira vez,
-  /// como [_toggleSound]/[_toggleMidiMonitor] já fazem.
+  /// como o som e o monitor MIDI já fazem ([SoundOutputController]).
   Future<void> _togglePractice() async {
     if (_practice != null) {
       _stopPractice();
@@ -1770,9 +1696,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final player = _player;
     if (track == null || player == null) return;
     _clearErrorMarks();
-    final engine = await _ensureEngine();
+    final engine = await _sound.ensureEngine();
     if (engine == null || !mounted) return;
-    if (_scheduler == null || !_soundOn) {
+    if (_scheduler == null || !_sound.soundOn) {
       _attachAudio(engine, track);
     }
     final scheduler = _scheduler;
@@ -1814,9 +1740,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     // No treino, o "esperado agora" acende na cor própria (azul por
     // padrão): o vermelho padrão do player confundia pendente com errada.
     player.highlightColor = _settings.practicePendingColor;
+    _sound.markSoundOn();
     setState(() {
       _practice = practice;
-      _soundOn = true;
       _setPlaying(true);
     });
   }
@@ -1873,7 +1799,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (report != null) {
       final r = report;
       // A biblioteca guarda a melhor precisão do hino ("Pontuação").
-      widget.opened?.onPracticeScore(
+      widget.opened.onPracticeScore(
         (r.accuracy * 100).round(),
         _renderedTransposition,
       );
@@ -1948,7 +1874,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   void _setSpeed(double value) {
     setState(() => _speed = value);
     _savePieceSettings();
-    if (_soundOn) {
+    if (_sound.soundOn) {
       _scheduler?.setSpeed(value);
     } else {
       _player?.speed = value;
@@ -1956,8 +1882,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   }
 
   /// Ícone dos botões "som" e "monitor MIDI": giro de carregamento enquanto
-  /// [_ensureEngine] pede o `.sf2` (motor compartilhado pelos dois).
-  Widget _engineButtonIcon(IconData icon) => _loadingSoundFont
+  /// [SoundOutputController.ensureEngine] pede o `.sf2` (motor compartilhado
+  /// pelos dois).
+  Widget _engineButtonIcon(IconData icon) => _sound.loadingSoundFont
       ? const SizedBox(
           width: 18,
           height: 18,
@@ -2048,17 +1975,18 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _scheduler?.seek(start);
   }
 
-  String get _outputKey => _output == SoundOutput.midiKeyboard ? 'midi' : 'app';
+  String get _outputKey =>
+      _sound.output == SoundOutput.midiKeyboard ? 'midi' : 'app';
 
   Future<void> _loadInputLatency() async {
-    final ms = await calibratedInputLatency(_midiDeviceManager, _output);
+    final ms = await calibratedInputLatency(_midiDeviceManager, _sound.output);
     if (mounted) setState(() => _inputLatencyMs = ms);
   }
 
   Future<void> _openCalibration() async {
     final device = _midiDeviceManager.connected.value;
     if (device == null) return;
-    final engine = await _ensureEngine();
+    final engine = await _sound.ensureEngine();
     if (engine == null || !mounted) return;
     final ms = await showCalibrationDialog(
       context,
@@ -2071,234 +1999,35 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (mounted) setState(() => _inputLatencyMs = ms);
   }
 
-  /// Interruptor "som" (K04). Desligar volta ao modo mudo de sempre
-  /// (relógio interno do player); ligar abre o motor (K03) e — só na
-  /// primeira vez, D-SF ainda em aberto — pede um `.sf2` ao usuário.
-  Future<void> _toggleSound() async {
-    if (_soundOn) {
-      // Modo treino (T02) depende do agendador de som para o freio e a mão
-      // do app — sem som, não há como continuar.
-      _endPractice();
-      _scheduler?.pause();
-      _engine?.allNotesOff();
-      _player?.clock = null;
-      _player?.speed = _speed;
-      setState(() => _soundOn = false);
-      return;
-    }
+  /// [_sound] pôs [engine] em uso: o agendador passa a tocar nele. Retoma de
+  /// onde o player está se ele já tocava (mudo) — sem isto o agendador
+  /// ficaria parado na âncora 0 e o próximo tick do player veria o relógio
+  /// de áudio "voltar" para o início e daria um seek indevido — ou sempre,
+  /// com [always] (troca de saída).
+  void _attachSound(SoundEngine engine, {required bool always}) {
     final track = _track;
     if (track == null) return;
-    final engine = await _ensureEngine();
-    if (engine == null) return;
     _attachAudio(engine, track);
-    // Já estava tocando (mudo) quando o som foi ligado: sem isto o
-    // agendador ficaria parado na âncora 0 e o próximo tick do player veria
-    // o relógio de áudio "voltar" para o início e daria um seek indevido.
     final player = _player;
-    if (_playing && player != null) {
+    if (player != null && (always || _playing)) {
       _scheduler!.play(player.position.inMicroseconds / 1000, speed: _speed);
     }
-    setState(() => _soundOn = true);
   }
 
-  /// O usuário mexeu no interruptor de som desta tela: além de ligar ou
-  /// desligar agora, vira a preferência geral (o próximo hino abre igual).
-  Future<void> _userToggleSound() async {
-    await _toggleSound();
-    _soundSetting = _soundOn;
-    _settings.soundOn = _soundOn;
+  /// [_sound] desligou o som: o player volta ao próprio relógio (mudo).
+  void _detachSound() {
+    _scheduler?.pause();
+    _player?.clock = null;
+    _player?.speed = _speed;
   }
 
-  /// Uma vez por hino, depois da primeira gravura: religa o som se ele
-  /// estava ligado da última vez. Com saída no teclado MIDI e nenhum
-  /// conectado, deixa quieto em vez de reclamar a cada hino aberto.
-  void _restoreSound() {
-    if (_autoSoundDone) return;
-    _autoSoundDone = true;
-    if (_soundOn) return;
-    if (!_settings.soundOn) {
-      // Som desligado: mesmo assim deixa o motor do app armado (dispositivo
-      // aberto, `.sf2` carregado) enquanto o aluno ainda olha a partitura —
-      // senão o primeiro play espera por isso. O play continua mudo até
-      // alguém ligar o som. O motor MIDI não custa nada para abrir e
-      // reclamaria da falta de teclado, então fica para quando for usado.
-      if (_output == SoundOutput.appSynth) unawaited(_ensureEngine());
-      return;
-    }
-    if (_output == SoundOutput.midiKeyboard &&
-        _midiDeviceManager.connected.value == null) {
-      return;
-    }
-    unawaited(_toggleSound());
+  void _onSoundChanged() {
+    if (mounted) setState(() {});
   }
 
-  /// Abre [_engine] se ainda não existir — pedindo um `.sf2` ao usuário só
-  /// na primeira vez (D-SF) — e o devolve; `null` se o motor não abriu ou o
-  /// usuário cancelou o `.sf2`. Compartilhado por [_toggleSound] e
-  /// [_toggleMidiMonitor] (M02): é o mesmo motor que toca a partitura e o
-  /// monitor.
-  Future<SoundEngine?> _ensureEngine() async {
-    final existing = _engine;
-    if (existing != null) return existing;
-    if (_output == SoundOutput.midiKeyboard) return _ensureMidiOutEngine();
-    // Já abrindo (armado na entrada, ou dois pedidos seguidos): quem chega
-    // depois espera a mesma abertura em vez de desistir.
-    return _engineOpening ??= _openAppEngine().whenComplete(
-      () => _engineOpening = null,
-    );
-  }
-
-  Future<SoundEngine?>? _engineOpening;
-
-  Future<SoundEngine?> _openAppEngine() async {
-    setState(() => _loadingSoundFont = true);
-    SoundEngine? engine;
-    try {
-      engine = await _pickEngineWithSoundFont();
-    } catch (e, st) {
-      debugPrint('som: erro ao iniciar: $e\n$st');
-      DiagLog.log('erro', 'som: erro ao iniciar: $e\n$st');
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('som: erro ao iniciar ($e)')));
-      }
-      engine = null;
-    } finally {
-      if (mounted) setState(() => _loadingSoundFont = false);
-    }
-    if (engine == null) return null;
-    if (!mounted) {
-      // A tela fechou enquanto abria (armado na entrada): ninguém mais o
-      // descartaria.
-      unawaited(engine.dispose());
-      return null;
-    }
-    DiagLog.log('som', 'motor do app aberto');
-    _appEngine = engine;
-    return engine;
-  }
-
-  /// Abre (ou devolve) o motor de saída MIDI (M03) sobre o dispositivo
-  /// conectado em [_midiDeviceManager]; `null` sem dispositivo conectado.
-  SoundEngine? _ensureMidiOutEngine() {
-    final existing = _midiOutEngine;
-    if (existing != null) return existing;
-    final device = _midiDeviceManager.connected.value;
-    if (device == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('conecte um teclado MIDI primeiro')),
-      );
-      return null;
-    }
-    final engine = MidiOutSoundEngine(
-      sender: FlutterMidiSender(),
-      deviceId: device.id,
-      useScoreInstruments: _useScoreInstruments,
-    );
-    _midiOutEngine = engine;
-    return engine;
-  }
-
-  /// Troca a saída de som em uso (M03) para a escolhida nas configurações
-  /// gerais (que já a guardaram) — ver [_onSettingsChanged]. Se o som ou o
-  /// monitor MIDI estiverem ligados, silencia a saída antiga (`allNotesOff`)
-  /// e reancora o agendador/monitor na nova — se a nova saída não abrir
-  /// (ex.: MIDI sem dispositivo conectado), desliga os dois.
-  Future<void> _applyOutput(SoundOutput next) async {
-    if (next == _output) return;
-    final wasSoundOn = _soundOn;
-    final wasMonitorOn = _midiMonitorOn;
-    if (!wasSoundOn && !wasMonitorOn) {
-      setState(() => _output = next);
-      return;
-    }
-    _engine?.allNotesOff();
-    setState(() => _output = next);
-    final engine = await _ensureEngine();
+  void _showMessage(String text) {
     if (!mounted) return;
-    if (engine == null) {
-      _scheduler?.pause();
-      _player?.clock = null;
-      _player?.speed = _speed;
-      _midiMonitor?.dispose();
-      setState(() {
-        _soundOn = false;
-        _midiMonitor = null;
-        _midiMonitorOn = false;
-      });
-      return;
-    }
-    if (wasMonitorOn) _midiMonitor?.dispose();
-    final track = _track;
-    final player = _player;
-    setState(() {
-      if (wasMonitorOn) {
-        _midiMonitor = _newMidiMonitor(engine);
-      }
-      if (wasSoundOn && track != null) {
-        _attachAudio(engine, track);
-        if (player != null) {
-          _scheduler!.play(
-            player.position.inMicroseconds / 1000,
-            speed: _speed,
-          );
-        }
-      }
-    });
-  }
-
-  /// Interruptor "usar instrumentos da partitura" (M03): Program Change ao
-  /// teclado MIDI — desligado por padrão.
-  void _setUseScoreInstruments(bool value) =>
-      _settings.useScoreInstruments = value;
-
-  /// Interruptor "monitor MIDI" (M02): liga [_midiInput] a [_engine] num
-  /// canal reservado, para teclados controladores sem som próprio. Guarda a
-  /// escolha por dispositivo em [MidiDeviceManager].
-  Future<void> _toggleMidiMonitor() async {
-    if (_midiMonitorOn) {
-      _disableMidiMonitor();
-      return;
-    }
-    final engine = await _ensureEngine();
-    if (engine == null) return;
-    setState(() {
-      _midiMonitor?.dispose();
-      _midiMonitor = _newMidiMonitor(engine);
-      _midiMonitorOn = true;
-    });
-    final device = _midiDeviceManager.connected.value;
-    if (device != null) {
-      unawaited(_midiDeviceManager.setMonitorEnabled(device.id, true));
-    }
-  }
-
-  void _disableMidiMonitor() {
-    _midiMonitor?.dispose();
-    setState(() {
-      _midiMonitor = null;
-      _midiMonitorOn = false;
-    });
-    final device = _midiDeviceManager.connected.value;
-    if (device != null) {
-      unawaited(_midiDeviceManager.setMonitorEnabled(device.id, false));
-    }
-  }
-
-  /// Chamado a cada troca de dispositivo MIDI conectado (M01/M02): manda
-  /// note-off para o que o monitor ainda considerar retido do dispositivo
-  /// anterior (evita nota presa) e aplica a preferência do novo — só liga de
-  /// volta sozinho se [_engine] já existir, para nunca abrir o diálogo de
-  /// `.sf2` sem o usuário ter pedido.
-  void _onMidiDeviceChanged() {
-    DiagLog.log(
-      'midi-dev',
-      'conectado agora: ${_midiDeviceManager.connected.value?.name}',
-    );
-    _midiMonitor?.allNotesOff();
-    _tearDownMidiOutEngine();
-    unawaited(_syncMidiMonitorToDevice());
-    _maybeCheckTranspose();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   /// Teclados para os quais a conferência do TRANSPOSE (Q06) já foi oferecida
@@ -2313,7 +2042,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   final ValueNotifier<ShiftNotice?> _shiftNotice = ValueNotifier(null);
   late final ShiftDetector _shiftDetector = ShiftDetector(
     enabled: () =>
-        !_midiMonitorOn &&
+        !_sound.midiMonitorOn &&
         _settings
                 .keyboardTransposeOf(_midiDeviceManager.connected.value?.name)
                 .shiftsOut !=
@@ -2360,7 +2089,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       nowTransposed: now,
       hasKeyboard: name != null,
       keyboardShiftsOut: _settings.keyboardTransposeOf(name).shiftsOut,
-      appIsSound: _midiMonitorOn,
+      appIsSound: _sound.midiMonitorOn,
     )) {
       _shiftNotice.value = const ShiftNotice(
         kShiftReminderMessage,
@@ -2378,7 +2107,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       transposition: _renderedTransposition,
       deviceName: name,
       behavior: _settings.keyboardTransposeOf(name),
-      appIsSound: _midiMonitorOn,
+      appIsSound: _sound.midiMonitorOn,
       alreadyAsked: _transposeCheckAsked.contains(name),
     )) {
       return;
@@ -2396,7 +2125,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final device = _midiDeviceManager.connected.value;
     if (transposition == null ||
         device == null ||
-        _midiMonitorOn ||
+        _sound.midiMonitorOn ||
         _transposeCheckOpen ||
         !mounted) {
       return;
@@ -2411,7 +2140,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         previous: _settings.keyboardTransposeOf(device.name),
         naming: _settings.noteNaming,
         playOwnSound: _playOwnTone,
-        playOnKeyboard: _output == SoundOutput.midiKeyboard
+        playOnKeyboard: _sound.output == SoundOutput.midiKeyboard
             ? _playKeyboardTone
             : null,
       );
@@ -2427,7 +2156,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// conferência; `false` se ele não está aberto (então vale a palavra da
   /// pessoa). Pelo canal do monitor, que a partitura não usa.
   Future<bool> _playOwnTone(int pitch) async {
-    final engine = _appEngine;
+    final engine = _sound.appEngine;
     if (engine == null) return false;
     await _beep(engine, pitch, channel: kMidiMonitorChannel);
     return true;
@@ -2436,7 +2165,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Manda [pitch] cru ao teclado (M03), sem conversão: é o que a conferência
   /// da entrada compara.
   Future<void> _playKeyboardTone(int pitch) async {
-    final engine = _ensureMidiOutEngine();
+    final engine = _sound.ensureMidiOutEngine();
     // Canal 1: alguns teclados só respondem nele.
     if (engine != null) await _beep(engine, pitch, channel: 0);
   }
@@ -2449,87 +2178,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     engine.send([0x90 | channel, pitch, 100]);
     await Future<void>.delayed(const Duration(milliseconds: 800));
     engine.send([0x80 | channel, pitch, 0]);
-  }
-
-  /// Descarta o motor de saída MIDI (M03): seu `deviceId` só vale para o
-  /// dispositivo que estava conectado quando foi criado — hot-plug ou troca
-  /// de dispositivo sempre pede um novo, nunca reaproveita (`allNotesOff` no
-  /// `dispose`, o critério "perder a conexão" do M03). Se ele for a saída
-  /// ativa, desliga o som também.
-  void _tearDownMidiOutEngine() {
-    final engine = _midiOutEngine;
-    if (engine == null) return;
-    _midiOutEngine = null;
-    unawaited(engine.dispose());
-    if (_output != SoundOutput.midiKeyboard || !_soundOn) return;
-    _scheduler?.pause();
-    _player?.clock = null;
-    _player?.speed = _speed;
-    if (mounted) setState(() => _soundOn = false);
-  }
-
-  Future<void> _syncMidiMonitorToDevice() async {
-    final device = _midiDeviceManager.connected.value;
-    final wanted = device == null
-        ? false
-        : await _midiDeviceManager.monitorEnabled(device.id);
-    if (!mounted || _midiDeviceManager.connected.value?.id != device?.id) {
-      return;
-    }
-    final engine = _engine;
-    setState(() {
-      _midiMonitor?.dispose();
-      if (wanted && engine != null) {
-        _midiMonitor = _newMidiMonitor(engine);
-        _midiMonitorOn = true;
-      } else {
-        _midiMonitor = null;
-        _midiMonitorOn = false;
-      }
-    });
-  }
-
-  /// Abre o motor e pede um soundfont ao usuário; `null` se o motor não
-  /// abriu (sem dispositivo de áudio) ou o usuário cancelou o `.sf2`.
-  /// Corpo em `lib/audio/engine_opener.dart` (I09, risco 4 do I00): a tela
-  /// do exercício usa o mesmo.
-  Future<SoundEngine?> _pickEngineWithSoundFont() =>
-      openAppSoundEngine(soundFonts: _soundFonts);
-
-  /// Troca o `.sf2` (o TimGM6mb embutido é o padrão): guarda o escolhido e,
-  /// se o motor do app já está aberto, recarrega nele na hora.
-  Future<void> _chooseSoundFont() async {
-    final Uint8List? bytes;
-    try {
-      bytes = await pickSoundFontBytes();
-    } catch (e) {
-      DiagLog.log('erro', 'soundfont: $e');
-      return;
-    }
-    if (bytes == null || !mounted) return;
-    try {
-      await _appEngine?.loadSoundFont(bytes);
-      await _soundFonts.saveCustom(bytes);
-      if (mounted) setState(() => _customSoundFont = true);
-    } catch (e) {
-      DiagLog.log('erro', 'soundfont: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('não consegui usar esse soundfont ($e)')),
-        );
-      }
-    }
-  }
-
-  /// Volta ao TimGM6mb embutido.
-  Future<void> _resetSoundFont() async {
-    try {
-      await _soundFonts.clearCustom();
-      await _appEngine?.loadSoundFont(await _soundFonts.load());
-      if (mounted) setState(() => _customSoundFont = false);
-    } catch (e) {
-      DiagLog.log('erro', 'soundfont: $e');
-    }
   }
 
   void _onPageChanged(int target) {
@@ -2762,10 +2410,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Faixa do topo no celular: voltar, número e título do hino e, no
   /// treino, os selos de modo/mão e de acertos e erros.
   Widget _buildPhoneTitleBar() {
-    final piece = widget.opened?.piece;
+    final piece = _piece;
     return PhoneTitleBar(
-      number: piece?.number,
-      title: piece?.title ?? '',
+      number: piece.number,
+      title: piece.title,
       onBack: _backToLibrary,
       center: _trailChip(),
       trailing: [
@@ -2819,7 +2467,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Widget _phoneSoundButton() => ValueListenableBuilder(
     valueListenable: _midiDeviceManager.connected,
     builder: (context, device, _) {
-      final noKeyboard = _output == SoundOutput.midiKeyboard && device == null;
+      final noKeyboard =
+          _sound.output == SoundOutput.midiKeyboard && device == null;
       if (noKeyboard) {
         return PhoneSoundButton(
           on: false,
@@ -2829,12 +2478,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         );
       }
       return PhoneSoundButton(
-        on: _soundOn,
-        loading: _loadingSoundFont,
-        tooltip: _soundOn ? 'Som ligado' : 'Som desligado',
+        on: _sound.soundOn,
+        loading: _sound.loadingSoundFont,
+        tooltip: _sound.soundOn ? 'Som ligado' : 'Som desligado',
         onPressed: _practice != null
             ? null
-            : () => unawaited(_userToggleSound()),
+            : () => unawaited(_sound.userToggleSound()),
       );
     },
   );
@@ -3143,20 +2792,18 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         ?_transposeSection(),
         // O que é só deste hino: cada um guarda o seu tamanho e layout.
         PhoneSectionLabel('${_term.este} ${_term.singular}'.toUpperCase()),
-        if (widget.opened != null) ...[
-          PhoneToggleRow(
-            label: 'Trechos de ${_settings.trailMeasures} compassos (padrão)',
-            value: _trailPieceN == null,
-            onChanged: (v) =>
-                unawaited(_setPieceTrailN(v ? null : _settings.trailMeasures)),
+        PhoneToggleRow(
+          label: 'Trechos de ${_settings.trailMeasures} compassos (padrão)',
+          value: _trailPieceN == null,
+          onChanged: (v) =>
+              unawaited(_setPieceTrailN(v ? null : _settings.trailMeasures)),
+        ),
+        if (_trailPieceN case final pieceN?)
+          TrailNSelector(
+            value: pieceN,
+            max: _trailMaxN,
+            onChanged: (v) => unawaited(_setPieceTrailN(v)),
           ),
-          if (_trailPieceN case final pieceN?)
-            TrailNSelector(
-              value: pieceN,
-              max: _trailMaxN,
-              onChanged: (v) => unawaited(_setPieceTrailN(v)),
-            ),
-        ],
         PhoneSliderRow(
           label: 'TAMANHO DA NOTAÇÃO',
           value: (_layout['unit']! as num).toDouble(),
@@ -3267,7 +2914,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 width: constraints.maxWidth,
                 height: constraints.maxHeight,
                 child: ScoreSizeLog(
-                  label: 'hino ${widget.opened?.piece.id ?? _scoreName ?? '?'}',
+                  label: 'hino ${_piece.id}',
                   document: document,
                   child: ScoreView(
                     document: document,
@@ -3317,7 +2964,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     switch (_renderError) {
                       final error? =>
                         'Não deu para abrir ${_term.o} ${_term.singular}: $error',
-                      null => _scoreName ?? '',
+                      null => _scoreName,
                     },
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 15, color: kInkCaption),
@@ -3418,14 +3065,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 child: GeneralSettingsPanel(
                   settings: _settings,
                   midiDeviceManager: _midiDeviceManager,
-                  customSoundFont: _customSoundFont,
-                  onChooseSoundFont: () => unawaited(_chooseSoundFont()),
-                  onResetSoundFont: () => unawaited(_resetSoundFont()),
+                  customSoundFont: _sound.customSoundFont,
+                  onChooseSoundFont: () => unawaited(_sound.chooseSoundFont()),
+                  onResetSoundFont: () => unawaited(_sound.resetSoundFont()),
                   onClose: () => setState(() => _generalOpen = false),
                   live: LiveSettingsActions(
-                    busy: _loadingSoundFont,
-                    monitorOn: _midiMonitorOn,
-                    onMonitorChanged: (_) => unawaited(_toggleMidiMonitor()),
+                    busy: _sound.loadingSoundFont,
+                    monitorOn: _sound.midiMonitorOn,
+                    onMonitorChanged: (_) =>
+                        unawaited(_sound.toggleMidiMonitor()),
                     inputLatencyMs: _inputLatencyMs,
                     onCalibrate: () {
                       setState(() => _generalOpen = false);
@@ -3516,18 +3164,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           ),
         ),
         centerTitle: true,
-        title: switch (widget.opened?.piece) {
-          final piece? => ScoreTitle(
-            title: piece.title,
-            caption: piece.number == null
-                ? piece.composer
-                : '${_term.singularCapitalized} ${piece.number} · ${piece.composer}',
-          ),
-          null => const ScoreTitle(title: 'nenhuma partitura'),
-        },
+        title: ScoreTitle(
+          title: _piece.title,
+          caption: _piece.number == null
+              ? _piece.composer
+              : '${_term.singularCapitalized} ${_piece.number} · ${_piece.composer}',
+        ),
         actions: [
           ?_transposeSeal(),
-          if (widget.opened?.piece.fifths != null)
+          if (_piece.fifths != null)
             IconButton(
               tooltip: 'Transpor',
               onPressed: _openTransposeDialog,
@@ -3718,22 +3363,24 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                       ),
                     ),
                     IconButton.filledTonal(
-                      tooltip: _soundOn
+                      tooltip: _sound.soundOn
                           ? 'Desligar som'
-                          : _output == SoundOutput.midiKeyboard
+                          : _sound.output == SoundOutput.midiKeyboard
                           ? 'Ligar som (teclado MIDI conectado)'
                           : 'Ligar som (escolhe um .sf2)',
-                      onPressed: _loadingSoundFont ? null : _userToggleSound,
+                      onPressed: _sound.loadingSoundFont
+                          ? null
+                          : _sound.userToggleSound,
                       icon: _engineButtonIcon(
-                        _soundOn ? Icons.volume_up : Icons.volume_off,
+                        _sound.soundOn ? Icons.volume_up : Icons.volume_off,
                       ),
                     ),
                     PopupMenuButton<SoundOutput>(
                       tooltip: 'Saída de som',
-                      initialValue: _output,
+                      initialValue: _sound.output,
                       onSelected: (value) => _settings.output = value,
                       icon: Icon(
-                        _output == SoundOutput.midiKeyboard
+                        _sound.output == SoundOutput.midiKeyboard
                             ? Icons.piano
                             : Icons.graphic_eq,
                       ),
@@ -3748,14 +3395,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                         ),
                       ],
                     ),
-                    if (_output == SoundOutput.midiKeyboard)
+                    if (_sound.output == SoundOutput.midiKeyboard)
                       IconButton.filledTonal(
                         tooltip: _useScoreInstruments
                             ? 'Voltar ao timbre do teclado'
                             : 'Trocar o timbre do teclado (usa o instrumento '
                                   'da partitura)',
-                        onPressed: () =>
-                            _setUseScoreInstruments(!_useScoreInstruments),
+                        onPressed: () => _sound.setUseScoreInstruments(
+                          !_useScoreInstruments,
+                        ),
                         icon: Icon(
                           _useScoreInstruments
                               ? Icons.music_note
@@ -3763,12 +3411,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                         ),
                       ),
                     IconButton.filledTonal(
-                      tooltip: _midiMonitorOn
+                      tooltip: _sound.midiMonitorOn
                           ? 'Desligar monitor MIDI'
                           : 'Ligar monitor MIDI (teclado sem som próprio)',
-                      onPressed: _loadingSoundFont ? null : _toggleMidiMonitor,
+                      onPressed: _sound.loadingSoundFont
+                          ? null
+                          : _sound.toggleMidiMonitor,
                       icon: _engineButtonIcon(
-                        _midiMonitorOn ? Icons.piano : Icons.piano_outlined,
+                        _sound.midiMonitorOn
+                            ? Icons.piano
+                            : Icons.piano_outlined,
                       ),
                     ),
                     SizedBox(

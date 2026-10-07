@@ -4,7 +4,6 @@
 // persistência: o que foi mudado volta numa nova instância (= o app aberto
 // de novo, ou atualizado), e o que foi gravado por outra versão não quebra.
 
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
 
@@ -12,7 +11,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-import 'package:score_bridge/score_bridge.dart' show VsbDocument;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -21,17 +19,16 @@ import 'package:zywny/render/layout_options.dart';
 import 'package:zywny/library/piece.dart';
 import 'package:zywny/app/library_screen.dart';
 import 'package:zywny/main.dart';
-import 'package:zywny/midi/midi_device_manager.dart';
 import 'package:zywny/practice/hand.dart';
 import 'package:zywny/practice/practice_controller.dart';
-import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/settings/app_settings.dart';
 import 'package:zywny/app/general_settings_panel.dart';
 import 'package:zywny/settings/piece_settings.dart';
-import 'package:zywny/trail/trail_progress.dart';
 import 'package:zywny/trail/trail_stage.dart';
 import 'package:zywny/ui/phone_chrome.dart';
 import 'package:zywny/ui/theme.dart';
+
+import 'support/score_page_fakes.dart';
 
 class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
     with MockPlatformInterfaceMixin {
@@ -54,24 +51,6 @@ Piece _piece(int n, String title, {int? fifths}) => Piece(
   composerKey: 'autor',
   searchKey: foldForSearch('$n $title'),
 );
-
-/// Guarda as opções de cada gravação pedida e devolve sempre a mesma
-/// partitura pronta: o que importa é o que a tela pede ao Verovio.
-class _RecordingRenderer implements ScoreRenderer {
-  _RecordingRenderer()
-    : _document = VsbDocument.fromBytes(
-        File('test/fixtures/erik-satie.vsb').readAsBytesSync(),
-      );
-
-  final VsbDocument _document;
-  final List<Map<String, Object>> options = [];
-
-  @override
-  Future<RenderedScore> render(ScoreRenderRequest request) async {
-    options.add(request.options);
-    return RenderedScore(_document);
-  }
-}
 
 void main() {
   setUp(() {
@@ -347,29 +326,23 @@ void main() {
     });
 
     /// Abre a tela de um hino em 3♭ e espera a primeira gravação.
-    Future<_RecordingRenderer> open(
+    Future<RecordingRenderer> open(
       WidgetTester tester, {
       PieceSettings pieceSettings = const PieceSettings(),
       AppSettings? appSettings,
       int? fifths = -3,
     }) async {
-      final app = appSettings ?? AppSettings();
-      settings.add(app);
-      final renderer = _RecordingRenderer();
+      if (appSettings != null) settings.add(appSettings);
+      final renderer = RecordingRenderer();
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
           home: ScoreHomePage(
             renderer: renderer,
-            opened: OpenedPiece(
+            opened: fakeOpenedPiece(
               piece: _piece(13, 'Hino', fifths: fifths),
-              scoreXml: Uint8List(1),
-              midiDeviceManager: MidiDeviceManager(),
-              onPracticeScore: (_, _) {},
-              appSettings: app,
+              appSettings: appSettings,
               pieceSettings: pieceSettings,
-              onPieceSettingsChanged: (_) {},
-              trailProgress: TrailProgressStore(),
             ),
           ),
         ),
@@ -464,7 +437,13 @@ void main() {
     testWidgets('geral e do hino são painéis separados', (tester) async {
       desktop(tester);
       await tester.pumpWidget(
-        MaterialApp(theme: buildAppTheme(), home: const ScoreHomePage()),
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: ScoreHomePage(
+            renderer: RecordingRenderer(),
+            opened: fakeOpenedPiece(),
+          ),
+        ),
       );
       await tester.pump();
 
@@ -505,7 +484,13 @@ void main() {
     testWidgets('mudar no painel geral grava na hora', (tester) async {
       desktop(tester);
       await tester.pumpWidget(
-        MaterialApp(theme: buildAppTheme(), home: const ScoreHomePage()),
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: ScoreHomePage(
+            renderer: RecordingRenderer(),
+            opened: fakeOpenedPiece(),
+          ),
+        ),
       );
       await tester.pump();
       await tester.tap(find.byTooltip('Configurações gerais'));
@@ -529,7 +514,13 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
-        MaterialApp(theme: buildAppTheme(), home: const ScoreHomePage()),
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: ScoreHomePage(
+            renderer: RecordingRenderer(),
+            opened: fakeOpenedPiece(),
+          ),
+        ),
       );
       await tester.pump();
       await tester.tap(find.byTooltip('Mais opções'));

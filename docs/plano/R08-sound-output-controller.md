@@ -66,3 +66,46 @@ extração fiel.
 
 ## Notas de execução
 
+
+Feito em 2026-10-06.
+
+- `lib/app/sound_output_controller.dart`: `SoundOutputController`
+  (`ChangeNotifier`) com `engine`, `appEngine`, `output`, `soundOn`,
+  `loadingSoundFont`, `customSoundFont`, `midiMonitorOn` e todos os métodos
+  listados, com o mesmo nome sem o `_` (`newMidiMonitor`, `toggleSound`,
+  `userToggleSound`, `restoreSound`, `ensureEngine`, `openAppEngine`,
+  `ensureMidiOutEngine`, `applyOutput`, `setUseScoreInstruments`,
+  `toggleMidiMonitor`, `disableMidiMonitor`, `tearDownMidiOutEngine`,
+  `syncMidiMonitorToDevice`, `pickEngineWithSoundFont`, `chooseSoundFont`,
+  `resetSoundFont`; `_onMidiDeviceChanged` ficou privado, é o ouvinte do
+  gerenciador). Recebe `AppSettings`, `MidiDeviceManager`, a entrada MIDI,
+  a altura do monitor (`monitorPitch`, que a tela tira do `PitchFrame`) e,
+  para o teste, `appEngineFactory`, `midiSender`, `soundFonts` e
+  `pickSoundFont`. Ouve ele mesmo as configurações (saída, Program Change,
+  "som ligado") e o dispositivo conectado; `dispose` fecha os dois motores
+  e o monitor.
+- Acoplamento com a reprodução: `SoundOutputPlayback` (`hasTrack`,
+  `attach(engine, always:)`, `detach`, `endPractice`). A tela implementa
+  com `_attachSound` (prende o agendador e retoma do ponto do player — se
+  já tocava, ou sempre com `always`, como o `_applyOutput` fazia) e
+  `_detachSound` (pausa o agendador e devolve o relógio ao player). Os
+  três caminhos de treino/ouvir que punham `_soundOn = true` chamam
+  `markSoundOn()`. Avisos que eram `SnackBar` saem por `onMessage`.
+- Na tela: `_sound` criado no `initState` (antes do ouvinte das
+  configurações, como a ordem de antes), ouvido com `addListener` →
+  `setState`. O ouvinte do dispositivo da tela ficou só com
+  `_maybeCheckTranspose`. `_engineButtonIcon` e `_enginePitchOf` ficaram
+  (são da tela e do agendador).
+- Única troca de ordem: ao desligar o som, `allNotesOff` agora vem depois
+  de pausar o agendador (antes vinha entre pausar e soltar o relógio).
+- Observação, sem mudar nada: trocar de saída com o som ligado e a música
+  **pausada** chama `scheduler.play` do ponto do player (o `_applyOutput`
+  já fazia isso; ficou igual). Vale conferir no R10.
+- `test/sound_output_controller_test.dart`, 5 testes: trocar de saída e
+  voltar preserva o motor do app; o motor MIDI é descartado (silencia o
+  teclado antigo) e recriado quando o dispositivo muda; o monitor segue a
+  preferência de cada dispositivo; sem motor aberto o monitor não liga
+  sozinho; `dispose` fecha os dois motores.
+- Aceite: nenhum dos métodos listados em `main.dart`; `wc -l` 3797 → 3476
+  (−321; 3825 antes do R07); `just analyze` limpo; `just test` 883
+  passaram, 10 pulados. **Critério 3 (manual) pendente.**

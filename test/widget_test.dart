@@ -1,7 +1,7 @@
-// Testes de widget da tela de partitura, sem hino aberto (nada nativo é
-// tocado até a biblioteca abrir um — ela tem os testes dela em
-// library_test.dart): a tela vazia, e o contrato de que o zoom e o
-// painel de opções são camadas sobre a partitura — abrir, mover ou
+// Testes de widget da tela de partitura, com um hino de mentira (a gravura
+// vem pronta de test/fixtures, nada nativo é tocado; a biblioteca tem os
+// testes dela em library_test.dart): a tela aberta, e o contrato de que o
+// zoom e o painel de opções são camadas sobre a partitura — abrir, mover ou
 // usar qualquer um deles não altera a caixa da partitura nem o tamanho de
 // página pedido ao Verovio (que só o mudaria por um re-render). O zoom vive
 // dentro do painel (não mais flutuando sobre a partitura), então os testes
@@ -19,9 +19,18 @@ import 'package:zywny/main.dart';
 import 'package:zywny/ui/phone_chrome.dart';
 import 'package:zywny/ui/theme.dart';
 
-/// A tela de partitura sozinha, como a biblioteca a abre, mas sem hino.
-Widget _scoreApp() =>
-    MaterialApp(theme: buildAppTheme(), home: const ScoreHomePage());
+import 'support/score_page_fakes.dart';
+
+/// A tela de partitura sozinha, como a biblioteca a abre.
+Widget _scoreApp() => MaterialApp(
+  theme: buildAppTheme(),
+  home: ScoreHomePage(
+    renderer: RecordingRenderer(),
+    opened: fakeOpenedPiece(
+      piece: fakePiece(number: 244, title: 'Ó Vem à Igreja Comigo'),
+    ),
+  ),
+);
 
 /// `MidiDeviceManager`/`FlutterMidiInputService` (M01) falam com canais de
 /// plataforma reais assim que a tela abre (para listar dispositivos e
@@ -75,20 +84,24 @@ void _phone(WidgetTester tester) => _useSize(tester, const Size(844, 390));
 void main() {
   setUp(_installFakeMidiAndPreferencesPlatforms);
 
-  testWidgets('sem hino, a tela fica vazia e oferece voltar à biblioteca', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('a tela grava o hino na primeira caixa e oferece voltar à '
+      'biblioteca', (WidgetTester tester) async {
     _desktop(tester);
     await tester.pumpWidget(_scoreApp());
 
     // O app não importa partitura: não há "Abrir partitura" em lugar algum.
     expect(find.text('Abrir partitura'), findsNothing);
     expect(find.text('Biblioteca'), findsOneWidget);
-    expect(find.text('nenhuma partitura'), findsOneWidget);
+    expect(find.text('Ó Vem à Igreja Comigo'), findsOneWidget);
+    // Antes do primeiro layout não há caixa para gravar: nada desenhado.
     expect(find.text('status: nenhuma partitura'), findsOneWidget);
-    // Sem documento não há página desenhada.
     expect(find.byType(ScorePageView), findsNothing);
     expect(find.text('—'), findsOneWidget);
+
+    await tester.pump(); // a caixa passa a ser conhecida
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(ScorePageView), findsWidgets);
+    expect(find.text('status: nenhuma partitura'), findsNothing);
 
     // O painel de opções (que hospeda o zoom) começa fechado.
     expect(find.byTooltip('Ajustes da partitura'), findsOneWidget);
@@ -188,7 +201,7 @@ void main() {
     await tester.pumpWidget(_scoreApp());
     await tester.pump();
 
-    // Sem partitura: a volta para a biblioteca e a barra lateral já estão lá.
+    // A volta para a biblioteca e a barra lateral estão lá desde o começo.
     expect(find.byTooltip('Voltar à biblioteca'), findsOneWidget);
     expect(find.text('andamento'), findsOneWidget);
     expect(find.text('100%'), findsOneWidget);
