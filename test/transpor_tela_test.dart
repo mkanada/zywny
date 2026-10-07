@@ -9,7 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-import 'package:score_bridge/score_bridge.dart' show VsbDocument;
+import 'package:score_bridge/score_bridge.dart' show ScoreView, VsbDocument;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -49,10 +49,20 @@ class _RecordingRenderer implements ScoreRenderer {
   final VsbDocument _document;
   final List<Map<String, Object>> options = [];
 
+  /// Devolvido no lugar da gravura do fixture enquanto não for `null`.
+  VsbDocument? next;
+
+  /// A gravura do fixture sem nenhuma página.
+  VsbDocument get empty => VsbDocument(
+    manifest: _document.manifest,
+    glyphs: _document.glyphs,
+    pages: const [],
+  );
+
   @override
   Future<RenderedScore> render(ScoreRenderRequest request) async {
     options.add(request.options);
-    return RenderedScore(_document);
+    return RenderedScore(next ?? _document);
   }
 }
 
@@ -349,6 +359,7 @@ void main() {
       PieceSettings pieceSettings = const PieceSettings(),
       AppSettings? appSettings,
       TrailProgressStore? trail,
+      bool emptyFirst = false,
     }) async {
       tester.view.physicalSize = const Size(844, 390);
       tester.view.devicePixelRatio = 1;
@@ -357,6 +368,7 @@ void main() {
       final app = appSettings ?? AppSettings();
       settings.add(app);
       final renderer = _RecordingRenderer();
+      if (emptyFirst) renderer.next = renderer.empty;
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
@@ -389,6 +401,30 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100));
     }
+
+    testWidgets('gravura sem páginas mostra o motivo, sem estourar', (
+      tester,
+    ) async {
+      await open(tester, emptyFirst: true);
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ScoreView), findsNothing);
+      expect(find.textContaining('a gravura veio sem páginas'), findsOneWidget);
+    });
+
+    testWidgets('regravar sem páginas mantém a partitura anterior', (
+      tester,
+    ) async {
+      final renderer = await open(tester);
+      expect(find.byType(ScoreView), findsOneWidget);
+
+      renderer.next = renderer.empty;
+      await openDrawer(tester);
+      await tester.tap(find.text('Sem acidentes'));
+      await settle(tester);
+      expect(tester.takeException(), isNull);
+      expect(renderer.options.last['transpose'], '-m3');
+      expect(find.byType(ScoreView), findsOneWidget);
+    });
 
     testWidgets('a gaveta tem Não, Sem acidentes e Escolher…', (tester) async {
       await open(tester);

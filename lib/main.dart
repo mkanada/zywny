@@ -944,11 +944,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     final pageWidth = _pageWidth;
     final pageHeight = _pageHeight;
     final transposition = _transposition;
-    final options = {
-      ...layoutOptionsToSend(_layout),
-      'transpose': ?transposition?.interval,
-      if (widget.debugMode) 'vsbDebug': true,
-    };
+    // A página vai à parte, em ScoreRenderRequest.
+    final options = _effectiveOptions()
+      ..remove('pageWidth')
+      ..remove('pageHeight');
 
     setState(() {
       _busy = true;
@@ -980,6 +979,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       );
 
       if (!mounted) return;
+      // Recusa antes de desmontar o player: daqui em diante o estado é
+      // trocado aos pedaços e precisa de ao menos uma página.
+      if (document.pages.isEmpty) {
+        throw StateError('a gravura veio sem páginas');
+      }
       // Com a faixa real da música, a direção da transposição pode mudar (o
       // hino passaria do teclado): nesse caso grava de novo, no fim.
       _originalRange = _rangeOf(document, transposition) ?? _originalRange;

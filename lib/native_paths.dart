@@ -55,6 +55,13 @@ String findAudioLibrary() {
   final env = Platform.environment['ZYWNY_AUDIO_LIBRARY_PATH'];
   if (env != null && env.isNotEmpty && File(env).existsSync()) return env;
 
+  if (!Platform.isLinux) {
+    throw StateError(
+      'libzywny_audio not available on ${Platform.operatingSystem} yet '
+      '(only Linux and Android are supported so far).',
+    );
+  }
+
   final candidates = <String>[
     // Installed bundle: <bundle>/zywny -> <bundle>/lib/libzywny_audio.so
     // (linux/CMakeLists.txt installs it there; RPATH is $ORIGIN/lib).
