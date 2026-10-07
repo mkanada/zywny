@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
-import '../format/course_model.dart';
+import 'package:zywny_course_format/course_model.dart';
+
 import 'exercise_round.dart';
 
 /// O veredito do histórico de rodadas de um exercício.

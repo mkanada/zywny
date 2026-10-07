@@ -8,8 +8,10 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import '../../practice/hand.dart';
-import '../format/course_files.dart';
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+
 import '../score/abc_source.dart';
 import '../score/lesson_score.dart';
 import '../score/round_score.dart';

@@ -49,27 +49,29 @@ build-release:
 run-release: build-release
     FLUTTER_ENGINE_SWITCHES=1 FLUTTER_ENGINE_SWITCH_1=enable-impeller=false ./{{linux_bundle}}
 
-# Mockup de interface (lib/mockup/): telas sem o Verovio ligado no app,
-# imagens de partitura pré-renderizadas em assets/mockup/. Entrada própria
-# (lib/main_mockup.dart) — não mexe no banco de testes do motor acima.
+# Mockup de interface (apps/zywny_mockup, membro do workspace — R12): telas
+# sem o Verovio, imagens de partitura pré-renderizadas em
+# apps/zywny_mockup/assets/. Um app à parte (com.example.zywny_mockup): não
+# mexe no app nem entra no APK dele.
 
 # Roda o mockup no Linux, sem Impeller.
 run-mockup *ARGS:
-    flutter run -d linux --no-enable-impeller -t lib/main_mockup.dart {{ARGS}}
+    cd apps/zywny_mockup && flutter run -d linux --no-enable-impeller {{ARGS}}
 
 # APK de release do mockup (arm64 só, para instalar direto no celular).
 build-mockup-apk:
-    flutter build apk --release -t lib/main_mockup.dart --target-platform android-arm64
+    cd apps/zywny_mockup && flutter build apk --release --target-platform android-arm64
 
 # Instala o APK de release do mockup no aparelho conectado (via adb).
 install-mockup-apk: build-mockup-apk
-    flutter install --release -t lib/main_mockup.dart -d android
+    cd apps/zywny_mockup && flutter install --release -d android
 
 # Bundle de release do mockup para Linux.
 build-mockup-linux:
-    flutter build linux --release -t lib/main_mockup.dart
+    cd apps/zywny_mockup && flutter build linux --release
 
-# Regenera assets/mockup/partitura_*.png (verovio CLI + Chrome headless).
+# Regenera apps/zywny_mockup/assets/partitura_*.png (verovio CLI + Chrome
+# headless).
 mockup-images:
     tool/build_mockup_images.sh
 
@@ -183,9 +185,11 @@ rebuild-deps: native assets
 fake-midi *ARGS:
     tool/fake_midi_keyboard.py {{ARGS}}
 
-# Testes Dart (headless — não passam pelo Impeller).
+# Testes Dart (headless — não passam pelo Impeller): o app e os pacotes de
+# packages/ (`dart test` nos de Dart puro, `flutter test` nos outros).
 test:
     flutter test
+    for p in packages/*/; do [ -d "$p/test" ] || continue; if grep -q "sdk: flutter" "$p/pubspec.yaml"; then (cd "$p" && flutter test) || exit 1; else (cd "$p" && dart test) || exit 1; fi; done
 
 # Análise estática.
 analyze:

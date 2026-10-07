@@ -1,9 +1,11 @@
 // I09 — dependências do fluxo de cursos: o que as telas de curso, lição e
 // exercício recebem da biblioteca (ou de quem abre o curso).
 
-import '../../audio/sound_engine.dart';
-import '../../midi/midi_device_manager.dart';
-import '../../midi/midi_input_service.dart';
+import 'package:zywny_audio/sound_engine.dart';
+
+import 'package:zywny_midi/midi_device_manager.dart';
+import 'package:zywny_midi/midi_input_service.dart';
+
 import '../../render/score_renderer.dart';
 import '../../settings/app_settings.dart';
 import '../course_progress.dart';

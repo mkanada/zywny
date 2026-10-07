@@ -3,17 +3,22 @@ import 'dart:ui' show Color;
 
 import 'package:score_bridge/score_bridge.dart';
 
-import '../../audio/metronome.dart';
-import '../../audio/score_audio_scheduler.dart';
-import '../../audio/sound_engine.dart';
-import '../../midi/midi_input_service.dart';
-import '../../music/performance_track.dart';
+import 'package:zywny_audio/metronome.dart';
+import 'package:zywny_audio/score_audio_scheduler.dart';
+import 'package:zywny_audio/sound_engine.dart';
+
+import 'package:zywny_midi/midi_input_service.dart';
+
+import 'package:zywny_audio/performance_track.dart';
+
 import '../../practice/hand.dart';
 import '../../practice/practice_colors.dart';
 import '../../practice/practice_controller.dart';
 import '../../render/score_renderer.dart';
 import '../../trail/trail_path.dart';
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_model.dart';
+
 import '../score/lesson_score.dart';
 import 'exercise_round.dart';
 

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import '../format/course_model.dart';
+import 'package:zywny_course_format/course_model.dart';
 
 /// ABC pronto para o Verovio. Um [body] que começa com `X:` é ABC completo
 /// e passa intacto; senão é só o corpo das notas e o app monta o cabeçalho:

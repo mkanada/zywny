@@ -15,7 +15,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'exercise/exercise_round.dart';
 import 'exercise/pass_check.dart';
-import 'format/course_model.dart';
+
+import 'package:zywny_course_format/course_model.dart';
 
 /// O que o aluno fez num exercício: melhor % e quantas aprovadas seguidas.
 @immutable

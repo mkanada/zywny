@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 
 import '../../ui/theme.dart';
 import '../exercise/pass_check.dart';
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_model.dart';
 
 /// Tipos com entrada MIDI (D-LIC-SEM-TECLADO): pedem "Conecte o teclado" sem
 /// teclado; os de botões funcionam sem MIDI (na Web sem Web MIDI, só eles).

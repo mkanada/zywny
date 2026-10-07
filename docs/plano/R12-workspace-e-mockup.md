@@ -71,3 +71,40 @@ Os pacotes de verdade (R13–R17). `score_bridge` no workspace.
 
 ## Notas de execução
 
+
+Feito em 2026-10-07.
+
+- **Medido:** um membro do workspace pode depender do pacote da raiz por
+  path (`zywny: {path: ../..}`); o `flutter pub get` na raiz resolve os
+  dois. O `packages/zywny_ui` não foi preciso.
+- Raiz: `workspace: [apps/zywny_mockup]` no `pubspec.yaml` (com um
+  comentário sobre o `score_bridge` ficar de fora); os dois PNG saíram dos
+  assets do app.
+- `apps/zywny_mockup/`: `pubspec.yaml` (`resolution: workspace`, depende de
+  `zywny` por path), `lib/main.dart` (era `lib/main_mockup.dart`),
+  `lib/mockup/` (os 6 arquivos, com `package:zywny/ui/…` e
+  `package:zywny/practice/hand.dart`), `assets/partitura_*.png` (movidos com
+  `git mv`), `android/` e `linux/` do `flutter create --platforms=linux,android`
+  (o `test/` de exemplo apagado), `README.md`. O mockup agora é outro app
+  (`com.example.zywny_mockup`): antes o APK do mockup tinha o mesmo id do
+  app e o substituía no celular. `minSdk` 26 como o app (os plugins dele vêm
+  junto por `package:zywny`).
+- `justfile`: os alvos do mockup rodam dentro de `apps/zywny_mockup`
+  (sem `-t`); `tool/build_mockup_images.sh` grava em
+  `apps/zywny_mockup/assets`; `docs/telas/INDICE.md`, a nota do U18, o
+  comentário de `lib/practice/hand.dart` e o I05 atualizados.
+- **Decisão do usuário (item 4):** `lib/lesson_debug_main.dart` apagado — o
+  rascunho do I12 (`just curso <pasta>`) cobre o uso.
+- Teste de camadas: `_entradasDoApp` só com `main.dart`; a regra de
+  `mockup/` saiu (fica a de `app/`).
+- Aceite: `ls lib/*.dart` só mostra `main.dart`; `flutter pub get` resolve;
+  `just analyze` limpo (o analisador da raiz cobre `apps/` também).
+  **`just run-mockup` (manual) não conferido:** nesta máquina o build Linux
+  — do app e do mockup igualmente — para no CMake do `audioplayers_linux`
+  (`gstreamer-1.0` pede `libunwind.pc`, e o `libunwind-dev` não está
+  instalado; há o `libunwind-18-dev`). Não é deste passo.
+- Critério 4: `just build-apk` refeito — `unzip -l` do
+  `app-arm64-v8a-release.apk` não tem nenhum `partitura_*.png` (o de antes
+  tinha os dois). O APK do mockup (`flutter build apk --release` em
+  `apps/zywny_mockup`) compila e leva os dois em
+  `flutter_assets/assets/`.

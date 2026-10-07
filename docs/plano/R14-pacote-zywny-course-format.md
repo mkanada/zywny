@@ -58,3 +58,29 @@ Mudar o formato ou as mensagens do validador.
 
 ## Notas de execução
 
+
+Feito em 2026-10-07.
+
+- `packages/zywny_course_format/`: `pubspec.yaml` (`resolution: workspace`;
+  `zywny_music`, `meta`, `yaml`, `archive` e `web`; `test`/`lints` de dev),
+  `lib/` com os 14 arquivos do formato (movidos com `git mv`, API igual),
+  `test/course_reader_test.dart` (de `flutter_test` para `package:test`; a
+  fixture `minimo` é lida de `../../test/fixtures/cursos/`, que continua do
+  app porque o `course_validator_test` percorre todas).
+- `web_directory_course_files.dart` ficou no pacote: o `package:web` não
+  atrapalha o `dart test` na VM (nenhum teste do pacote o importa, e o
+  `dart analyze` passa).
+- `course_render_check.dart` foi para `lib/course/` (usa
+  `score/abc_source.dart`); o CLI `tool/zywny_course.dart` o importa de lá.
+- Imports corrigidos em 54 arquivos (`package:zywny/course/format/…` e os
+  relativos viraram `package:zywny_course_format/…`). O grupo "formato" saiu
+  do teste de camadas; o teste "o formato não importa Flutter" do
+  `course_validator_test` passou a olhar `packages/zywny_course_format/lib`.
+- Ficaram no app os testes que falam com o resto: `course_validator_test`
+  (o `--render` usa o Verovio), `course_coverage_test` (lê
+  `assets/cursos/iniciacao`, conteúdo do app) e os de tela.
+- Aceite: `cd packages/zywny_course_format && dart test` 16 passaram, sem o
+  Flutter; `just curso-validar validate assets/cursos/iniciacao` e o mesmo
+  com `--render` saem 0 sem mensagens, e numa fixture `erro-*` sai 1 com os
+  erros esperados; `just analyze` limpo; `just test` verde (829 + 16 + 52);
+  `just web-smoke` limpo.

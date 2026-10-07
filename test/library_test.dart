@@ -13,10 +13,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:zywny/library/piece.dart';
-import 'package:zywny/library/piece_progress.dart';
+import 'package:zywny_library/piece.dart';
+import 'package:zywny_library/piece_progress.dart';
 import 'package:zywny/app/library_screen.dart';
-import 'package:zywny/library/library_sort.dart';
+import 'package:zywny_library/library_sort.dart';
 import 'package:zywny/main.dart';
 import 'package:zywny/trail/stage_result.dart';
 import 'package:zywny/trail/trail_progress.dart';

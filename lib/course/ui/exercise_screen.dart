@@ -16,8 +16,9 @@ import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-import '../../audio/audio_playback_clock.dart';
-import '../../audio/score_audio_scheduler.dart';
+import 'package:zywny_audio/audio_playback_clock.dart';
+import 'package:zywny_audio/score_audio_scheduler.dart';
+
 import '../../practice/count_in_overlay.dart';
 import '../../practice/input_latency.dart';
 import '../../render/score_size_log.dart';
@@ -26,13 +27,17 @@ import '../exercise/exercise_round.dart';
 import '../exercise/pass_check.dart';
 import '../exercise/score_round_runner.dart';
 import '../score/lesson_score.dart' show kLessonPageHeight;
-import '../../midi/midi_device_manager.dart';
+
+import 'package:zywny_midi/midi_device_manager.dart';
+
 import '../../midi/midi_device_picker.dart';
 import '../../practice/app_hand.dart';
 import '../../practice/practice_colors.dart' show kPracticeAppHandColor;
 import '../../ui/theme.dart';
 import 'exercise_card.dart' show exerciseGoal, exerciseNeedsMidi;
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_model.dart';
+
 import '../loaded_course.dart';
 import 'course_chrome.dart';
 import 'course_flow.dart';

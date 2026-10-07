@@ -8,8 +8,8 @@
 
 import 'package:file_selector/file_selector.dart';
 
-import '../format/course_files.dart';
-import '../format/web_directory_course_files.dart';
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/web_directory_course_files.dart';
 
 /// Na Web há sempre um caminho: a pasta (Chrome/Edge) ou o `.zip`
 /// (Firefox/Safari).

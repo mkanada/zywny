@@ -1,9 +1,12 @@
 import 'dart:math';
 
-import '../format/course_model.dart';
-import '../format/figure_rules.dart';
-import '../../music/note_name.dart';
-import '../format/vocabulary.dart';
+import 'package:zywny_course_format/course_model.dart';
+import 'package:zywny_course_format/figure_rules.dart';
+
+import 'package:zywny_music/note_name.dart';
+
+import 'package:zywny_course_format/vocabulary.dart';
+
 import 'key_signature.dart';
 
 // Gerador de MusicXML 4.0 das rodadas sorteadas (play-notes, name-note,

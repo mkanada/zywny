@@ -1,0 +1,29 @@
+name: zywny_mockup
+description: "Protótipo navegável da interface de estudo do zywny (não é o app)."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.3
+
+# Membro do workspace da raiz (R12): um `pubspec.lock` só, lá.
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # O tema, os widgets comuns e a mão (`ui/theme.dart`, `ui/widgets.dart`,
+  # `practice/hand.dart`) vêm do app.
+  zywny:
+    path: ../..
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    # Imagens de partitura pré-renderizadas (sem o Verovio ligado), geradas
+    # por tool/build_mockup_images.sh. Versionadas: poucos KB.
+    - assets/partitura_padrao.png
+    - assets/partitura_grande.png

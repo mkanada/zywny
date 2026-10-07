@@ -12,10 +12,10 @@ import 'package:zywny/course/course_progress.dart';
 import 'package:zywny/course/draft/course_draft.dart';
 import 'package:zywny/course/draft/course_draft_screen.dart';
 import 'package:zywny/course/exercise/exercise_round.dart';
-import 'package:zywny/course/format/course_files.dart';
+import 'package:zywny_course_format/course_files.dart';
 import 'package:zywny/course/ui/course_flow.dart';
-import 'package:zywny/library/library_blob_store.dart';
-import 'package:zywny/midi/midi_device_manager.dart';
+import 'package:zywny_library/library_blob_store.dart';
+import 'package:zywny_midi/midi_device_manager.dart';
 import 'package:zywny/settings/app_settings.dart';
 import 'package:zywny/ui/theme.dart';
 

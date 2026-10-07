@@ -403,15 +403,15 @@ zywny
 | [R06](R06-arquivos-soltos-da-raiz.md) | Revisão: arquivos soltos da raiz de `lib/`; lista de desvios vazia (achado 8) | R03, R04, R05 | — | **concluído** (2026-10-06) |
 | [R07](R07-opened-piece-obrigatorio.md) | Revisão: `OpenedPiece` obrigatório (achado 6) | R05 | — | código e testes feitos (2026-10-06); **aceite manual pendente** |
 | [R08](R08-sound-output-controller.md) | Revisão: `SoundOutputController` (achado 5) | R07 | — | código e testes feitos (2026-10-06); **aceite manual pendente** |
-| [R09](R09-score-render-session.md) | Revisão: `ScoreRenderSession` (achado 5) | R08 | — | pendente |
-| [R10](R10-playback-controller.md) | Revisão: `PlaybackController` (achado 5) | R09 | — | pendente |
-| [R11](R11-trail-runner.md) | Revisão: `TrailRunner` (achado 5) | R10 | — | pendente |
-| [R12](R12-workspace-e-mockup.md) | Revisão: workspace na raiz; mockup em `apps/zywny_mockup` (achado 10) | — | `lesson_debug_main` (perguntar) | pendente |
-| [R13](R13-pacote-zywny-music.md) | Revisão: pacote `zywny_music` | R06, R12 | — | pendente |
-| [R14](R14-pacote-zywny-course-format.md) | Revisão: pacote `zywny_course_format` | R13 | — | pendente |
-| [R15](R15-pacote-zywny-audio.md) | Revisão: pacote `zywny_audio` | R13 | `diag_log` (perguntar) | pendente |
-| [R16](R16-pacote-zywny-midi.md) | Revisão: pacote `zywny_midi` | R15 | — | pendente |
-| [R17](R17-pacote-zywny-library.md) | Revisão: pacote `zywny_library` | R13 | — | pendente |
+| [R09](R09-score-render-session.md) | Revisão: `ScoreRenderSession` (achado 5) | R08 | — | código e testes feitos (2026-10-07); **`just telas` pendente** |
+| [R10](R10-playback-controller.md) | Revisão: `PlaybackController` (achado 5) | R09 | — | código e testes feitos (2026-10-07); **aceite manual pendente** |
+| [R11](R11-trail-runner.md) | Revisão: `TrailRunner` (achado 5) | R10 | — | código e testes feitos (2026-10-07); **`just telas` e aceite manual pendentes** |
+| [R12](R12-workspace-e-mockup.md) | Revisão: workspace na raiz; mockup em `apps/zywny_mockup` (achado 10) | — | `lesson_debug_main`: apagado | feito (2026-10-07); **`just run-mockup` (manual) pendente** |
+| [R13](R13-pacote-zywny-music.md) | Revisão: pacote `zywny_music` | R06, R12 | — | **concluído** (2026-10-07) |
+| [R14](R14-pacote-zywny-course-format.md) | Revisão: pacote `zywny_course_format` | R13 | — | **concluído** (2026-10-07) |
+| [R15](R15-pacote-zywny-audio.md) | Revisão: pacote `zywny_audio` | R13 | `diag_log`: `packages/zywny_diag` | código e testes feitos (2026-10-07); **aceite manual pendente** |
+| [R16](R16-pacote-zywny-midi.md) | Revisão: pacote `zywny_midi` | R15 | — | código e testes feitos (2026-10-07); **aceite manual pendente** |
+| [R17](R17-pacote-zywny-library.md) | Revisão: pacote `zywny_library` | R13 | — | código e testes feitos (2026-10-07); **aceite manual pendente** |
 
 Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
 Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em

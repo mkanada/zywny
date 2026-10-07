@@ -2,7 +2,7 @@
 // entidades HTML (`&quot;`) porque o `Document` vinha com `encodeHtml`.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/course/format/course_files.dart';
+import 'package:zywny_course_format/course_files.dart';
 import 'package:zywny/course/ui/markdown_view.dart';
 
 void main() {

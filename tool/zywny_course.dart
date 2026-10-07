@@ -14,10 +14,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:verovio/verovio.dart';
-import 'package:zywny/course/format/course_model.dart';
-import 'package:zywny/course/format/course_reader.dart';
-import 'package:zywny/course/format/course_render_check.dart';
-import 'package:zywny/course/format/directory_course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+import 'package:zywny_course_format/course_reader.dart';
+import 'package:zywny/course/course_render_check.dart';
+import 'package:zywny_course_format/directory_course_files.dart';
 import 'package:zywny/render/verovio_paths.dart';
 
 Future<void> main(List<String> args) async {

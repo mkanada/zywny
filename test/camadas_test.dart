@@ -3,53 +3,17 @@
 // docs/revisao/2026-10-06-qualidade-e-divisao.md). Os desvios de hoje estão
 // em `_desviosConhecidos`; cada passo R apaga as linhas que resolveu, e o
 // teste falha tanto com um desvio novo quanto com um que já sumiu do código.
+//
+// As camadas de baixo (base musical, formato dos cursos, som, diagnóstico,
+// MIDI e bibliotecas) viraram pacotes do workspace nos passos R13–R17: o
+// compilador já impede que importem o app, e os grupos delas saíram daqui.
+// Ficam as regras entre pastas que continuam no app.
 
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Uma camada: um conjunto de arquivos (caminhos relativos a `lib/`) e os
-/// grupos de que eles podem depender, além de si mesmos.
-class _Grupo {
-  const _Grupo(this.nome, this.contem, this.podeImportar);
-
-  final String nome;
-  final bool Function(String arquivo) contem;
-  final List<String> podeImportar;
-}
-
 bool _sob(String arquivo, String pasta) => arquivo.startsWith('$pasta/');
-
-const _midiDoPacote = {
-  'midi/midi_input_service.dart',
-  'midi/midi_device_manager.dart',
-  'midi/midi_out_sound_engine.dart',
-  'midi/midi_monitor.dart',
-  'midi/midi_labels.dart',
-};
-
-final _grupos = <_Grupo>[
-  _Grupo('music', (f) => _sob(f, 'music'), []),
-  _Grupo(
-    'formato',
-    (f) =>
-        _sob(f, 'course/format') &&
-        f != 'course/format/course_render_check.dart',
-    ['music'],
-  ),
-  _Grupo(
-    'áudio',
-    (f) => _sob(f, 'audio') && !f.startsWith('audio/sound_engine_debug_panel'),
-    ['music', 'core'],
-  ),
-  _Grupo(
-    'midi',
-    (f) => _midiDoPacote.contains(f) || f.startsWith('midi/web_midi_access'),
-    ['áudio', 'music', 'core'],
-  ),
-  _Grupo('biblioteca', (f) => _sob(f, 'library'), ['music', 'core']),
-  _Grupo('core', (f) => _sob(f, 'core'), []),
-];
 
 const _appSettings = 'settings/app_settings.dart';
 const _folhasDeAppSettings = {
@@ -57,43 +21,27 @@ const _folhasDeAppSettings = {
   'practice/practice_colors.dart',
   'trail/trail_stage.dart',
 };
-const _entradasDoApp = {'main.dart', 'main_mockup.dart'};
+const _entradasDoApp = {'main.dart'};
 
 /// As regras que o par `origem → alvo` quebra (vazia se nenhuma).
 List<String> _regrasQuebradas(String origem, String alvo) {
   final quebradas = <String>[];
-  for (final g in _grupos.where((g) => g.contem(origem))) {
-    if (g.contem(alvo)) continue;
-    final permitido = g.podeImportar.any(
-      (nome) => _grupos.firstWhere((o) => o.nome == nome).contem(alvo),
-    );
-    if (!permitido) {
-      quebradas.add(
-        g.podeImportar.isEmpty
-            ? 'a camada ${g.nome} não importa outras pastas de lib/'
-            : 'a camada ${g.nome} só importa de ${g.podeImportar.join(', ')}',
-      );
-    }
-  }
   if (_sob(origem, 'practice') && _sob(alvo, 'trail')) {
     quebradas.add('practice/ não importa trail/');
   }
-  if (origem == _appSettings &&
-      !_sob(alvo, 'music') &&
-      !_folhasDeAppSettings.contains(alvo)) {
+  // Fora de lib/, só a base musical (`package:zywny_music`), que o
+  // compilador já separa.
+  if (origem == _appSettings && !_folhasDeAppSettings.contains(alvo)) {
     quebradas.add(
-      '$_appSettings só importa music/ e '
-      '${_folhasDeAppSettings.join(', ')}',
+      '$_appSettings só importa ${_folhasDeAppSettings.join(', ')}',
     );
   }
-  for (final pasta in ['app', 'mockup']) {
-    if (_sob(alvo, pasta) &&
-        !_sob(origem, pasta) &&
-        !_entradasDoApp.contains(origem)) {
-      quebradas.add(
-        'só ${_entradasDoApp.join(' e ')} e a própria pasta importam $pasta/',
-      );
-    }
+  if (_sob(alvo, 'app') &&
+      !_sob(origem, 'app') &&
+      !_entradasDoApp.contains(origem)) {
+    quebradas.add(
+      'só ${_entradasDoApp.join(' e ')} e a própria pasta importam app/',
+    );
   }
   return quebradas;
 }
@@ -171,11 +119,11 @@ export 'c_stub.dart'
   });
 
   test('as regras pegam um import proibido', () {
-    expect(_regrasQuebradas('music/transposition.dart', 'practice/hand.dart'), [
-      'a camada music não importa outras pastas de lib/',
+    expect(_regrasQuebradas('practice/hand.dart', 'trail/trail_stage.dart'), [
+      'practice/ não importa trail/',
     ]);
     expect(
-      _regrasQuebradas('midi/midi_monitor.dart', 'audio/sound_engine.dart'),
+      _regrasQuebradas('trail/trail_stage.dart', 'practice/hand.dart'),
       isEmpty,
     );
   });

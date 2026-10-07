@@ -8,7 +8,7 @@ import 'draft_folder_web.dart'
     if (dart.library.io) 'draft_folder_io.dart'
     as impl;
 
-import '../format/course_files.dart';
+import 'package:zywny_course_format/course_files.dart';
 
 /// O seletor de rascunho existe aqui? (desktop e Web; no Android, não.)
 bool get draftPickerAvailable => impl.draftPickerAvailable;

@@ -9,12 +9,16 @@
 
 import 'package:flutter/material.dart';
 
-import '../../audio/sound_engine.dart';
+import 'package:zywny_audio/sound_engine.dart';
+
 import '../../render/score_renderer.dart';
 import '../../ui/theme.dart';
-import '../format/course_files.dart';
-import '../format/course_model.dart';
-import '../../music/note_names.dart';
+
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+
+import 'package:zywny_music/note_names.dart';
+
 import 'audio_mark_view.dart';
 import 'exercise_card.dart';
 import 'keyboard_mark_view.dart';

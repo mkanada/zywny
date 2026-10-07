@@ -6,7 +6,9 @@
 import 'package:flutter/material.dart';
 
 import '../../ui/theme.dart';
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_model.dart';
+
 import 'markdown_view.dart' show LessonLinkOpener, defaultLessonLinkOpener;
 
 /// O domínio de [link] ("youtube.com"), ou o próprio texto se não der para ler.

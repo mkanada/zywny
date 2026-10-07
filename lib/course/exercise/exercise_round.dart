@@ -3,7 +3,8 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 
 import '../../practice/hand.dart';
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_model.dart';
 
 /// Uma rodada de exercício, já sorteada e pronta para rodar. Duas famílias:
 /// as de **partitura** (o aluno toca no teclado MIDI) e as de **pergunta**

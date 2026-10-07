@@ -8,7 +8,7 @@
 
 import 'package:flutter/services.dart';
 
-import 'format/course_files.dart';
+import 'package:zywny_course_format/course_files.dart';
 
 /// O prefixo do curso inicial nos assets, sem barra no fim.
 const kBuiltInCoursePrefix = 'assets/cursos/iniciacao';

@@ -5,7 +5,7 @@ Todas as telas do app num só lugar, em ordem de uso. Capturas do app real num c
 - Como refazer as fotos e o que elas não mostram: [`celular/README.md`](celular/README.md).
 - Análise de UX a partir delas: [`../ux/estudo-ux-celular.md`](../ux/estudo-ux-celular.md).
 - As mesmas telas em retrato e em paisagem, lado a lado: [`ORIENTACAO.md`](ORIENTACAO.md); análise em [`../ux/estudo-ux-orientacao.md`](../ux/estudo-ux-orientacao.md).
-- Protótipo navegável (não é o app): `lib/mockup/` e `lib/main_mockup.dart` — não entra nas fotos.
+- Protótipo navegável (não é o app): `apps/zywny_mockup/` (`just run-mockup`) — não entra nas fotos.
 
 Total: 67 telas.
 
@@ -53,7 +53,7 @@ Código: `lib/main.dart` · `lib/trail/trail_widgets.dart` · `lib/ui/side_panel
 
 Paisagem. Painéis laterais abertos sobre a partitura.
 
-Código: `lib/mockup/options_panel.dart` · `lib/app/layout_panel.dart` · `lib/practice/practice_tools.dart`
+Código: `apps/zywny_mockup/lib/mockup/options_panel.dart` · `lib/app/layout_panel.dart` · `lib/practice/practice_tools.dart`
 
 <table><tr><td align="center"><a href="celular/14-opcoes-de-estudo.png"><img src="celular/14-opcoes-de-estudo.png" width="440"></a><br><sub><b>14</b> · Opções de estudo (começo)</sub></td><td align="center"><a href="celular/15-opcoes-de-estudo-meio.png"><img src="celular/15-opcoes-de-estudo-meio.png" width="440"></a><br><sub><b>15</b> · Opções de estudo (meio)</sub></td></tr></table>
 

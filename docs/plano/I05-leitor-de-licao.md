@@ -158,6 +158,7 @@ lição pulado).
   (fora do `main.dart`, que compila para a Web e não pode importar `dart:io`):
   `flutter run -d linux --no-enable-impeller -t lib/lesson_debug_main.dart
   --dart-entrypoint-args="--licao <pasta> <id>"`. O I09 substitui pelas telas.
+  (Apagada no R12: o rascunho do I12, `just curso <pasta>`, cobre o uso.)
 - Fixture `test/fixtures/cursos/licao-i05/` (válida; um aviso de HTML de
   propósito) com `.mp3` e `.ogg` reais (seno 440 Hz, 0,5 s, gerados com ffmpeg).
 - Testes: `test/note_names_test.dart` (12 sons, duas grafias, oitava,

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:zywny/library/library_envelope.dart';
-import 'package:zywny/library/library_package.dart';
+import 'package:zywny_library/library_envelope.dart';
+import 'package:zywny_library/library_package.dart';
 
 /// Os hinos de verdade, só para os testes manuais (que dependem do Verovio
 /// nativo): lê `dist/hinos.zywny` (`just pacote-hinos`) com a chave de

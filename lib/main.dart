@@ -6,41 +6,50 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, listEquals, setEquals, visibleForTesting;
+    show defaultTargetPlatform, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
-import 'audio/audio_playback_clock.dart';
-import 'audio/metronome.dart';
-import 'audio/score_audio_scheduler.dart';
-import 'audio/sound_engine.dart';
+import 'package:zywny_audio/sound_engine.dart';
+
 import 'audio/sound_engine_debug_panel.dart';
 import 'course/built_in_course.dart';
 import 'render/layout_options.dart';
 import 'app/layout_panel.dart';
-import 'library/library_keys.dart' show progressIdFor;
-import 'library/piece.dart';
-import 'library/library_package.dart' show LibraryTerm;
+
+import 'package:zywny_library/piece.dart';
+import 'package:zywny_library/library_package.dart' show LibraryTerm;
+
 import 'app/library_screen.dart';
+import 'app/playback_controller.dart';
+import 'app/score_render_session.dart';
 import 'app/sound_output_controller.dart';
-import 'library/library_term_scope.dart';
-import 'midi/midi_device_manager.dart';
+import 'app/trail_runner.dart';
+
+import 'package:zywny_library/library_term_scope.dart';
+
+import 'package:zywny_midi/midi_device_manager.dart';
+
 import 'midi/midi_device_picker.dart';
-import 'midi/midi_input_service.dart';
-import 'midi/midi_monitor.dart';
+
+import 'package:zywny_midi/midi_input_service.dart';
+import 'package:zywny_midi/midi_monitor.dart';
+
 import 'midi/midi_monitor_panel.dart';
-import 'midi/midi_out_sound_engine.dart';
+
+import 'package:zywny_midi/midi_out_sound_engine.dart';
+
 import 'practice/transpose_check.dart';
-import 'music/pitch_frame.dart';
-import 'music/performance_track.dart';
-import 'music/tone_choices.dart';
-import 'music/transposition.dart';
-import 'practice/app_hand.dart';
+
+import 'package:zywny_music/pitch_frame.dart';
+
+import 'package:zywny_audio/performance_track.dart';
+
+import 'package:zywny_music/tone_choices.dart';
+
 import 'practice/count_in_overlay.dart';
 import 'practice/hand.dart';
-import 'practice/input_latency.dart';
 import 'practice/practice_colors.dart';
 import 'practice/practice_controller.dart';
 import 'practice/shift_banner.dart';
@@ -53,20 +62,18 @@ import 'settings/effective_transposition.dart';
 import 'app/general_settings_panel.dart';
 import 'settings/piece_settings.dart';
 import 'app/splash_screen.dart';
-import 'trail/stage_result.dart'
-    show StagePass, StageResult, kTrailPassAccuracy;
-import 'trail/trail_controller.dart';
-import 'trail/trail_path.dart';
-import 'trail/trail_plan.dart';
+import 'trail/stage_result.dart' show kTrailPassAccuracy;
 import 'trail/trail_progress.dart';
-import 'trail/trail_stage.dart' show TrailPhase, TrailStage, kTrailMinMeasures;
+import 'trail/trail_stage.dart' show kTrailMinMeasures;
 import 'trail/trail_widgets.dart';
 import 'ui/phone_chrome.dart';
 import 'ui/practice_legend.dart';
 import 'ui/side_panel.dart';
 import 'ui/theme.dart';
 import 'ui/transpose_widgets.dart';
-import 'core/diag_log.dart';
+
+import 'package:zywny_diag/diag_log.dart';
+
 import 'render/score_renderer.dart';
 
 Future<void> main(List<String> args) async {
@@ -180,33 +187,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   late final String _scoreName = _piece.number == null
       ? _piece.title
       : '${_piece.number} · ${_piece.title}';
-  late final Uint8List _scoreXml = widget.opened.scoreXml;
-  late final ScoreRenderer _renderer = widget.renderer ?? createScoreRenderer();
-  VsbDocument? _document;
-  int _pageIndex = 0;
-  String _status = 'nenhuma partitura';
 
-  /// A última gravação falhou — o celular não tem linha de status, então
-  /// o motivo aparece no lugar da partitura.
-  String? _renderError;
-  bool _busy = false;
-
-  /// A render was asked for while another was running; it starts as soon as
-  /// that one ends, with whatever the options are by then.
-  bool _renderQueued = false;
-
-  /// A transposição com que o [_document] foi gravado (`null` = no tom
-  /// original) e a faixa da música **original** lida do `midi.json` dessa
-  /// gravura, em MIDI. Antes da primeira gravura a faixa é a do catálogo;
-  /// com ela, a direção da transposição é conferida contra o teclado (Q03).
-  Transposition? _renderedTransposition;
-  ({int lowest, int highest})? _originalRange;
-
-  /// Size of the score box in device pixels, from the [LayoutBuilder] in
-  /// [_buildScoreArea]. The page is engraved for exactly this box, so there
-  /// is nothing to render before the first layout.
-  Size? _boxDevicePx;
-  Timer? _resizeDebounce;
+  /// A gravura (R09): render, fila, caixa, layout e tom deste hino. A cada
+  /// documento novo chama [_onDocument], que monta o player.
+  late final ScoreRenderSession _session;
 
   /// Configurações gerais (som, MIDI, cores…): as da biblioteca, já lidas
   /// por ela. Ver [_onSettingsChanged].
@@ -214,27 +198,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// O que este hino tinha guardado ao abrir (layout, andamento, mão).
   late final PieceSettings _stored = widget.opened.pieceSettings;
-
-  /// A escolha de transposição deste hino (fase Q): `null` = a pessoa não
-  /// escolheu (vale a chave geral), [kTransposeNone] = "Não", ou um intervalo.
-  /// Nasce do que estava guardado e muda pelo item "Transpor" da gaveta.
-  late String? _transposeChoice = _stored.transpose;
-
-  /// "Também estudada: original, 3 de 8 etapas" (Q04/Q08): os outros tons em
-  /// que este hino tem trilha. Lido a cada trilha montada.
-  String? _alsoStudied;
-
-  /// O layout de um hino em que nada foi mexido.
-  static Map<String, Object> get _layoutDefaults =>
-      initialLayoutValues(phone: _isPhone);
-
-  /// Verovio options of this piece, by name (see `layout_options.dart`):
-  /// the app's defaults with whatever was changed for it.
-  late Map<String, Object> _layout = _stored.layoutOver(_layoutDefaults);
-
-  /// Whether the page is sized from the score box ([_pageWidth] /
-  /// [_pageHeight]) or from the `pageWidth`/`pageHeight` options.
-  late bool _pageFitsBox = _stored.pageFitsBox;
 
   /// Painel "Layout deste hino" e painel "Configurações gerais" — um de
   /// cada vez.
@@ -254,8 +217,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   final TransformationController _view = TransformationController();
   Size _viewport = Size.zero;
 
-  int get _pageCount => _document?.pages.length ?? 0;
-
   /// Note highlights. Repaints the page through its own listenable, so
   /// playback never rebuilds this widget.
   final ScoreController _controller = ScoreController();
@@ -264,26 +225,22 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Page navigation and page-turn animation (sweep bar) of the [ScoreView].
   final ScoreViewController _viewController = ScoreViewController();
 
-  /// Playback: walks the timemap, highlights notes through [_controller] and
-  /// drives the page-turn sweep. Rebuilt for every new engraving.
-  ScorePlayer? _player;
-  bool _playing = false;
-
-  /// Notas tocáveis da peça corrente (N03), reconstruída a cada nova
-  /// gravura junto com [_player] — o que [ScoreAudioScheduler] agenda.
-  PerformanceTrack? _track;
-
   /// Por onde sai o som (R08): os dois motores, a saída em uso, o `.sf2` e
-  /// o monitor MIDI. Sobrevive a novas gravuras (só [_scheduler] é
+  /// o monitor MIDI. Sobrevive a novas gravuras (só o agendador é
   /// recriado, um por `.vsb`).
   late final SoundOutputController _sound;
-  ScoreAudioScheduler? _scheduler;
-  AudioPlaybackClock? _audioClock;
+
+  /// Tocar a partitura (R10): player, agendador, contagem, loop, metrônomo
+  /// e andamento. Um player por gravura ([_onDocument]).
+  late final PlaybackController _playback;
+
+  /// A trilha de estudo (fase J) e o treino em curso (R11): a etapa, o
+  /// ouvir, o treino livre e as marcas na pauta.
+  late final TrailRunner _runner;
 
   /// Modo treino (T02): armado pelo usuário, só passa a valer no Play
   /// ("Praticar") quando também há um teclado MIDI conectado — ver
-  /// [_canTrain]. [_practice] existe só enquanto a sessão de modo espera
-  /// está de fato tocando.
+  /// [_canTrain].
   bool _trainingMode = false;
   late Hand _hand = _stored.hand ?? _kDefaultHand;
   static const _kDefaultHand = Hand.direita;
@@ -292,48 +249,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// configuração geral.
   PracticeMode get _practiceMode => _settings.practiceMode;
   set _practiceMode(PracticeMode value) => _settings.practiceMode = value;
-  PracticeController? _practice;
 
-  /// Trilha de estudo (fase J): plano do hino, progresso e etapa selecionada.
-  /// `null` sem trilha (caminho com saltos até o J08, ou partitura sem
-  /// número de hino) — aí a tela abre direto no modo livre. Detalhes em
-  /// `lib/trail/`.
-  ///
-  /// O store é o da biblioteca (a linha do hino atualiza ao voltar sem
-  /// reabrir nada — J09).
+  /// O progresso das trilhas é o da biblioteca (a linha do hino atualiza ao
+  /// voltar sem reabrir nada — J09).
   late final TrailProgressStore _trailStore = widget.opened.trailProgress;
-  TrailController? _trail;
-
-  /// Por que não há trilha (explicação no lugar da faixa); `null` com trilha
-  /// ou sem partitura.
-  String? _trailUnavailable;
-
-  /// N da trilha deste hino (`null` = o geral); começa no guardado e muda
-  /// pela gaveta de opções (J06).
-  int? _trailPieceN;
 
   /// Gaveta da trilha aberta (J06).
   bool _trailDrawerOpen = false;
-
-  /// Acessórios de treino (T04). O loop guarda **ocorrências** de compasso
-  /// (índices em `ScorePlayer.measures`, ordem de execução); metrônomo e
-  /// contagem só soam com o som do app ligado (o agendador é quem clica).
-  /// O metrônomo é configuração geral ([_settings]); a contagem não é
-  /// escolha: tudo o que anda no tempo (play, tempo real) começa com
-  /// 1 compasso dela, e o modo espera — em que o tempo espera o aluno — não.
-  bool get _metronomeOn => _settings.metronomeOn;
-  set _metronomeOn(bool value) => _settings.metronomeOn = value;
-  ({int a, int b})? _loop;
-
-  /// Contagem do play com o som desligado: sem agendador para contar, a
-  /// tela segura o player e conta sozinha — o número e, com o sintetizador
-  /// do app aberto, os cliques (a música segue muda). `null` fora dela.
-  Timer? _silentCountInTimer;
-  CountInTick? Function()? _silentCountIn;
-  SoundEngine? _silentCountInEngine;
-
-  /// Latência de entrada+saída calibrada para o teclado/saída correntes.
-  double _inputLatencyMs = 0;
 
   /// Program Change (M03) — configuração geral.
   bool get _useScoreInstruments => _settings.useScoreInstruments;
@@ -356,13 +278,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   );
   bool _midiPanelOpen = false;
 
-  /// 0,5×–1,5×; alimenta [_scheduler] com som ligado, ou `ScorePlayer.speed`
-  /// mudo (C01: o relógio externo ignora `speed`).
-  late double _speed = _stored.speed ?? 1.0;
-
   /// Appearance, from the general settings — pure paint-time, none of them
   /// reach Verovio or reflow the score.
-  Color get _highlightColor => _settings.highlightColor;
   double get _haloWidth => _settings.haloWidth;
   Color get _barColor => _settings.barColor;
 
@@ -379,42 +296,28 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   VsbDocument? _barWidthDocument;
   double _barWidth = 0;
 
-  bool get _canPlay => (_document?.timemap?.isNotEmpty ?? false) && !_busy;
+  bool get _canPlay =>
+      (_session.document?.timemap?.isNotEmpty ?? false) && !_session.busy;
 
   /// O Play vira "Praticar" (T02) só com modo treino armado **e** teclado
   /// MIDI conectado — sem dispositivo não há como o aluno tocar.
   bool get _canTrain =>
       _canPlay && _trainingMode && _midiDeviceManager.connected.value != null;
 
-  /// Paper size, in tenths of a millimetre, that makes one device pixel one
-  /// unit — i.e. the page is engraved at 254 dpi and drawn 1:1, which is the
-  /// configuration `compare` measured against the reference SVG. Anything
-  /// larger would show the notation shrunk, pushing stroke widths below a
-  /// pixel (a 0.13 mm staff line needs ~7.7 px/mm to survive).
-  Size? get _fittedPage {
-    final box = _boxDevicePx;
-    if (box == null) return null;
-    return Size(
-      box.width
-          .round()
-          .clamp(kVerovioMinPageWidth, kVerovioMaxPageWidth)
-          .toDouble(),
-      box.height
-          .round()
-          .clamp(kVerovioMinPageHeight, kVerovioMaxPageHeight)
-          .toDouble(),
-    );
-  }
-
-  int get _pageWidth =>
-      _pageFitsBox ? _fittedPage!.width.round() : _layout['pageWidth'] as int;
-
-  int get _pageHeight =>
-      _pageFitsBox ? _fittedPage!.height.round() : _layout['pageHeight'] as int;
-
   @override
   void initState() {
     super.initState();
+    _session = ScoreRenderSession(
+      renderer: widget.renderer ?? createScoreRenderer(),
+      scoreXml: widget.opened.scoreXml,
+      piece: _piece,
+      settings: _settings,
+      stored: _stored,
+      name: _scoreName,
+      phone: _isPhone,
+      debugMode: widget.debugMode,
+      onDocument: _onDocument,
+    )..addListener(_onSessionChanged);
     _sound = SoundOutputController(
       settings: _settings,
       devices: _midiDeviceManager,
@@ -422,15 +325,69 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       monitorPitch: (r, {required midiKeyboard}) =>
           _pitchFrame.engineFromReceived(r, midiKeyboard: midiKeyboard),
       playback: SoundOutputPlayback(
-        hasTrack: () => _track != null,
-        attach: _attachSound,
-        detach: _detachSound,
-        endPractice: _endPractice,
+        hasTrack: () => _playback.track != null,
+        attach: (engine, {required always}) =>
+            _playback.attachSound(engine, always: always),
+        detach: () => _playback.detachSound(),
+        endPractice: () => _runner.endPractice(),
       ),
       onMessage: _showMessage,
     )..addListener(_onSoundChanged);
+    _playback = PlaybackController(
+      sound: _sound,
+      settings: _settings,
+      controller: _controller,
+      view: _viewController,
+      speed: _stored.speed ?? 1.0,
+      barWidthOf: _barWidthOf,
+      pitchOf: _enginePitchOf,
+      onEnded: () => _runner.endPractice(),
+      onLoopChanged: (range) => range == null
+          ? _runner.practice?.clearLoop()
+          : _runner.practice?.setLoop(range.startMs, range.endMs),
+    )..addListener(_onPlaybackChanged);
+    _runner = TrailRunner(
+      store: _trailStore,
+      playback: _playback,
+      session: _session,
+      sound: _sound,
+      settings: _settings,
+      devices: _midiDeviceManager,
+      midiInput: _midiInput,
+      piece: _piece,
+      term: _term,
+      scores: _controller,
+      ghosts: _ghosts,
+      shiftDetector: _shiftDetector,
+      onShift: _onShiftDetected,
+      writtenFromReceived: (r) => _pitchFrame.writtenFromReceived(r),
+      pieceN: _stored.trailMeasures,
+      host: TrailRunnerHost(
+        stageSummary:
+            ({
+              required stageRef,
+              required result,
+              required badLogical,
+              required isLast,
+              blockCount,
+            }) => showStageSummary(
+              context,
+              stageRef: stageRef,
+              result: result,
+              badLogical: badLogical,
+              isLast: isLast,
+              blockCount: blockCount,
+              sidePanel: _phoneLayout,
+            ),
+        conclusion: () => showTrailConclusion(context, sidePanel: _phoneLayout),
+        backToLibrary: _backToLibrary,
+        practiceReport: _onPracticeReport,
+        pieceNChanged: (n) => widget.opened.onPieceSettingsChanged(
+          _pieceSettingsWith(trailMeasures: n),
+        ),
+      ),
+    )..addListener(_onRunnerChanged);
     _midiDeviceManager.connected.addListener(_maybeCheckTranspose);
-    _trailPieceN = _stored.trailMeasures;
     _settings.addListener(_onSettingsChanged);
     // A partitura é para ler em paisagem no celular (a biblioteca, em
     // retrato, volta a travar a orientação dela quando esta tela fecha); no
@@ -452,40 +409,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   }
 
   /// As configurações gerais mudaram — pelo painel desta tela ou por
-  /// qualquer outro caminho: aplica ao que está vivo aqui (motor de saída,
-  /// agendador, player) e redesenha.
+  /// qualquer outro caminho: os controllers aplicam o que é deles; aqui só
+  /// redesenha.
   void _onSettingsChanged() {
-    if (!mounted) return;
-    _scheduler?.metronomeOn = _settings.metronomeOn;
-    // O N geral mudou e o hino usa o padrão: o corte muda junto (a trilha
-    // antiga cai ao abrir, em `_setupTrail`).
-    final trail = _trail;
-    if (trail != null && !trail.running) {
-      final effective = effectiveTrailMeasures(
-        general: _settings.trailMeasures,
-        piece: _trailPieceN,
-      );
-      if (effective != trail.plan.n ||
-          !listEquals(_planPhases, _settings.trailPlanPhases) ||
-          !setEquals(_planSpeeds, _settings.trailSpeeds)) {
-        unawaited(_setupTrail());
-      }
-    }
-    // No treino o player destaca na cor de "esperado agora"; a cor da
-    // reprodução volta em [_endPractice].
-    _player?.highlightColor = _practice == null
-        ? _settings.highlightColor
-        : _settings.practicePendingColor;
-    _practice
-      ?..correctColor = _settings.highlightColor
-      ..wrongColor = _settings.practiceWrongColor
-      ..pendingColor = _settings.practicePendingColor;
-    // "Abrir as músicas já sem acidentes" mudou e este hino não tem escolha
-    // própria: a partitura é regravada no outro tom.
-    if (_document != null && _transposition != _renderedTransposition) {
-      unawaited(_renderAndShow());
-    }
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   /// Guarda o que é deste hino (layout, andamento, mão). Com um respiro: um
@@ -501,12 +428,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Timer? _saveDebounce;
 
   PieceSettings _pieceSettingsWith({int? trailMeasures}) => PieceSettings(
-    layout: PieceSettings.layoutOverrides(_layout, _layoutDefaults),
-    pageFitsBox: _pageFitsBox,
-    speed: _speed == 1.0 ? null : _speed,
+    layout: PieceSettings.layoutOverrides(
+      _session.layout,
+      _session.layoutDefaults,
+    ),
+    pageFitsBox: _session.pageFitsBox,
+    speed: _playback.speed == 1.0 ? null : _playback.speed,
     hand: _hand == _kDefaultHand ? null : _hand,
     trailMeasures: trailMeasures,
-    transpose: _transposeChoice,
+    transpose: _session.transposeChoice,
   );
 
   void _flushPieceSettings() {
@@ -514,118 +444,52 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _saveDebounce?.cancel();
     _saveDebounce = null;
     widget.opened.onPieceSettingsChanged(
-      _pieceSettingsWith(trailMeasures: _trailPieceN),
+      _pieceSettingsWith(trailMeasures: _runner.pieceN),
     );
   }
 
   /// Maior N que o controle do hino oferece: 20, ou os compassos lógicos.
   int get _trailMaxN {
-    final measures = _trail?.path.measureCount ?? 20;
+    final measures = _runner.trail?.path.measureCount ?? 20;
     if (measures < kTrailMinMeasures) return kTrailMinMeasures;
     return measures < 20 ? measures : 20;
   }
 
-  /// Troca o N do hino (`null` = padrão geral). Mudar o N efetivo com
-  /// progresso pede confirmação e zera a trilha do hino (J06).
-  Future<void> _setPieceTrailN(int? value) async {
-    final opened = widget.opened;
-    final oldEffective = effectiveTrailMeasures(
-      general: _settings.trailMeasures,
-      piece: _trailPieceN,
-    );
-    final newEffective = effectiveTrailMeasures(
-      general: _settings.trailMeasures,
-      piece: value,
-    );
-    if (newEffective != oldEffective &&
-        _trail != null &&
-        _trail!.progress.done > 0 &&
-        mounted) {
-      final ok = await confirmTrailReset(
-        context,
-        title: 'Trocar o corte?',
-        message: 'Isto reinicia a trilha ${_term.deste} ${_term.singular}.',
-        confirmLabel: 'Trocar',
-      );
-      if (!ok) return;
-      await _trailStore.reset(
-        progressIdFor(opened.piece.id, _renderedTransposition),
-      );
-    }
-    opened.onPieceSettingsChanged(_pieceSettingsWith(trailMeasures: value));
-    if (!mounted) return;
-    setState(() => _trailPieceN = value);
-    if (newEffective != oldEffective) unawaited(_setupTrail());
-  }
+  /// Mudar o N efetivo com progresso reinicia a trilha do hino (J06).
+  Future<bool> _confirmNewCut() => confirmTrailReset(
+    context,
+    title: 'Trocar o corte?',
+    message: 'Isto reinicia a trilha ${_term.deste} ${_term.singular}.',
+    confirmLabel: 'Trocar',
+  );
 
   @override
   void dispose() {
     if (_isPhone) {
       unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     }
-    _listenTimer?.cancel();
-    _countInPlayTimer?.cancel();
-    if (_playing) unawaited(WakelockPlus.disable());
-    _resizeDebounce?.cancel();
+    _session
+      ..removeListener(_onSessionChanged)
+      ..dispose();
     _flushPieceSettings();
     _settings.removeListener(_onSettingsChanged);
     _shiftNotice.dispose();
-    _silentCountInTimer?.cancel();
-    _practice?.dispose();
-    _trail?.removeListener(_onTrailChanged);
-    _trail?.dispose();
+    _runner
+      ..removeListener(_onRunnerChanged)
+      ..dispose();
     _midiDeviceManager.connected.removeListener(_maybeCheckTranspose);
-    _scheduler?.dispose();
+    _playback
+      ..removeListener(_onPlaybackChanged)
+      ..dispose();
     _sound
       ..removeListener(_onSoundChanged)
       ..dispose();
     _midiInput.dispose();
-    _player?.dispose();
     _viewController.dispose();
     _controller.dispose();
     _ghosts.dispose();
     _view.dispose();
     super.dispose();
-  }
-
-  /// Records the score box and re-engraves when it really changed.
-  ///
-  /// Called from `build`, so it must never call `setState` synchronously;
-  /// the re-render goes through a debounce both for that and because a
-  /// window drag emits a size per frame, each one an FFI render away.
-  void _onBoxSize(Size devicePx) {
-    final previous = _boxDevicePx;
-    if (previous == devicePx) return;
-    _boxDevicePx = devicePx;
-    if (previous == null) {
-      // First layout: the panel was built before the box was known, so it
-      // is still showing no page size.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() {});
-      });
-    }
-    // No celular esta tela é travada em paisagem, mas abre a partir da
-    // biblioteca em retrato: uma caixa mais alta que larga é só o aparelho
-    // ainda girando, e gravar a partitura para ela seria trabalho jogado
-    // fora (a caixa em paisagem chega logo depois).
-    if (_isPhone && devicePx.height > devicePx.width) return;
-    if (_document == null && !_busy) {
-      // Nothing engraved yet: the piece the library opened gets its first
-      // render as soon as there is a box to engrave it for.
-      _resizeDebounce?.cancel();
-      _resizeDebounce = Timer(Duration.zero, _renderAndShow);
-      return;
-    }
-    // A fixed page size does not depend on the box, so a resize has nothing
-    // to re-engrave.
-    if (previous == null || !_pageFitsBox) return;
-    // 2% of slack: a one-pixel wobble is not worth re-engraving the piece.
-    final changed =
-        (previous.width - devicePx.width).abs() / previous.width > 0.02 ||
-        (previous.height - devicePx.height).abs() / previous.height > 0.02;
-    if (!changed) return;
-    _resizeDebounce?.cancel();
-    _resizeDebounce = Timer(const Duration(milliseconds: 400), _renderAndShow);
   }
 
   /// Fecha a partitura e volta à biblioteca (o `dispose` para o que
@@ -635,43 +499,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (navigator.canPop()) navigator.pop();
   }
 
-  /// A transposição com que este hino abre agora (fase Q): a escolha dele, ou
-  /// a chave geral. `null` = o tom original — e nesse caso nenhuma opção nova
-  /// vai ao Verovio.
-  Transposition? get _transposition => _transpositionFor(_transposeChoice);
-
-  /// A transposição que [choice] (`null`, [kTransposeNone] ou um intervalo)
-  /// daria a este hino.
-  Transposition? _transpositionFor(String? choice) {
-    final range = _originalRange;
-    return effectiveTransposition(
-      _piece,
-      PieceSettings(transpose: choice),
-      _settings,
-      lowest: range?.lowest ?? kCatalogLowestMidi,
-      highest: range?.highest ?? kCatalogHighestMidi,
-    );
-  }
-
-  /// "Sem acidentes" para este hino; `null` sem armadura ou já em Dó.
-  Transposition? get _noAccidentals {
-    final fifths = _piece.fifths;
-    if (fifths == null) return null;
-    final range = _originalRange;
-    return Transposition.toNoAccidentals(
-      fifths,
-      lowest: range?.lowest ?? kCatalogLowestMidi,
-      highest: range?.highest ?? kCatalogHighestMidi,
-    );
-  }
-
   /// Troca o tom deste hino ("Transpor", Q08): [choice] é [kTransposeNone]
   /// ou um intervalo. Com trilha começada no tom de agora e nenhuma no novo,
   /// pergunta antes (Q04); guarda a escolha e grava a partitura de novo.
   Future<void> _chooseTranspose(String choice) async {
     final opened = widget.opened;
-    final from = _transposition;
-    final to = _transpositionFor(choice);
+    final from = _session.transposition;
+    final to = _session.transpositionFor(choice);
     if (to != from &&
         await _trailStore.toneChangeStartsOver(opened.piece.id, from, to)) {
       if (!mounted) return;
@@ -688,25 +522,19 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       );
       if (!ok || !mounted) return;
     }
-    if (choice == _transposeChoice) return;
-    setState(() {
-      _transposeChoice = choice;
-      _optionsOpen = false;
-    });
+    if (!_session.chooseTranspose(choice)) return;
+    setState(() => _optionsOpen = false);
     opened.onPieceSettingsChanged(
-      _pieceSettingsWith(trailMeasures: _trailPieceN),
+      _pieceSettingsWith(trailMeasures: _runner.pieceN),
     );
-    // Mesmo tom (ex.: "Não" quando a chave geral já está desligada): só
-    // guarda a escolha, a partitura é a mesma.
-    if (to != _renderedTransposition) unawaited(_renderAndShow());
   }
 
   /// "Escolher…": a lista dos 12 tons.
   Future<void> _pickTone() async {
     final fifths = _piece.fifths;
     if (fifths == null) return;
-    final range = _originalRange;
-    final current = _transposition;
+    final range = _session.originalRange;
+    final current = _session.transposition;
     final choice = await showToneList(
       context,
       choices: toneChoices(
@@ -726,14 +554,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Widget? _transposeSection({VoidCallback? before}) {
     final fifths = _piece.fifths;
     if (fifths == null) return null;
-    final current = _transposition;
-    final none = _noAccidentals;
+    final current = _session.transposition;
+    final none = _session.noAccidentals;
     return TransposeSection(
       fifths: fifths,
       mode: transposeModeOf(current, none),
       noAccidentals: none,
       currentTone: current,
-      alsoStudied: _alsoStudied,
+      alsoStudied: _runner.alsoStudied,
       onNone: () {
         before?.call();
         unawaited(_chooseTranspose(kTransposeNone));
@@ -766,7 +594,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// O selo da partitura transposta: "Mi♭ → Dó · teclado +3". Mostra o tom da
   /// gravura que está na tela. `null` no tom original.
   Widget? _transposeSeal() {
-    final transposition = _renderedTransposition;
+    final transposition = _session.renderedTransposition;
     if (transposition == null) return null;
     final fifths = _piece.fifths;
     return TransposeSeal(
@@ -800,20 +628,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     unawaited(_openTransposeCheck());
   }
 
-  /// Lê os outros tons em que este hino tem trilha ([_alsoStudied]).
-  Future<void> _refreshAlsoStudied() async {
-    final piece = _piece;
-    final tones = await _trailStore.studiedTones(piece.id);
-    if (!mounted) return;
-    final text = alsoStudiedText(
-      tones,
-      current: _renderedTransposition,
-      fifths: piece.fifths,
-      naming: _settings.noteNaming,
-    );
-    if (text != _alsoStudied) setState(() => _alsoStudied = text);
-  }
-
   /// As alturas da música aberta (fase Q): o que se lê, o que se ouve e o que
   /// chega do teclado. Montado a cada uso — o tom da gravura que está na tela,
   /// o que se sabe do teclado conectado e se o som é do app — então quem o usa
@@ -821,7 +635,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   PitchFrame get _pitchFrame {
     // O tom da gravura na tela (não o pedido, que ainda pode estar sendo
     // gravado): as alturas do `midi.json` são as dele.
-    final k = _renderedTransposition?.semitones ?? 0;
+    final k = _session.renderedTransposition?.semitones ?? 0;
     if (k == 0) return PitchFrame.identity;
     final behavior = _settings.keyboardTransposeOf(
       _midiDeviceManager.connected.value?.name,
@@ -841,303 +655,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     return (w) => _pitchFrame.engineFromWritten(w, midiKeyboard: midiKeyboard);
   }
 
-  /// A nota mais grave e a mais aguda da música **original** em [document],
-  /// que foi gravado com [transposition] (as alturas do `midi.json` já saem
-  /// transpostas). `null` sem notas.
-  static ({int lowest, int highest})? _rangeOf(
-    VsbDocument document,
-    Transposition? transposition,
-  ) {
-    final notes = document.midi?.notes;
-    if (notes == null || notes.isEmpty) return null;
-    final shift = transposition?.semitones ?? 0;
-    return (
-      lowest: notes.map((n) => n.pitch).reduce(math.min) - shift,
-      highest: notes.map((n) => n.pitch).reduce(math.max) - shift,
-    );
-  }
-
-  /// Every option that reaches Verovio for the current state: the page size
-  /// plus whatever differs from Verovio's defaults.
-  Map<String, Object> _effectiveOptions() => {
-    'pageWidth': _pageWidth,
-    'pageHeight': _pageHeight,
-    ...layoutOptionsToSend(_layout),
-    'transpose': ?_transposition?.interval,
-    if (widget.debugMode) 'vsbDebug': true,
-  };
-
-  /// Renders [_scoreXml] with the current options and displays it. The
-  /// previous page stays on screen meanwhile, so the effect of an option can
-  /// be compared at the same zoom and pan.
-  Future<void> _renderAndShow() async {
-    final scoreXml = _scoreXml;
-    if (_boxDevicePx == null || !mounted) return;
-    if (_busy) {
-      _renderQueued = true;
-      return;
-    }
-
-    final pageWidth = _pageWidth;
-    final pageHeight = _pageHeight;
-    final transposition = _transposition;
-    // A página vai à parte, em ScoreRenderRequest.
-    final options = _effectiveOptions()
-      ..remove('pageWidth')
-      ..remove('pageHeight');
-
-    setState(() {
-      _busy = true;
-      _renderError = null;
-      _status = 'gerando .vsb…';
-    });
-
-    var wrongDirection = false;
-    try {
-      final name = _scoreName;
-
-      setState(() => _status = 'renderizando $name ($pageWidth×$pageHeight)…');
-
-      final renderStopwatch = Stopwatch()..start();
-      final rendered = await _renderer.render(
-        ScoreRenderRequest(
-          source: scoreXml,
-          fileName: '${_piece.id}.musicxml',
-          pageWidth: pageWidth,
-          pageHeight: pageHeight,
-          options: options,
-        ),
-      );
-      final document = rendered.document;
-      final debugCopyPath = rendered.debugCopyPath;
-      debugPrint(
-        '_renderAndShow: render($name) levou '
-        '${renderStopwatch.elapsedMilliseconds}ms',
-      );
-
-      if (!mounted) return;
-      // Recusa antes de desmontar o player: daqui em diante o estado é
-      // trocado aos pedaços e precisa de ao menos uma página.
-      if (document.pages.isEmpty) {
-        throw StateError('a gravura veio sem páginas');
-      }
-      // Com a faixa real da música, a direção da transposição pode mudar (o
-      // hino passaria do teclado): nesse caso grava de novo, no fim.
-      _originalRange = _rangeOf(document, transposition) ?? _originalRange;
-      wrongDirection = _transposition != transposition;
-      // A new engraving has new ids (and possibly new pages): drop the
-      // playback that belonged to the old one.
-      _practice?.dispose();
-      _practice = null;
-      _trail?.setRunning(false);
-      _cancelSilentCountIn();
-      _player?.dispose();
-      _player = null;
-      _setPlaying(false);
-      _scheduler?.dispose();
-      _scheduler = null;
-      _audioClock = null;
-      _controller.clearAll();
-      _controller.attachDocument(document);
-      final hasTimemap = document.timemap?.isNotEmpty ?? false;
-      final track = PerformanceTrack.fromDocument(document);
-      setState(() {
-        _track = track;
-        _player = hasTimemap
-            ? ScorePlayer(
-                document: document,
-                controller: _controller,
-                view: _viewController,
-                onEntry: _onEntry,
-                barWidth: _barWidthOf(document),
-                highlightColor: _highlightColor,
-                // Ligadura é uma tecla só: a cadeia acende junta.
-                mergeTies: true,
-              )
-            : null;
-        final engine = _sound.engine;
-        if (_player != null && _sound.soundOn && engine != null) {
-          _attachAudio(engine, track);
-        }
-        _document = document;
-        _renderedTransposition = transposition;
-        // New options reflow the score: the page we were on may not exist
-        // any more.
-        _pageIndex = _pageIndex.clamp(0, document.pages.length - 1);
-        _status = document.pages.length > 1
-            ? 'página ${_pageIndex + 1} de ${document.pages.length}'
-            : 'carregada ✓';
-        if (debugCopyPath != null) {
-          _status = '$_status — .vsb salvo em $debugCopyPath';
-        }
-        _busy = false;
-      });
-      unawaited(_setupTrail());
-      _sound.restoreSound();
-      _maybeCheckTranspose();
-      _maybeRemindTransposeReset();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _status = 'erro: $e';
-        _renderError = '$e';
-        _busy = false;
-      });
-    }
-
-    if (mounted && (_renderQueued || wrongDirection)) {
-      _renderQueued = false;
-      unawaited(_renderAndShow());
-    }
-  }
-
-  /// Monta a trilha depois de cada gravura: caminho sem repetições (J01),
-  /// plano de etapas (J03, sem fase final até o J07) e progresso do hino.
-  /// Sem plano (saltos) ou sem número de hino, explica e fica no livre.
-  Future<void> _setupTrail() async {
-    final document = _document;
-    final track = _track;
-    final player = _player;
-    _trail?.removeListener(_onTrailChanged);
-    _trail?.dispose();
-    _trail = null;
-    _trailUnavailable = null;
-    _clearErrorMarks();
+  /// Uma gravura nova ([ScoreRenderSession.onDocument]): os ids (e talvez as
+  /// páginas) mudaram, então o que tocava a anterior é desmontado e montado
+  /// de novo sobre ela.
+  void _onDocument(VsbDocument document, PerformanceTrack track) {
     if (!mounted) return;
-    if (document == null || track == null || player == null) return;
-    // A trilha é do tom que está na tela (fase Q): cada tom tem a sua, e o
-    // original guarda a de antes, sob o id da música.
-    final pieceId = progressIdFor(_piece.id, _renderedTransposition);
-    unawaited(_refreshAlsoStudied());
-    final n = effectiveTrailMeasures(
-      general: _settings.trailMeasures,
-      piece: _trailPieceN,
-    );
-    final path = TrailPath.fromTimeline(player.timeline);
-    _planPhases = _settings.trailPlanPhases;
-    _planSpeeds = _settings.trailSpeeds;
-    final plan = TrailPlan.build(
-      path,
-      track,
-      n: n,
-      includeFinal: true,
-      phases: _planPhases,
-      speeds: _planSpeeds,
-    );
-    if (plan.isEmpty) {
-      setState(
-        () => _trailUnavailable =
-            'Trilha indisponível ${_term.neste} ${_term.singular} — treino '
-            'livre',
-      );
-      return;
-    }
-    var progress = await _trailStore.ensureLoaded(pieceId);
-    if (!mounted || !identical(_document, document)) return;
-    // O N efetivo mudou desde o guardado (pelo geral): a trilha antiga é
-    // de outro corte e é descartada ao abrir (J06).
-    if (progress.total > 0 && progress.n != n) {
-      await _trailStore.reset(pieceId);
-      progress = TrailProgress(n: n, total: plan.stages.length);
-    } else if (progress.total > 0 && progress.total != plan.stages.length) {
-      // Outras etapas escolhidas nas configurações: o mesmo progresso, com
-      // o total do plano de agora (para a biblioteca).
-      progress = TrailProgress(
-        n: progress.n,
-        total: plan.stages.length,
-        records: progress.records,
-        resume: progress.resume,
-      );
-    }
-    final trail = TrailController(
-      path: path,
-      plan: plan,
-      progress: progress,
-      store: _trailStore,
-      pieceId: pieceId,
-    );
-    trail.addListener(_onTrailChanged);
-    _armedStageId = null;
-    setState(() => _trail = trail);
-    _armTrailStage();
-  }
-
-  /// Etapas e andamentos com que o plano da trilha foi montado: mudou nas
-  /// configurações, a trilha é remontada.
-  List<TrailPhase> _planPhases = const [];
-  Set<double> _planSpeeds = const {};
-
-  void _onTrailChanged() {
-    if (!mounted) return;
-    // Trocou de etapa: as marcas de erro eram da anterior.
-    if (_errorMeasureIds.isNotEmpty && _trail?.selected?.id != _errorStageId) {
-      _clearErrorMarks();
-    }
-    setState(() {});
-    _armTrailStage();
-  }
-
-  /// Compassos (ids da cena) com erro na última passagem, marcados na pauta
-  /// até o próximo play, a troca de etapa ou a saída (U12).
-  Set<String> _errorMeasureIds = const {};
-  String? _errorStageId;
-
-  void _markErrors(Iterable<int> occurrences) {
-    final player = _player;
-    if (player == null) return;
-    _errorMeasureIds = {
-      for (final i in occurrences)
-        if (i >= 0 && i < player.measures.length) player.measures[i].id,
-    };
-    _errorStageId = _trail?.selected?.id;
-  }
-
-  void _clearErrorMarks() {
-    if (_errorMeasureIds.isEmpty) return;
-    _errorMeasureIds = const {};
-    _errorStageId = null;
-  }
-
-  /// Id da etapa para a qual a partitura já foi levada (U02).
-  String? _armedStageId;
-
-  /// Com a etapa parada, a partitura mostra o primeiro compasso do trecho:
-  /// ao abrir o hino e a cada troca de etapa. Não mexe com a etapa rodando,
-  /// com treino em curso nem com a música tocando.
-  void _armTrailStage() {
-    final trail = _trail;
-    final player = _player;
-    if (trail == null || trail.freeMode || player == null) return;
-    final stage = trail.selected;
-    if (stage == null || stage.id == _armedStageId) return;
-    if (trail.running || _practice != null || _playing || _busy) return;
-    _armedStageId = stage.id;
-    player.seek(Duration(microseconds: (stage.startMs * 1000).round()));
-    // Parado: o seek acende a nota da partida na cor de reprodução (verde),
-    // como se já tivesse sido tocada. Só a etapa em curso destaca notas.
-    _controller.clearHighlights();
-    _scheduler?.seek(stage.startMs);
-  }
-
-  String? _markedStageId;
-  List<String> _markedIds = const [];
-  Set<String> _markedSet = const {};
-
-  /// Compassos do trecho da etapa selecionada, para marcar na pauta (U02).
-  /// Vazio no treino livre, sem trilha e na fase final.
-  List<String> _trailMarkedIds() {
-    final trail = _trail;
-    final player = _player;
-    final stage = trail?.selected;
-    if (trail == null || trail.freeMode || player == null || stage == null) {
-      return const [];
-    }
-    if (_markedStageId != stage.id) {
-      _markedStageId = stage.id;
-      _markedIds = trailStageMeasureIds(trail.path, stage, player.measures);
-      _markedSet = _markedIds.toSet();
-    }
-    return _markedIds;
+    _runner.attachDocument(document, track);
+    _sound.restoreSound();
+    _maybeCheckTranspose();
+    _maybeRemindTransposeReset();
   }
 
   /// Todos os compassos da música, para o véu dos que não são do trecho.
@@ -1147,674 +673,93 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   Widget? _markMeasure(BuildContext context, String id, Rect rect) {
     // Erros da última passagem: um fundo vermelho leve sobre o compasso.
-    if (_errorMeasureIds.contains(id)) {
+    if (_runner.errorMeasureIds.contains(id)) {
       return IgnorePointer(
         child: ColoredBox(color: kBadColor.withValues(alpha: 0.12)),
       );
     }
-    if (_trailMarkedIds().isEmpty) return null;
-    if (!_markedSet.contains(id)) {
+    if (_runner.markedIds().isEmpty) return null;
+    if (!_runner.isMarked(id)) {
       return IgnorePointer(
         child: ColoredBox(color: kSurface.withValues(alpha: 0.55)),
       );
     }
-    if (_trail?.running ?? false) return null;
+    if (_runner.trail?.running ?? false) return null;
     // Compassos do trecho: fundo azul leve, sem barra na base.
     return IgnorePointer(
       child: ColoredBox(color: kAccent.withValues(alpha: 0.10)),
     );
   }
 
-  /// Começa (ou para, se já está rodando) a etapa selecionada da trilha. A
-  /// etapa manda nos controles enquanto roda — modo, mão, andamento,
-  /// intervalo, contagem e metrônomo nas etapas com tempo — sem gravar nada:
-  /// ao sair valem de novo os valores do aluno.
-  Future<void> _startTrailStage() async {
-    final trail = _trail;
-    final track = _track;
-    final player = _player;
-    if (trail == null || track == null || player == null) return;
-    if (trail.running) {
-      _abandonTrailStage();
-      return;
-    }
-    final stage = trail.selected;
-    if (stage == null) return;
-    // Sem teclado quem chama é o ouvir (`_listenTrailStage`).
-    if (_midiDeviceManager.connected.value == null) return;
-    _clearErrorMarks();
-    _stopListening();
-    final engine = await _sound.ensureEngine();
-    if (engine == null || !mounted) return;
-    if (_scheduler == null || !_sound.soundOn) {
-      _attachAudio(engine, track);
-    }
-    final scheduler = _scheduler;
-    if (scheduler == null || !mounted) return;
-    // O andamento da etapa vale só nela (sem gravar no hino).
-    if ((stage.speed ?? _speed) != scheduler.speed) {
-      scheduler.setSpeed(stage.speed ?? _speed);
-    }
-    _controller.clearAll();
-    // O instante de partida já acende na cor de "esperada" (e a mão do app
-    // em cinza), não na da reprodução (U08).
-    _paintForPractice(player, track, stage.phase.hand, stage.phase.mode);
-    player.seek(Duration(microseconds: (stage.startMs * 1000).round()));
-    await _loadInputLatency();
-    if (!mounted) return;
-    final timed = stage.speed != null;
-    final gaps = trailStageGaps(trail.path, stage);
-    _shiftDetector.rearm();
-    final practice = PracticeController(
-      midiInput: _midiInput,
-      track: track,
-      scheduler: scheduler,
-      controller: _controller,
-      hand: stage.phase.hand,
-      ghosts: _ghosts,
-      inputLatencyMs: _inputLatencyMs,
-      writtenFromReceived: (r) => _pitchFrame.writtenFromReceived(r),
-      shiftDetector: _shiftDetector,
-      onShift: _onShiftDetected,
-      mode: stage.phase.mode,
-      measureIndexAt: player.timeline.measureIndexAt,
-      passOf: (i) => player.measures[i].pass,
-      range: (startMs: stage.startMs, endMs: stage.endMs),
-      rangeJumps: gaps,
-      // No modo espera o aviso chega de dentro da notificação do passo
-      // (`WaitModeSession.current`), e encerrar a etapa descarta esse mesmo
-      // notificador: descartá-lo ali estoura (asserção no debug, RangeError
-      // fora dele). O encerramento espera a notificação acabar.
-      onRangeDone: () => scheduleMicrotask(() {
-        final current = _practice;
-        if (current != null) _onTrailStageDone(current, stage);
-      }),
-      onRangeJump: (ms) =>
-          player.seek(Duration(microseconds: (ms * 1000).round())),
-      onWaitTarget: (ms) => player.waitTarget = ms,
-      correctColor: _settings.highlightColor,
-      wrongColor: _settings.practiceWrongColor,
-      pendingColor: _settings.practicePendingColor,
-      rhythmToleranceMs: _settings.rhythmToleranceMs,
-    );
-    if (timed) scheduler.metronomeOn = true;
-    practice.start(countIn: timed);
-    _playPlayerAfterCount(player, stage.startMs);
-    // No treino, o "esperado agora" acende na cor própria, como no modo
-    // livre.
-    player.highlightColor = _settings.practicePendingColor;
-    trail.setRunning(true);
-    trail.clearResult();
-    _sound.markSoundOn();
-    setState(() {
-      _practice = practice;
-      _setPlaying(true);
-    });
-  }
-
-  bool _listening = false;
-  Timer? _listenTimer;
-
-  /// Ouvir o trecho da etapa (U03): as duas mãos, com som, no andamento da
-  /// etapa (100% no modo espera), sem avaliar nada nem tocar no progresso.
-  /// Para sozinho no fim e volta ao início do trecho.
-  Future<void> _listenTrailStage() async {
-    final trail = _trail;
-    final track = _track;
-    final player = _player;
-    if (trail == null || track == null || player == null) return;
-    if (_listening) {
-      _stopListening();
-      return;
-    }
-    final stage = trail.selected;
-    if (stage == null) return;
-    if (trail.running) _abandonTrailStage();
-    _clearErrorMarks();
-    final engine = await _sound.ensureEngine();
-    if (engine == null || !mounted || _listening) return;
-    if (_scheduler == null || !_sound.soundOn) _attachAudio(engine, track);
-    final scheduler = _scheduler;
-    if (scheduler == null || !mounted) return;
-    _cancelSilentCountIn();
-    _controller.clearAll();
-    scheduler.setStaves(null);
-    scheduler.setSpeed(stage.speed ?? 1.0);
-    scheduler.metronomeOn = false;
-    scheduler.setStopAt(stage.endMs - kRangeBoundaryToleranceMs);
-    scheduler.setJumps(trailStageGaps(trail.path, stage));
-    scheduler.onJump = (ms) =>
-        player.seek(Duration(microseconds: (ms * 1000).round()));
-    player.seek(Duration(microseconds: (stage.startMs * 1000).round()));
-    player.play();
-    scheduler.play(stage.startMs);
-    _listenTimer?.cancel();
-    _listenTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      if (player.position.inMicroseconds / 1000 >= stage.endMs) {
-        _stopListening();
-      }
-    });
-    _sound.markSoundOn();
-    setState(() {
-      _listening = true;
-      _setPlaying(true);
-    });
-  }
-
-  /// Fecha o ouvir: devolve ao agendador o que era do aluno e volta ao
-  /// início do trecho. Sem efeito se não está ouvindo.
-  void _stopListening() {
-    if (!_listening) return;
-    _listenTimer?.cancel();
-    _listenTimer = null;
-    _listening = false;
-    final scheduler = _scheduler;
-    if (scheduler != null) {
-      scheduler.clearStopAt();
-      scheduler.clearJumps();
-      scheduler.onJump = null;
-      scheduler.setSpeed(_speed);
-      scheduler.metronomeOn = _settings.metronomeOn;
-      scheduler.pause();
-    }
-    _player?.pause();
-    _controller.releaseAll();
-    final start = _trail?.selected?.startMs;
-    if (start != null) {
-      _player?.seek(Duration(microseconds: (start * 1000).round()));
-      scheduler?.seek(start);
-    }
-    if (mounted) setState(() => _setPlaying(false));
-  }
-
-  /// O intervalo terminou por conta própria: grava, limpa e mostra o resumo
-  /// da etapa (ou do bloco de reforço). Parar no meio não passa por aqui
-  /// (abandono, sem registro).
-  void _onTrailStageDone(PracticeController practice, TrailStage stage) {
-    if (!mounted || !identical(_practice, practice)) return;
-    final trail = _trail;
-    final result = practice.stageResult;
-    _endTrailRun();
-    if (trail == null || result == null || !mounted) return;
-    final blockIndex = trail.blockIndexOf(stage);
-    unawaited(() async {
-      if (blockIndex != null) {
-        await _onTrailBlockDone(trail, blockIndex, stage, result);
-        return;
-      }
-      await trail.recordDone(result);
-      if (!mounted) return;
-      setState(() => _markErrors(result.badMeasures));
-      // Aprovou a final.100: concluiu a trilha (tela própria, J07).
-      if (result.passed && stage.id == 'final.100') {
-        final action = await showTrailConclusion(
-          context,
-          sidePanel: _phoneLayout,
-        );
-        if (!mounted) return;
-        switch (action) {
-          case TrailConclusionAction.library:
-            _backToLibrary();
-          case TrailConclusionAction.free:
-            trail.setFreeMode(true);
-          case null:
-            break;
-        }
-        return;
-      }
-      // Reprovou a final com reforço útil: treinar os blocos em vez de
-      // tentar de novo.
-      int? blocks;
-      if (!result.passed &&
-          stage.segment == null &&
-          trail.startReinforcement(result)) {
-        blocks = trail.blockViews.length;
-      }
-      final numbers = _trailBadLogical(trail, result);
-      final action = await showStageSummary(
-        context,
-        stageRef: trailStripTextFor(
-          trail.plan.segmentCount,
-          stage.segment,
-          stage.label,
-        ),
-        result: result,
-        badLogical: numbers,
-        isLast: trail.progress.current(trail.plan) == null,
-        blockCount: blocks,
-        sidePanel: _phoneLayout,
-      );
-      if (!mounted) return;
-      switch (action) {
-        case StageSummaryAction.next:
-          trail.next();
-        case StageSummaryAction.retry:
-          trail.repeat(stage);
-          unawaited(_startTrailStage());
-        case StageSummaryAction.skip:
-          await trail.skipSelected();
-          trail.next();
-        case StageSummaryAction.train:
-          trail.next();
-        case null:
-          break;
-      }
-    }());
-  }
-
-  /// Resultado de um bloco de reforço: guarda (sem tocar no plano) e mostra
-  /// o resumo do bloco.
-  Future<void> _onTrailBlockDone(
-    TrailController trail,
-    int blockIndex,
-    TrailStage stage,
-    StageResult result,
-  ) async {
-    trail.recordBlockDone(blockIndex, result);
-    if (!mounted) return;
-    setState(() => _markErrors(result.badMeasures));
-    final action = await showStageSummary(
-      context,
-      stageRef: stage.label,
-      result: result,
-      badLogical: _trailBadLogical(trail, result),
-      isLast: false,
-      sidePanel: _phoneLayout,
-    );
-    if (!mounted) return;
-    switch (action) {
-      case StageSummaryAction.next:
-      case StageSummaryAction.train:
-        break;
-      case StageSummaryAction.retry:
-        trail.repeat(stage);
-        unawaited(_startTrailStage());
-      case StageSummaryAction.skip:
-        trail.skipBlock(blockIndex);
-        break;
-      case null:
-        break;
-    }
-  }
-
-  /// Compassos lógicos com erro para o resumo.
-  List<int> _trailBadLogical(TrailController trail, StageResult result) {
-    final numbers = <int>{};
-    for (final occurrence in result.badMeasures) {
-      final logical = trail.path.logicalOf(occurrence);
-      if (logical != null) numbers.add(trail.path.logical[logical].number);
-    }
-    return numbers.toList()..sort();
-  }
-
-  /// Para a etapa no meio: sem registro e sem resumo.
-  void _abandonTrailStage() {
-    if (_practice == null || _trail == null) return;
-    _endTrailRun();
-  }
-
-  /// Solta o que a etapa prendeu e devolve os controles do aluno (andamento
-  /// do agendador, metrônomo, cor de destaque).
-  void _endTrailRun() {
-    final practice = _practice;
-    if (practice == null) return;
-    _player?.highlightColor = _highlightColor;
-    _player?.highlightColorOf = null;
-    _player?.skipHighlight = null;
-    _countInPlayTimer?.cancel();
-    _countInPlayTimer = null;
-    practice.stop();
-    practice.dispose();
-    _practice = null;
-    _scheduler?.setSpeed(_speed);
-    if (_scheduler != null) _scheduler!.metronomeOn = _settings.metronomeOn;
-    _player?.pause();
-    _trail?.setRunning(false);
-    if (mounted) setState(() => _setPlaying(false));
-  }
-
-  /// Every write to [_playing] goes through here so the screen wakelock
-  /// (X01: found the phone falling asleep mid-playback) never falls out of
-  /// sync with one of the several places that flip the flag.
-  void _setPlaying(bool value) {
-    _playing = value;
-    unawaited(value ? WakelockPlus.enable() : WakelockPlus.disable());
-  }
-
   void _togglePlay() {
-    final player = _player;
-    if (player == null) return;
-    _clearErrorMarks();
-    if (_playing) {
-      _cancelSilentCountIn();
-      player.pause();
-      _scheduler?.pause();
-      _controller.releaseAll();
-      setState(() => _setPlaying(false));
-      return;
-    }
-    // Posição fora do loop (ou depois do fim): começa pelo trecho.
-    final range = _loopRangeMs;
-    if (range != null) {
-      final ms = player.position.inMicroseconds / 1000;
-      if (ms < range.startMs || ms >= range.endMs) {
-        player.seek(Duration(microseconds: (range.startMs * 1000).round()));
-      }
-    }
-    // Do fim, o play recomeça a música: a contagem é a do 1º compasso.
-    if (player.position >= player.duration) player.seek(Duration.zero);
-    if (_sound.soundOn) {
-      final fromMs = player.position.inMicroseconds / 1000;
-      final scheduler = _scheduler;
-      if (scheduler == null) {
-        player.play();
-      } else {
-        scheduler.play(fromMs, speed: _speed, countIn: true);
-        _playPlayerAfterCount(player, fromMs);
-      }
-    } else {
-      _startSilentCountIn(player);
-    }
-    setState(() => _setPlaying(true));
-  }
-
-  /// Play sem som: faz a contagem na tela e só então solta [player] (que,
-  /// mudo, anda pelo relógio próprio). Os cliques soam mesmo assim, pelo
-  /// sintetizador do app, se ele já estiver aberto — e aí o número segue o
-  /// relógio do áudio, para acender junto com o clique que se ouve.
-  void _startSilentCountIn(ScorePlayer player) {
-    final fromMs = player.position.inMicroseconds / 1000;
-    final clicks = countInBeats(metronomeBeats(player.timeline), fromMs);
-    if (clicks.isEmpty) {
-      player.play();
-      return;
-    }
-    final firstMs = clicks.first.ms;
-    final speed = _speed;
-    // Segundos desde o 1º clique (negativo enquanto ele não soa).
-    double Function() elapsed;
-    final engine = _sound.appEngine;
-    if (engine != null) {
-      final t0 = engine.earliestScheduleSeconds;
-      engine.schedule([
-        for (final c in clicks) ...[
-          ScheduledMidi(
-            t0 + (c.ms - firstMs) / 1000 / speed,
-            0x90 | kMetronomeChannel,
-            c.accent ? kMetronomeAccentNote : kMetronomeNote,
-            100,
-          ),
-          ScheduledMidi(
-            t0 + (c.ms - firstMs) / 1000 / speed + 0.05,
-            0x80 | kMetronomeChannel,
-            c.accent ? kMetronomeAccentNote : kMetronomeNote,
-            0,
-          ),
-        ],
-      ]);
-      _silentCountInEngine = engine;
-      elapsed = () => engine.nowSeconds - t0;
-    } else {
-      final watch = Stopwatch()..start();
-      elapsed = () => watch.elapsedMicroseconds / 1e6;
-    }
-    _silentCountIn = () =>
-        countInTickAt(clicks, fromMs, firstMs + elapsed() * 1000 * speed);
-    final leftSeconds = (fromMs - firstMs) / 1000 / speed - elapsed();
-    _silentCountInTimer = Timer(
-      Duration(microseconds: (leftSeconds * 1e6).round()),
-      () {
-        _silentCountInTimer = null;
-        _silentCountIn = null;
-        _silentCountInEngine = null;
-        player.play();
-      },
-    );
-  }
-
-  Timer? _countInPlayTimer;
-
-  /// Solta o player no ponto [startMs]. Com contagem inicial em curso nada
-  /// fica aceso na pauta até o primeiro tempo (U09): apaga o destaque do
-  /// instante de partida e o devolve, com o `seek`, quando a contagem acaba.
-  void _playPlayerAfterCount(ScorePlayer player, double startMs) {
-    _countInPlayTimer?.cancel();
-    _countInPlayTimer = null;
-    final scheduler = _scheduler;
-    if (scheduler == null || !scheduler.isCountingIn) {
-      player.play();
-      return;
-    }
-    _controller.clearHighlights();
-    _countInPlayTimer = Timer.periodic(const Duration(milliseconds: 16), (
-      timer,
-    ) {
-      if (scheduler.isCountingIn) return;
-      timer.cancel();
-      _countInPlayTimer = null;
-      if (!mounted || !identical(player, _player) || !_playing) return;
-      player.seek(Duration(microseconds: (startMs * 1000).round()));
-      player.play();
-    });
-  }
-
-  /// Desiste da contagem sem som em curso (e dos cliques que ainda não
-  /// soaram); devolve se havia uma (o player ainda não tinha sido solto).
-  bool _cancelSilentCountIn() {
-    _countInPlayTimer?.cancel();
-    _countInPlayTimer = null;
-    final timer = _silentCountInTimer;
-    if (timer == null) return false;
-    timer.cancel();
-    _silentCountInEngine?.clearScheduled();
-    _silentCountInTimer = null;
-    _silentCountIn = null;
-    _silentCountInEngine = null;
-    return true;
+    _runner.clearErrorMarks();
+    _playback.togglePlay();
   }
 
   /// Stops playback and rewinds to the start.
   void _stop() {
-    if (_trail?.running == true) {
-      _abandonTrailStage();
+    if (_runner.trail?.running == true) {
+      _runner.abandonStage();
       return;
     }
-    final player = _player;
-    if (player == null) return;
     // `ScoreAudioScheduler.stop` reancora em 0 mas não solta o freio nem o
     // filtro de pauta do modo treino (T02) — sem isto, o próximo Play
     // ficaria preso no freio antigo.
-    _endPractice();
-    _cancelSilentCountIn();
-    player.pause();
-    player.seek(Duration.zero);
-    _scheduler?.stop();
-    _controller.clearAll();
-    if (_playing && mounted) setState(() => _setPlaying(false));
+    _runner.endPractice();
+    _playback.stop();
   }
 
   /// Reiniciar: volta ao começo e segue como estava — tocando, recomeça de
   /// lá; parado, fica parado no começo. "Começo" é o da etapa na trilha, o
   /// do trecho em repetição no modo livre, ou o da música.
   Future<void> _restart() async {
-    final player = _player;
+    final player = _playback.player;
     if (player == null) return;
-    if (_trailMode) {
-      final trail = _trail!;
+    if (_runner.trailMode) {
+      final trail = _runner.trail!;
       if (trail.running) {
-        _abandonTrailStage();
-        await _startTrailStage();
+        _runner.abandonStage();
+        await _runner.startStage();
         return;
       }
       final stage = trail.selected;
-      if (stage != null) _seekTo(stage.startMs);
+      if (stage != null) _playback.seekTo(stage.startMs);
       return;
     }
-    if (_practice != null) {
-      _stopPractice();
-      await _togglePractice();
+    if (_runner.practice != null) {
+      _runner.stopPractice();
+      await _runner.togglePractice(hand: _hand, mode: _practiceMode);
       return;
     }
-    final wasPlaying = _playing;
-    if (wasPlaying) _togglePlay();
-    _controller.clearAll();
-    _seekTo(_loopRangeMs?.startMs ?? 0);
-    if (wasPlaying) _togglePlay();
-  }
-
-  /// Leva o player e o agendador de áudio (se houver) para [ms].
-  void _seekTo(double ms) {
-    _player?.seek(Duration(microseconds: (ms * 1000).round()));
-    _scheduler?.seek(ms);
+    if (_playback.playing) _runner.clearErrorMarks();
+    _playback.restart();
   }
 
   /// Arma/desarma o modo treino (T02) — só decide se o Play vira
   /// "Praticar" ([_canTrain] também exige um teclado MIDI conectado).
   /// Desarmar com uma sessão em andamento também a para.
   void _toggleTrainingMode() {
-    if (_trainingMode && _practice != null) _stopPractice();
+    if (_trainingMode && _runner.practice != null) _runner.stopPractice();
     setState(() => _trainingMode = !_trainingMode);
   }
 
   /// Troca a mão do aluno (T02) — o seletor só aparece armado e sem sessão
-  /// em andamento ([_practice] existindo esconde o seletor).
+  /// em andamento ([_runner.practice] existindo esconde o seletor).
   void _setHand(Hand hand) {
     setState(() => _hand = hand);
     _savePieceSettings();
   }
 
-  /// "Praticar" (T02): modo espera com o app tocando a outra mão. Precisa
-  /// de som ligado — o agendador que toca a mão do app é o mesmo do
-  /// interruptor "som" — e abre o motor/pede um `.sf2` na primeira vez,
-  /// como o som e o monitor MIDI já fazem ([SoundOutputController]).
-  Future<void> _togglePractice() async {
-    if (_practice != null) {
-      _stopPractice();
-      return;
-    }
-    final track = _track;
-    final player = _player;
-    if (track == null || player == null) return;
-    _clearErrorMarks();
-    final engine = await _sound.ensureEngine();
-    if (engine == null || !mounted) return;
-    if (_scheduler == null || !_sound.soundOn) {
-      _attachAudio(engine, track);
-    }
-    final scheduler = _scheduler;
-    if (scheduler == null) return;
-
-    _controller.clearAll();
-    final range = _loopRangeMs;
-    final fromMs = range?.startMs ?? 0;
-    _paintForPractice(player, track, _hand, _practiceMode);
-    player.seek(Duration(microseconds: (fromMs * 1000).round()));
-    await _loadInputLatency();
-    if (!mounted) return;
-    _shiftDetector.rearm();
-    final practice = PracticeController(
-      midiInput: _midiInput,
-      track: track,
-      scheduler: scheduler,
-      controller: _controller,
-      hand: _hand,
-      ghosts: _ghosts,
-      inputLatencyMs: _inputLatencyMs,
-      writtenFromReceived: (r) => _pitchFrame.writtenFromReceived(r),
-      shiftDetector: _shiftDetector,
-      onShift: _onShiftDetected,
-      mode: _practiceMode,
-      measureIndexAt: player.timeline.measureIndexAt,
-      passOf: (i) => player.measures[i].pass,
-      onLoopRestart: (ms) =>
-          player.seek(Duration(microseconds: (ms * 1000).round())),
-      onWaitTarget: (ms) => player.waitTarget = ms,
-      correctColor: _settings.highlightColor,
-      wrongColor: _settings.practiceWrongColor,
-      pendingColor: _settings.practicePendingColor,
-      rhythmToleranceMs: _settings.rhythmToleranceMs,
+  /// O treino livre com tempo acabou com algo avaliado (T03): a biblioteca
+  /// guarda a melhor precisão do hino ("Pontuação") e o resumo abre.
+  void _onPracticeReport(PracticeReport report) {
+    widget.opened.onPracticeScore(
+      (report.accuracy * 100).round(),
+      _session.renderedTransposition,
     );
-    practice.start(fromMs: fromMs, countIn: _practiceMode != PracticeMode.wait);
-    if (range != null) practice.setLoop(range.startMs, range.endMs);
-    _playPlayerAfterCount(player, fromMs);
-    // No treino, o "esperado agora" acende na cor própria (azul por
-    // padrão): o vermelho padrão do player confundia pendente com errada.
-    player.highlightColor = _settings.practicePendingColor;
-    _sound.markSoundOn();
-    setState(() {
-      _practice = practice;
-      _setPlaying(true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_showSummary(report));
     });
-  }
-
-  /// Cores do destaque durante o treino (U08), antes do `seek` que acende o
-  /// instante de partida: "esperada" para as notas do aluno e cinza para as
-  /// da mão que o app toca. No modo espera as notas do aluno são do
-  /// `PracticeController` (esperada/certa em camadas): o player não as acende.
-  void _paintForPractice(
-    ScorePlayer player,
-    PerformanceTrack track,
-    Hand hand,
-    PracticeMode mode,
-  ) {
-    player.highlightColor = _settings.practicePendingColor;
-    final appNotes = appHandNoteIds(track, hand);
-    player.highlightColorOf = appNotes.isEmpty
-        ? null
-        : (id) => appNotes.contains(id) ? kPracticeAppHandColor : null;
-    if (mode == PracticeMode.wait) {
-      final doc = player.document;
-      final studentNotes = {
-        for (final id in studentHandNoteIds(track, hand)) ...[
-          id,
-          doc.sceneIdOf(id) ?? id,
-        ],
-      };
-      player.skipHighlight = studentNotes.contains;
-    } else {
-      player.skipHighlight = null;
-    }
-  }
-
-  /// Encerra a sessão de treino: solta freio/filtro/destaques, descarta o
-  /// controlador e — no tempo real, se algo foi avaliado — abre o resumo (T03).
-  void _endPractice() {
-    final practice = _practice;
-    if (practice == null) return;
-    PracticeReport? report;
-    // Devolve a cor de destaque configurada (o treino usa o azul de
-    // "esperado agora", ver _togglePractice).
-    _player?.highlightColor = _highlightColor;
-    _player?.highlightColorOf = null;
-    _player?.skipHighlight = null;
-    _countInPlayTimer?.cancel();
-    _countInPlayTimer = null;
-    if (practice.mode != PracticeMode.wait && practice.hasVerdicts) {
-      practice.finish();
-      report = practice.report;
-    }
-    practice.stop();
-    practice.dispose();
-    _practice = null;
-    if (report != null) {
-      final r = report;
-      // A biblioteca guarda a melhor precisão do hino ("Pontuação").
-      widget.opened.onPracticeScore(
-        (r.accuracy * 100).round(),
-        _renderedTransposition,
-      );
-      if (mounted) {
-        setState(
-          () => _markErrors([
-            for (final m in r.measures)
-              if (m.errors + m.imprecise > 0) m.index,
-          ]),
-        );
-      }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_showSummary(r));
-      });
-    }
   }
 
   Future<void> _showSummary(PracticeReport report) => showPracticeSummary(
@@ -1838,47 +783,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _setLoop(a, b);
   }
 
-  /// Para a sessão de treino em curso e volta ao estado pausado normal —
-  /// [PracticeController.stop] já solta o freio/filtro do agendador e os
-  /// destaques.
-  void _stopPractice() {
-    if (_practice == null) return;
-    _endPractice();
-    _player?.pause();
-    if (mounted) setState(() => _setPlaying(false));
-  }
+  /// Tocar numa nota (E02c) move o player e o agendador.
+  void _onScoreTap(String id) => _playback.seekToElement(id);
 
-  /// The player pauses itself at the end of the piece; follow that here.
-  void _onEntry(TimemapEntry entry) {
-    final player = _player;
-    if (player == null || !_playing) return;
-    if (player.position >= player.duration) {
-      _endPractice();
-      _scheduler?.pause();
-      _controller.releaseAll();
-      if (mounted) setState(() => _setPlaying(false));
-    }
-  }
-
-  /// Tocar numa nota (E02c) move o player; K04 reflete o mesmo instante no
-  /// agendador de áudio, senão os dois relógios divergem.
-  void _onScoreTap(String id) {
-    final player = _player;
-    if (player == null) return;
-    if (!player.seekToElement(id)) return;
-    _scheduler?.seek(player.position.inMicroseconds / 1000);
-  }
-
-  /// 0,5×–1,5×: alimenta o que estiver tocando de verdade agora — o
-  /// agendador de áudio com som ligado, ou `ScorePlayer.speed` mudo.
   void _setSpeed(double value) {
-    setState(() => _speed = value);
+    _playback.setSpeed(value);
     _savePieceSettings();
-    if (_sound.soundOn) {
-      _scheduler?.setSpeed(value);
-    } else {
-      _player?.speed = value;
-    }
   }
 
   /// Ícone dos botões "som" e "monitor MIDI": giro de carregamento enquanto
@@ -1892,96 +802,29 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         )
       : Icon(icon);
 
-  /// Liga [_scheduler] sobre [engine]/[track] e passa o relógio de áudio ao
-  /// player — chamado ao ligar o som e de novo a cada nova gravura enquanto
-  /// ele já estiver ligado.
-  void _attachAudio(SoundEngine engine, PerformanceTrack track) {
-    // O som chegou no meio da contagem muda: daqui em diante quem manda no
-    // tempo é o agendador, então o player é solto já.
-    if (_cancelSilentCountIn()) _player?.play();
-    final scheduler = ScoreAudioScheduler(engine: engine, track: track)
-      ..pitchOf = _enginePitchOf(engine);
-    _scheduler = scheduler;
-    _audioClock = AudioPlaybackClock(scheduler);
-    _player?.clock = _audioClock;
-    final player = _player;
-    if (player != null) scheduler.beats = metronomeBeats(player.timeline);
-    scheduler.metronomeOn = _metronomeOn;
-    _applyLoop();
-  }
-
-  // -------------------------------------------------------------------------
-  // T04: metrônomo, contagem, loop A-B, calibração
-  // -------------------------------------------------------------------------
-
-  void _toggleMetronome() {
-    setState(() => _metronomeOn = !_metronomeOn);
-    _scheduler?.metronomeOn = _metronomeOn;
-  }
-
-  /// `[startMs, endMs)` do loop atual, ou `null`.
-  ({double startMs, double endMs})? get _loopRangeMs {
-    final loop = _loop;
-    final player = _player;
-    if (loop == null || player == null) return null;
-    final m = player.measures;
-    if (loop.b >= m.length) return null;
-    return (
-      startMs: m[loop.a].startMs.toDouble(),
-      endMs: m[loop.b].endMs.toDouble(),
-    );
-  }
-
-  /// Empurra o loop para o agendador e a sessão de treino (se existirem).
-  void _applyLoop() {
-    final range = _loopRangeMs;
-    if (range == null) {
-      _scheduler?.clearLoop();
-      _practice?.clearLoop();
-      return;
-    }
-    _scheduler?.setLoop(range.startMs, range.endMs);
-    _practice?.setLoop(range.startMs, range.endMs);
-  }
-
   Future<void> _openLoopSheet() async {
-    final player = _player;
+    final player = _playback.player;
     if (player == null || player.measures.isEmpty) return;
     final chosen = await showLoopSheet(
       context,
       total: player.measures.length,
       current: player.currentMeasureIndex.value,
-      initial: _loop,
+      initial: _playback.loop,
       sidePanel: _phoneLayout,
-      onClear: () {
-        setState(() => _loop = null);
-        _applyLoop();
-      },
+      onClear: _playback.clearLoop,
     );
-    if (chosen == null || !mounted || !identical(player, _player)) return;
+    if (chosen == null || !mounted || !identical(player, _playback.player)) {
+      return;
+    }
     _setLoop(chosen.a, chosen.b);
   }
 
-  /// Liga o loop nos compassos `a..b` (ocorrências, 0-based) e vai ao início
-  /// do trecho. Também é o que o "repetir os piores compassos" do resumo do
-  /// treino (T03) chama.
-  void _setLoop(int a, int b) {
-    final player = _player;
-    if (player == null) return;
-    setState(() => _loop = (a: a, b: b));
-    _applyLoop();
-    final start = _loopRangeMs?.startMs ?? 0;
-    player.seek(Duration(microseconds: (start * 1000).round()));
-    _scheduler?.seek(start);
-  }
+  /// "Repetir um trecho" e "repetir os piores compassos" (T03): liga o loop
+  /// nos compassos `a..b` (ocorrências, 0-based) e vai ao início do trecho.
+  void _setLoop(int a, int b) => _playback.setLoop(a, b);
 
   String get _outputKey =>
       _sound.output == SoundOutput.midiKeyboard ? 'midi' : 'app';
-
-  Future<void> _loadInputLatency() async {
-    final ms = await calibratedInputLatency(_midiDeviceManager, _sound.output);
-    if (mounted) setState(() => _inputLatencyMs = ms);
-  }
 
   Future<void> _openCalibration() async {
     final device = _midiDeviceManager.connected.value;
@@ -1996,32 +839,22 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
     if (ms == null) return;
     await _midiDeviceManager.setInputLatencyMs(device.id, _outputKey, ms);
-    if (mounted) setState(() => _inputLatencyMs = ms);
-  }
-
-  /// [_sound] pôs [engine] em uso: o agendador passa a tocar nele. Retoma de
-  /// onde o player está se ele já tocava (mudo) — sem isto o agendador
-  /// ficaria parado na âncora 0 e o próximo tick do player veria o relógio
-  /// de áudio "voltar" para o início e daria um seek indevido — ou sempre,
-  /// com [always] (troca de saída).
-  void _attachSound(SoundEngine engine, {required bool always}) {
-    final track = _track;
-    if (track == null) return;
-    _attachAudio(engine, track);
-    final player = _player;
-    if (player != null && (always || _playing)) {
-      _scheduler!.play(player.position.inMicroseconds / 1000, speed: _speed);
-    }
-  }
-
-  /// [_sound] desligou o som: o player volta ao próprio relógio (mudo).
-  void _detachSound() {
-    _scheduler?.pause();
-    _player?.clock = null;
-    _player?.speed = _speed;
+    if (mounted) _runner.setInputLatency(ms);
   }
 
   void _onSoundChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onSessionChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onPlaybackChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onRunnerChanged() {
     if (mounted) setState(() {});
   }
 
@@ -2080,7 +913,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// saída: nele o detector não vê nada. Sair do app com a transposta aberta
   /// não avisa: no celular não há um momento confiável para isso.
   void _maybeRemindTransposeReset() {
-    final now = (_renderedTransposition?.semitones ?? 0) != 0;
+    final now = (_session.renderedTransposition?.semitones ?? 0) != 0;
     final previous = _settings.lastPieceTransposed;
     _settings.lastPieceTransposed = now;
     final name = _midiDeviceManager.connected.value?.name;
@@ -2104,7 +937,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (!mounted || _transposeCheckOpen) return;
     final name = _midiDeviceManager.connected.value?.name;
     if (!shouldAutoCheckTranspose(
-      transposition: _renderedTransposition,
+      transposition: _session.renderedTransposition,
       deviceName: name,
       behavior: _settings.keyboardTransposeOf(name),
       appIsSound: _sound.midiMonitorOn,
@@ -2121,7 +954,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// não há o que ajustar, e não abre. O que se descobre fica guardado pelo
   /// nome do teclado.
   Future<void> _openTransposeCheck() async {
-    final transposition = _renderedTransposition;
+    final transposition = _session.renderedTransposition;
     final device = _midiDeviceManager.connected.value;
     if (transposition == null ||
         device == null ||
@@ -2181,37 +1014,25 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   }
 
   void _onPageChanged(int target) {
-    if (_pageCount == 0 || !mounted) return;
-    setState(() {
-      _pageIndex = target;
-      _status = _pageCount > 1
-          ? 'página ${target + 1} de $_pageCount'
-          : 'pronto ✓';
-    });
+    if (mounted) _session.setPage(target);
   }
-
-  void _setLayoutValue(String key, Object value) =>
-      setState(() => _layout = {..._layout, key: value});
 
   /// A layout option of this piece settled (slider released, toggle
   /// flipped): keep it for the piece and re-engrave.
   void _commitLayout() {
     _savePieceSettings();
-    _renderAndShow();
+    unawaited(_session.render());
   }
 
   /// Back to the app's default layout — for this piece only.
   void _resetLayout() {
-    setState(() {
-      _layout = _layoutDefaults;
-      _pageFitsBox = true;
-    });
+    _session.resetLayout();
     _commitLayout();
   }
 
   Future<void> _copyOptions() async {
     final json = const JsonEncoder.withIndent('  ')
-        .convert(_effectiveOptions());
+        .convert(_session.effectiveOptions);
     await Clipboard.setData(ClipboardData(text: json));
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -2300,7 +1121,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// andamento 80%; voltar a Ouvir devolve Ambas e 100%.
   void _setTrainingFromDrawer(bool training) {
     if (training == _trainingMode) return;
-    if (!training && _practice != null) _stopPractice();
+    if (!training && _runner.practice != null) _runner.stopPractice();
     setState(() {
       _trainingMode = training;
       _hand = training
@@ -2327,7 +1148,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Compasso (base 1) e total para a barra lateral; `null` sem partitura.
   int? get _measureCount {
-    final n = _player?.timeline.measureCount ?? 0;
+    final n = _playback.player?.timeline.measureCount ?? 0;
     return n == 0 ? null : n;
   }
 
@@ -2337,10 +1158,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       MediaQuery.sizeOf(context).width < kPhoneLayoutMaxWidth;
 
   Future<void> _openMeasureJump() async {
-    final player = _player;
+    final player = _playback.player;
     // Na trilha o compasso fala a numeração do caminho (a da gaveta e do
     // resumo), não a das ocorrências da música expandida (U07).
-    final trail = _trailMode ? _trail : null;
+    final trail = _runner.trailMode ? _runner.trail : null;
     final path = trail != null && trail.path.measureCount > 0
         ? trail.path
         : null;
@@ -2383,19 +1204,21 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         ),
       ),
     );
-    if (result == null || !mounted || !identical(player, _player)) return;
+    if (result == null || !mounted || !identical(player, _playback.player)) {
+      return;
+    }
     final ms =
         path?.startMsOfNumber(result) ??
         player.timeline.measures[result - 1].startMs;
     player.seek(Duration(milliseconds: ms.round()));
-    _scheduler?.seek(ms.toDouble());
+    _playback.scheduler?.seek(ms.toDouble());
   }
 
   /// Selo do canto superior: modo (espera ou tempo real) e mão.
   String get _trainingPillText {
     final hand = _hand.shortLabel.toLowerCase();
     final realtime = _practiceMode == PracticeMode.realtime;
-    if (_practice != null) {
+    if (_runner.practice != null) {
       return realtime ? 'Tempo real · mão $hand' : 'Esperando · mão $hand';
     }
     if (_midiDeviceManager.connected.value == null) {
@@ -2419,7 +1242,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       trailing: [
         _phoneSoundButton(),
         ?_transposeSeal(),
-        if (_trailMode)
+        if (_runner.trailMode)
           ValueListenableBuilder(
             valueListenable: _midiDeviceManager.connected,
             builder: (context, device, _) => device != null
@@ -2431,7 +1254,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   ),
           ),
         if (_trainingMode) PhoneStatusPill(text: _trainingPillText),
-        if (_practice case final practice?)
+        if (_runner.practice case final practice?)
           practice.mode == PracticeMode.wait && practice.range == null
               // Modo espera livre não tem resultado: os dois contadores.
               ? ListenableBuilder(
@@ -2481,7 +1304,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         on: _sound.soundOn,
         loading: _sound.loadingSoundFont,
         tooltip: _sound.soundOn ? 'Som ligado' : 'Som desligado',
-        onPressed: _practice != null
+        onPressed: _runner.practice != null
             ? null
             : () => unawaited(_sound.userToggleSound()),
       );
@@ -2492,12 +1315,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// cobria o topo da pauta. No treino livre com trilha, "Treino livre" e um
   /// toque volta à trilha.
   Widget? _trailChip() {
-    if (_player == null) return null;
-    final unavailable = _trailUnavailable;
-    if (unavailable != null && _trail == null) {
+    if (_playback.player == null) return null;
+    final unavailable = _runner.unavailable;
+    if (unavailable != null && _runner.trail == null) {
       return TrailTitleChip(text: unavailable);
     }
-    final trail = _trail;
+    final trail = _runner.trail;
     if (trail == null) return null;
     if (trail.freeMode) {
       return TrailTitleChip(
@@ -2527,12 +1350,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// `null` no modo livre, sem partitura ou sem trilha montada; com trilha
   /// indisponível ou concluída (fase final até o J07), uma linha explicando.
   Widget? _trailStrip() {
-    if (_player == null) return null;
-    final unavailable = _trailUnavailable;
-    if (unavailable != null && _trail == null) {
+    if (_playback.player == null) return null;
+    final unavailable = _runner.unavailable;
+    if (unavailable != null && _runner.trail == null) {
       return _trailMessage(unavailable);
     }
-    final trail = _trail;
+    final trail = _runner.trail;
     if (trail == null || trail.freeMode) return null;
     final stage = trail.selected;
     if (stage == null) {
@@ -2550,8 +1373,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           ? ''
           : trailStateText(trail.progress, stage.id),
       running: trail.running,
-      onStart: () => unawaited(_startTrailStage()),
-      onStop: _abandonTrailStage,
+      onStart: () => unawaited(_runner.startStage()),
+      onStop: _runner.abandonStage,
       onTap: () => setState(() => _trailDrawerOpen = true),
     );
   }
@@ -2566,10 +1389,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   );
 
   /// Gaveta da trilha (J06): lista de etapas, pular, refazer e reiniciar.
-  /// Os retornos falam com o `_trail` corrente (não o da construção), pois
+  /// Os retornos falam com o `_runner.trail` corrente (não o da construção), pois
   /// reiniciar troca o controlador com a gaveta aberta.
   Widget _buildTrailDrawer() {
-    final trail = _trail;
+    final trail = _runner.trail;
     if (trail == null) return const SizedBox.shrink();
     return TrailDrawer(
       plan: trail.plan,
@@ -2578,35 +1401,30 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       currentId: trail.progress.current(trail.plan)?.id,
       blocks: trail.blockViews,
       footer: _practiceLegend(),
-      alsoStudied: _alsoStudied,
+      alsoStudied: _runner.alsoStudied,
       onClose: () => setState(() => _trailDrawerOpen = false),
       onSelectStage: (id) {
         // Etapa rodando: escolher outra encerra a que roda (sem registro),
         // senão a faixa mostraria a nova com o treino ainda na antiga.
-        if (_trail?.running ?? false) _abandonTrailStage();
-        _trail?.select(id);
+        if (_runner.trail?.running ?? false) _runner.abandonStage();
+        _runner.trail?.select(id);
         setState(() => _trailDrawerOpen = false);
       },
       onRepeatStage: trail.running
           ? null
           : (id) {
-              _trail?.select(id);
+              _runner.trail?.select(id);
               setState(() => _trailDrawerOpen = false);
-              unawaited(_startTrailStage());
+              unawaited(_runner.startStage());
             },
       onSkipCurrent: () async {
-        final current = _trail;
+        final current = _runner.trail;
         if (current == null) return;
-        if (current.running) _abandonTrailStage();
+        if (current.running) _runner.abandonStage();
         await current.skipSelected();
         current.next();
       },
-      onRestartTrail: () async {
-        if (_trail?.running ?? false) _abandonTrailStage();
-        final id = _trail?.pieceId;
-        if (id != null) await _trailStore.reset(id);
-        unawaited(_setupTrail());
-      },
+      onRestartTrail: _runner.restartTrail,
     );
   }
 
@@ -2626,11 +1444,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     ),
   );
 
-  /// Trilha no comando (faixa) em vez do treino/modo livre de hoje.
-  bool get _trailMode => _trail != null && !_trail!.freeMode;
-
   Widget _buildPhoneBody() {
-    final player = _player;
+    final player = _playback.player;
     return Stack(
       children: [
         SafeArea(
@@ -2656,40 +1471,49 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 builder: (context, _) {
                   final index =
                       (player?.currentMeasureIndex ?? _noMeasure).value;
-                  final trail = _trailMode ? _trail : null;
+                  final trail = _runner.trailMode ? _runner.trail : null;
                   final keyboard = _midiDeviceManager.connected.value != null;
                   return PhoneRail(
-                    playing: _playing,
+                    playing: _playback.playing,
                     onListen: trail != null && !trail.running
-                        ? () => unawaited(_listenTrailStage())
+                        ? () => unawaited(_runner.listenStage())
                         : null,
-                    listening: _listening,
+                    listening: _runner.listening,
                     onPlayPause: trail != null
                         ? (keyboard
-                              ? () => unawaited(_startTrailStage())
-                              : () => unawaited(_listenTrailStage()))
+                              ? () => unawaited(_runner.startStage())
+                              : () => unawaited(_runner.listenStage()))
                         : (_canTrain
-                              ? () => unawaited(_togglePractice())
+                              ? () => unawaited(
+                                  _runner.togglePractice(
+                                    hand: _hand,
+                                    mode: _practiceMode,
+                                  ),
+                                )
                               : (_canPlay ? _togglePlay : null)),
                     playTooltip: trail != null
                         ? (trail.running
                               ? 'Parar etapa'
                               : (keyboard
                                     ? 'Começar etapa'
-                                    : (_listening
+                                    : (_runner.listening
                                           ? 'Parar de ouvir'
                                           : 'Ouvir o trecho')))
                         : (_canTrain
-                              ? (_practice != null ? 'Pausar' : 'Praticar')
+                              ? (_runner.practice != null
+                                    ? 'Pausar'
+                                    : 'Praticar')
                               : null),
                     playIcon: trail != null
                         ? (trail.running
                               ? null
                               : Icon(
-                                  _listening ? Icons.stop : Icons.play_arrow,
+                                  _runner.listening
+                                      ? Icons.stop
+                                      : Icons.play_arrow,
                                   size: 24,
                                 ))
-                        : (_canTrain && _practice == null
+                        : (_canTrain && _runner.practice == null
                               ? const Icon(Icons.play_arrow, size: 24)
                               : null),
                     onRestart: _canPlay ? () => unawaited(_restart()) : null,
@@ -2715,7 +1539,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     onStageTap: trail == null
                         ? null
                         : () => setState(() => _trailDrawerOpen = true),
-                    tempoPercent: (_speed * 100).round(),
+                    tempoPercent: (_playback.speed * 100).round(),
                     handLabel: _hand.shortLabel,
                     onOptions: () => setState(() => _optionsOpen = true),
                   );
@@ -2738,26 +1562,26 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       defaultTargetPlatform == TargetPlatform.iOS;
 
   Widget _buildOptionsDrawer() {
-    final trailActive = _trailMode;
+    final trailActive = _runner.trailMode;
     return PhoneOptionsDrawer(
       mode: StudyMode.of(training: _trainingMode, mode: _practiceMode),
-      onModeChanged: _practice != null ? null : _setStudyMode,
+      onModeChanged: _runner.practice != null ? null : _setStudyMode,
       trailMode: trailActive,
       hand: _hand,
       onHandChanged: _setHand,
-      tempoPercent: (_speed * 100).round(),
+      tempoPercent: (_playback.speed * 100).round(),
       onTempoChanged: (v) => _setSpeed(v / 100),
       onClose: () => setState(() => _optionsOpen = false),
       // A trilha vem primeiro: na trilha a gaveta abre por ela, e no treino
       // livre "Voltar à trilha" fica no topo, à vista (U11).
       top: [
-        if (_trail != null) ...[
+        if (_runner.trail != null) ...[
           const PhoneSectionLabel('TRILHA'),
           PhoneActionRow(
             icon: trailActive ? Icons.school_outlined : Icons.route,
             label: trailActive ? 'Treino livre' : 'Voltar à trilha',
             onTap: () {
-              final trail = _trail;
+              final trail = _runner.trail;
               if (trail == null) return;
               setState(() {
                 trail.setFreeMode(!trail.freeMode);
@@ -2773,15 +1597,15 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           const PhoneSectionLabel('TREINO'),
           PhoneToggleRow(
             label: 'Metrônomo (com som)',
-            value: _metronomeOn,
-            onChanged: (_) => _toggleMetronome(),
+            value: _settings.metronomeOn,
+            onChanged: (_) => _playback.toggleMetronome(),
           ),
           PhoneActionRow(
             icon: Icons.repeat,
-            label: _loop == null
+            label: _playback.loop == null
                 ? 'Repetir um trecho'
-                : 'Trecho: compassos ${_loop!.a + 1}–${_loop!.b + 1} — mudar',
-            onTap: _player == null
+                : 'Trecho: compassos ${_playback.loop!.a + 1}–${_playback.loop!.b + 1} — mudar',
+            onTap: _playback.player == null
                 ? null
                 : () {
                     setState(() => _optionsOpen = false);
@@ -2794,24 +1618,29 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         PhoneSectionLabel('${_term.este} ${_term.singular}'.toUpperCase()),
         PhoneToggleRow(
           label: 'Trechos de ${_settings.trailMeasures} compassos (padrão)',
-          value: _trailPieceN == null,
-          onChanged: (v) =>
-              unawaited(_setPieceTrailN(v ? null : _settings.trailMeasures)),
+          value: _runner.pieceN == null,
+          onChanged: (v) => unawaited(
+            _runner.setPieceN(
+              v ? null : _settings.trailMeasures,
+              confirm: _confirmNewCut,
+            ),
+          ),
         ),
-        if (_trailPieceN case final pieceN?)
+        if (_runner.pieceN case final pieceN?)
           TrailNSelector(
             value: pieceN,
             max: _trailMaxN,
-            onChanged: (v) => unawaited(_setPieceTrailN(v)),
+            onChanged: (v) =>
+                unawaited(_runner.setPieceN(v, confirm: _confirmNewCut)),
           ),
         PhoneSliderRow(
           label: 'TAMANHO DA NOTAÇÃO',
-          value: (_layout['unit']! as num).toDouble(),
+          value: (_session.layout['unit']! as num).toDouble(),
           min: 4.5,
           max: 12,
           divisions: 15,
           formatValue: (v) => v.toStringAsFixed(1),
-          onChanged: (v) => _setLayoutValue('unit', v),
+          onChanged: (v) => _session.setLayoutValue('unit', v),
           onChangeEnd: (_) => _commitLayout(),
         ),
         PhoneActionRow(
@@ -2826,16 +1655,20 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         PhoneActionRow(
           icon: Icons.chevron_left,
           label: 'Página anterior',
-          onTap: _pageIndex > 0 && !_busy ? _viewController.previousPage : null,
+          onTap: _session.pageIndex > 0 && !_session.busy
+              ? _viewController.previousPage
+              : null,
           trailing: Text(
-            _pageCount == 0 ? '—' : '${_pageIndex + 1} / $_pageCount',
+            _session.pageCount == 0
+                ? '—'
+                : '${_session.pageIndex + 1} / ${_session.pageCount}',
             style: const TextStyle(fontSize: 13, color: kInkCaption),
           ),
         ),
         PhoneActionRow(
           icon: Icons.chevron_right,
           label: 'Próxima página',
-          onTap: _pageIndex < _pageCount - 1 && !_busy
+          onTap: _session.pageIndex < _session.pageCount - 1 && !_session.busy
               ? _viewController.nextPage
               : null,
         ),
@@ -2892,7 +1725,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   }
 
   /// Treino com a música andando (tempo real, livre ou na trilha).
-  bool get _timedPractice => _practice?.mode == PracticeMode.realtime;
+  bool get _timedPractice => _runner.practice?.mode == PracticeMode.realtime;
 
   Widget _buildScoreArea({bool phone = false}) {
     // The page is engraved for this box, so its size has to be known before
@@ -2902,10 +1735,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final dpr = MediaQuery.devicePixelRatioOf(context);
-        _onBoxSize(constraints.biggest * dpr);
+        if (_session.setBox(constraints.biggest * dpr)) {
+          // A primeira caixa: o painel, montado antes dela, ainda não mostra
+          // o tamanho da página.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() {});
+          });
+        }
         _viewport = constraints.biggest;
 
-        final document = _document;
+        final document = _session.document;
         final hasPage = document != null && document.pages.isNotEmpty;
         final Widget content = hasPage
             // InteractiveViewer gives its child unbounded room, so the
@@ -2920,18 +1759,21 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     document: document,
                     controller: _controller,
                     viewController: _viewController,
-                    curtain: _player?.curtain,
+                    curtain: _playback.player?.curtain,
                     mode: ScorePageMode.pagedSweep,
-                    initialPage: _pageIndex.clamp(0, document.pages.length - 1),
+                    initialPage: _session.pageIndex.clamp(
+                      0,
+                      document.pages.length - 1,
+                    ),
                     onPageChanged: _onPageChanged,
                     onElementTap: _onScoreTap,
                     ghosts: _ghosts,
                     overlayIds:
-                        (_trailMarkedIds().isEmpty &&
-                                _errorMeasureIds.isEmpty) ||
-                            _player == null
+                        (_runner.markedIds().isEmpty &&
+                                _runner.errorMeasureIds.isEmpty) ||
+                            _playback.player == null
                         ? const []
-                        : _allMeasureIds(_player!),
+                        : _allMeasureIds(_playback.player!),
                     overlayBuilder: _markMeasure,
                     overlayUniformHeight: true,
                     haloSigmaScale: _haloWidth,
@@ -2947,8 +1789,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                         : _barWidthOf(document) * 4,
                     maxSweepDuration: _timedPractice
                         ? Duration(
-                            milliseconds: (300 * (_scheduler?.speed ?? 1))
-                                .round(),
+                            milliseconds:
+                                (300 * (_playback.scheduler?.speed ?? 1))
+                                    .round(),
                           )
                         : kDefaultMaxSweepDuration,
                   ),
@@ -2961,7 +1804,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 64),
                   child: Text(
-                    switch (_renderError) {
+                    switch (_session.error) {
                       final error? =>
                         'Não deu para abrir ${_term.o} ${_term.singular}: $error',
                       null => _scoreName,
@@ -2995,11 +1838,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             Positioned.fill(
               child: CountInOverlay(
                 phone: phone,
-                active: _playing,
-                read: () => _silentCountIn?.call() ?? _scheduler?.countInTick,
+                active: _playback.playing,
+                read: _playback.countIn,
               ),
             ),
-            if (_busy)
+            if (_session.busy)
               const Positioned(
                 top: 0,
                 left: 0,
@@ -3021,7 +1864,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   deviceManager: _midiDeviceManager,
                   input: _midiInput,
                   onClose: () => setState(() => _midiPanelOpen = false),
-                  wrong: _practice?.wrongPitches,
+                  wrong: _runner.practice?.wrongPitches,
                   heldPitchOf: (r) => _pitchFrame.writtenFromReceived(r),
                 ),
               )
@@ -3041,13 +1884,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 constraints: constraints,
                 child: LayoutPanel(
                   subtitle: _scoreName,
-                  values: _layout,
-                  pageFitsBox: _pageFitsBox,
-                  fittedPage: _fittedPage,
-                  onChanged: _setLayoutValue,
+                  values: _session.layout,
+                  pageFitsBox: _session.pageFitsBox,
+                  fittedPage: _session.fittedPage,
+                  onChanged: _session.setLayoutValue,
                   onCommit: _commitLayout,
                   onFitChanged: (v) {
-                    setState(() => _pageFitsBox = v);
+                    _session.setPageFitsBox(v);
                     _commitLayout();
                   },
                   onReset: _resetLayout,
@@ -3074,7 +1917,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     monitorOn: _sound.midiMonitorOn,
                     onMonitorChanged: (_) =>
                         unawaited(_sound.toggleMidiMonitor()),
-                    inputLatencyMs: _inputLatencyMs,
+                    inputLatencyMs: _runner.inputLatencyMs,
                     onCalibrate: () {
                       setState(() => _generalOpen = false);
                       unawaited(_openCalibration());
@@ -3224,13 +2067,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 // one itself, so its height comes out of the score area's share
                 // of the fixed Column height. Left unbounded, a status message
                 // long enough to wrap on a narrow (phone) width shrinks the
-                // score box just past `_onBoxSize`'s 2% threshold, which
+                // score box just past `ScoreRenderSession.setBox`'s 2% threshold, which
                 // schedules a re-render — whose *own* status text then differs
                 // in length from this one, flipping the wrap back and forth
                 // forever. Desktop windows are wide enough that no status
                 // string wraps, so this never showed up before a real phone.
                 Text(
-                  'status: $_status',
+                  'status: ${_session.status}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -3240,48 +2083,55 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   spacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    if (_trail != null)
+                    if (_runner.trail != null)
                       IconButton.filledTonal(
-                        tooltip: _trailMode
+                        tooltip: _runner.trailMode
                             ? 'Treino livre'
                             : 'Voltar à trilha',
                         onPressed: () {
-                          final trail = _trail;
+                          final trail = _runner.trail;
                           if (trail != null) {
                             setState(() => trail.setFreeMode(!trail.freeMode));
                           }
                         },
                         icon: Icon(
-                          _trailMode ? Icons.school_outlined : Icons.route,
+                          _runner.trailMode
+                              ? Icons.school_outlined
+                              : Icons.route,
                         ),
                       ),
                     IconButton.filled(
-                      tooltip: _trailMode
-                          ? ((_trail?.running ?? false)
+                      tooltip: _runner.trailMode
+                          ? ((_runner.trail?.running ?? false)
                                 ? 'Parar etapa'
                                 : 'Começar etapa')
                           : (_canTrain
-                                ? (_practice != null
+                                ? (_runner.practice != null
                                       ? 'Parar prática'
                                       : 'Praticar (modo espera)')
-                                : (_playing
+                                : (_playback.playing
                                       ? 'Pausar'
                                       : 'Tocar (destacar notas)')),
-                      onPressed: _trailMode
-                          ? () => unawaited(_startTrailStage())
+                      onPressed: _runner.trailMode
+                          ? () => unawaited(_runner.startStage())
                           : (_canTrain
-                                ? () => unawaited(_togglePractice())
+                                ? () => unawaited(
+                                    _runner.togglePractice(
+                                      hand: _hand,
+                                      mode: _practiceMode,
+                                    ),
+                                  )
                                 : (_canPlay ? _togglePlay : null)),
                       icon: Icon(
-                        _trailMode
-                            ? ((_trail?.running ?? false)
+                        _runner.trailMode
+                            ? ((_runner.trail?.running ?? false)
                                   ? Icons.pause
                                   : Icons.school)
                             : (_canTrain
-                                  ? (_practice != null
+                                  ? (_runner.practice != null
                                         ? Icons.pause
                                         : Icons.school)
-                                  : (_playing
+                                  : (_playback.playing
                                         ? Icons.pause
                                         : Icons.play_arrow)),
                       ),
@@ -3295,8 +2145,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                       tooltip: 'Parar',
                       onPressed:
                           _canPlay &&
-                              (_playing ||
-                                  (_player?.position ?? Duration.zero) >
+                              (_playback.playing ||
+                                  (_playback.player?.position ??
+                                          Duration.zero) >
                                       Duration.zero)
                           ? _stop
                           : null,
@@ -3312,7 +2163,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                         _trainingMode ? Icons.school : Icons.school_outlined,
                       ),
                     ),
-                    if (_trainingMode && _practice == null)
+                    if (_trainingMode && _runner.practice == null)
                       IconButton.filledTonal(
                         tooltip: switch (_practiceMode) {
                           PracticeMode.wait =>
@@ -3331,7 +2182,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                           PracticeMode.realtime => Icons.speed,
                         }),
                       ),
-                    if (_trainingMode && _practice == null)
+                    if (_trainingMode && _runner.practice == null)
                       PopupMenuButton<Hand>(
                         tooltip: 'Mão do aluno',
                         initialValue: _hand,
@@ -3343,23 +2194,25 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                         ],
                       ),
                     IconButton.filledTonal(
-                      tooltip: _metronomeOn
+                      tooltip: _settings.metronomeOn
                           ? 'Desligar metrônomo'
                           : 'Ligar metrônomo (com som do app)',
-                      onPressed: _toggleMetronome,
+                      onPressed: _playback.toggleMetronome,
                       icon: Icon(
-                        _metronomeOn ? Icons.av_timer : Icons.timer_outlined,
+                        _settings.metronomeOn
+                            ? Icons.av_timer
+                            : Icons.timer_outlined,
                       ),
                     ),
                     IconButton.filledTonal(
-                      tooltip: _loop == null
+                      tooltip: _playback.loop == null
                           ? 'Repetir um trecho (loop A-B)'
-                          : 'Loop: compassos ${_loop!.a + 1}–${_loop!.b + 1}',
-                      onPressed: _player == null
+                          : 'Loop: compassos ${_playback.loop!.a + 1}–${_playback.loop!.b + 1}',
+                      onPressed: _playback.player == null
                           ? null
                           : () => unawaited(_openLoopSheet()),
                       icon: Icon(
-                        _loop == null ? Icons.repeat : Icons.repeat_on,
+                        _playback.loop == null ? Icons.repeat : Icons.repeat_on,
                       ),
                     ),
                     IconButton.filledTonal(
@@ -3434,8 +2287,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                               min: 0.5,
                               max: 1.5,
                               divisions: 10,
-                              label: '${_speed.toStringAsFixed(2)}×',
-                              value: _speed,
+                              label: '${_playback.speed.toStringAsFixed(2)}×',
+                              value: _playback.speed,
                               onChanged: _canPlay ? _setSpeed : null,
                             ),
                           ),
@@ -3444,18 +2297,22 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     ),
                     IconButton.filledTonal(
                       tooltip: 'Página anterior',
-                      onPressed: _pageIndex > 0 && !_busy
+                      onPressed: _session.pageIndex > 0 && !_session.busy
                           ? _viewController.previousPage
                           : null,
                       icon: const Icon(Icons.chevron_left),
                     ),
                     Text(
-                      _pageCount == 0 ? '—' : '${_pageIndex + 1} / $_pageCount',
+                      _session.pageCount == 0
+                          ? '—'
+                          : '${_session.pageIndex + 1} / ${_session.pageCount}',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     IconButton.filledTonal(
                       tooltip: 'Próxima página',
-                      onPressed: _pageIndex < _pageCount - 1 && !_busy
+                      onPressed:
+                          _session.pageIndex < _session.pageCount - 1 &&
+                              !_session.busy
                           ? _viewController.nextPage
                           : null,
                       icon: const Icon(Icons.chevron_right),

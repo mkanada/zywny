@@ -6,8 +6,10 @@
 // pasta de terceiros.
 
 import 'asset_course_files.dart';
-import 'format/course_files.dart';
-import 'format/course_reader.dart';
+
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_reader.dart';
+
 import 'loaded_course.dart';
 
 /// Carrega o curso inicial embutido (`assets/cursos/iniciacao/`).

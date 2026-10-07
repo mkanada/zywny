@@ -31,6 +31,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+# O `flutter test` dos pacotes do workspace (R13–R17) também gera build/.
+/packages/*/build/
 /coverage/
 
 # Symbolication related

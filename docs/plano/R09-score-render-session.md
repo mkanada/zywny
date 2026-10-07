@@ -65,3 +65,38 @@ O player e o agendador (R10). A trilha que é montada depois do render
 
 ## Notas de execução
 
+
+Feito em 2026-10-07.
+
+- `lib/app/score_render_session.dart`: `ScoreRenderSession` (`ChangeNotifier`)
+  com `document`, `track`, `pageIndex`/`pageCount`, `status`, `error`, `busy`,
+  `transposition` (a pedida) e `renderedTransposition` (a da gravura na tela),
+  `transpositionFor`, `noAccidentals`, `originalRange`, `transposeChoice`,
+  `layout`/`layoutDefaults`, `pageFitsBox`, `fittedPage`, `effectiveOptions`
+  e as ações `setBox`, `setPage`, `setLayoutValue`, `setPageFitsBox`,
+  `resetLayout`, `chooseTranspose` e `render()`. Recebe o `ScoreRenderer`, o
+  `scoreXml`, a peça, as `AppSettings`, as `PieceSettings` guardadas, o nome
+  do status, `phone` e `debugMode`.
+- "Documento novo" é o callback `onDocument(document, track)`, chamado com o
+  estado da sessão já trocado e antes do aviso aos ouvintes. Na tela,
+  `_onDocument` desmonta o treino/player/agendador da gravura anterior e
+  monta os novos, como o `_renderAndShow` fazia, e segue com a trilha,
+  `restoreSound` e a conferência do TRANSPOSE.
+- A sessão ouve as configurações ela mesma: a regravação quando a chave
+  "sem acidentes" muda o tom saiu do `_onSettingsChanged` da tela.
+- `setBox` é chamado do `build` e nunca avisa na hora; devolve `true` na
+  primeira caixa, e a tela redesenha num `addPostFrameCallback` (como antes).
+- Ficaram na tela, por serem tela ou gravação das preferências do hino:
+  `_commitLayout` (guarda e chama `render()`), `_resetLayout`,
+  `_copyOptions`, a parte de `_chooseTranspose` que pergunta (Q04) e os
+  widgets de transposição. O status deixou de passar por "gerando .vsb…"
+  (era trocado no mesmo quadro por "renderizando…").
+- `test/score_render_session_test.dart`, 6 testes: a primeira caixa grava;
+  dois pedidos durante um render dão um só depois, com o `unit` da hora; a
+  caixa tremida (1%) não grava e duas mudanças seguidas dão uma gravura
+  depois do respiro; página fixa não regrava; gravura sem páginas é erro e
+  mantém a de antes; descartada, não grava.
+- Aceite: os três métodos não existem mais em `main.dart` (3476 → 3240
+  linhas); `just analyze` limpo; `just test` 889 passaram, 10 pulados (os
+  testes de `transpor_tela_test.dart` sem mudança). **Critério 3 (`just
+  telas`) pendente**: precisa do celular ligado pelo `adb`, que não estava.

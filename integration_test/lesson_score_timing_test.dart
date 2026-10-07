@@ -13,8 +13,8 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:zywny/course/format/course_model.dart';
-import 'package:zywny/music/note_name.dart';
+import 'package:zywny_course_format/course_model.dart';
+import 'package:zywny_music/note_name.dart';
 import 'package:zywny/course/score/lesson_score.dart';
 import 'package:zywny/course/score/round_score.dart';
 import 'package:zywny/render/score_renderer.dart';

@@ -18,10 +18,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 
-import 'package:zywny/course/format/course_files.dart';
-import 'package:zywny/course/format/course_model.dart';
-import 'package:zywny/course/format/course_reader.dart';
-import 'package:zywny/course/format/directory_course_files.dart';
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+import 'package:zywny_course_format/course_reader.dart';
+import 'package:zywny_course_format/directory_course_files.dart';
 import 'package:zywny/course/score/lesson_score.dart';
 import 'package:zywny/course/ui/exercise_card.dart';
 import 'package:zywny/course/ui/lesson_audio.dart';

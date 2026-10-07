@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Gera assets/mockup/partitura_*.png a partir do corpus do
-# verovio_flutter_bridge, para as telas-mockup em lib/mockup/ (interface de
+# Gera apps/zywny_mockup/assets/partitura_*.png a partir do corpus do
+# verovio_flutter_bridge, para as telas-mockup do apps/zywny_mockup (interface de
 # estudo, sem o motor Verovio ligado no app — ver docs/plano e o artefato
 # "zywny — interface de estudo").
 #
@@ -16,7 +16,7 @@ verovio_bin="$bridge_dir/verovio/tools/verovio"
 data_dir="$bridge_dir/verovio/data"
 input_mei="$bridge_dir/corpus/mei/Grieg_Little_bird_Op43_No4.mei"
 chrome_bin="${CHROME_BIN:-$(command -v google-chrome || echo google-chrome)}"
-out_dir="$proj_dir/assets/mockup"
+out_dir="$proj_dir/apps/zywny_mockup/assets"
 
 [[ -x "$verovio_bin" ]] || { echo "ERROR: $verovio_bin não existe — compile o fork (cd $bridge_dir/verovio/tools && cmake ../cmake && make -j4)" >&2; exit 1; }
 [[ -x "$chrome_bin" ]] || { echo "ERROR: Chrome não encontrado em $chrome_bin (defina CHROME_BIN)" >&2; exit 1; }

@@ -9,11 +9,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../audio/sound_engine.dart';
+import 'package:zywny_audio/sound_engine.dart';
+
 import '../../ui/theme.dart';
 import '../course_progress.dart';
 import '../draft/course_issues_screen.dart' show DraftBanner;
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_model.dart';
+
 import '../loaded_course.dart';
 import 'course_chrome.dart';
 import 'course_flow.dart';

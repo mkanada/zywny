@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../library/library_store.dart';
+import 'package:zywny_library/library_store.dart';
+
 import '../ui/theme.dart';
 
 /// A seção **Bibliotecas** das configurações gerais (B06): as instaladas, a

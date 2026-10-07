@@ -3,25 +3,33 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../audio/engine_opener.dart';
-import '../audio/sound_engine.dart';
+import 'package:zywny_audio/engine_opener.dart';
+import 'package:zywny_audio/sound_engine.dart';
+
 import '../course/course_installer.dart';
 import '../course/course_progress.dart';
 import '../course/course_store.dart';
 import '../course/draft/course_draft.dart';
 import '../course/draft/course_draft_screen.dart';
 import '../course/draft/draft_folder.dart';
-import '../course/format/course_files.dart';
+
+import 'package:zywny_course_format/course_files.dart';
+
 import '../course/loaded_course.dart';
 import '../course/ui/course_flow.dart';
 import '../course/ui/courses_screen.dart';
 import '../course/ui/course_screen.dart' show openLessonScreen;
-import '../midi/midi_device_manager.dart';
+
+import 'package:zywny_midi/midi_device_manager.dart';
+
 import '../midi/midi_device_picker.dart';
-import '../midi/midi_input_service.dart';
-import '../midi/midi_out_sound_engine.dart';
-import '../music/tone_choices.dart';
-import '../music/transposition.dart';
+
+import 'package:zywny_midi/midi_input_service.dart';
+import 'package:zywny_midi/midi_out_sound_engine.dart';
+
+import 'package:zywny_music/tone_choices.dart';
+import 'package:zywny_music/transposition.dart';
+
 import '../settings/effective_transposition.dart';
 import '../settings/app_settings.dart';
 import 'general_settings_panel.dart';
@@ -30,14 +38,15 @@ import '../trail/trail_progress.dart';
 import '../trail/trail_widgets.dart' show TrailProgressBar, trailResumeText;
 import '../ui/orientation.dart';
 import '../ui/theme.dart';
-import '../library/library_keys.dart';
-import '../library/piece.dart';
-import '../library/piece_progress.dart';
-import '../library/library_installer.dart';
-import '../library/library_package.dart' show LibraryTerm;
-import '../library/library_term_scope.dart';
-import '../library/library_sort.dart';
-import '../library/library_store.dart';
+
+import 'package:zywny_library/library_keys.dart';
+import 'package:zywny_library/piece.dart';
+import 'package:zywny_library/piece_progress.dart';
+import 'package:zywny_library/library_installer.dart';
+import 'package:zywny_library/library_package.dart' show LibraryTerm;
+import 'package:zywny_library/library_term_scope.dart';
+import 'package:zywny_library/library_sort.dart';
+import 'package:zywny_library/library_store.dart';
 
 /// O que a tela de partitura recebe da biblioteca ao abrir um hino.
 @immutable

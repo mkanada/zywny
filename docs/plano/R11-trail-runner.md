@@ -66,3 +66,45 @@ Mudar regras da trilha (J00) ou o que a gaveta mostra.
 
 ## Notas de execução
 
+
+Feito em 2026-10-07.
+
+- `lib/app/trail_runner.dart`: `TrailRunner` (`ChangeNotifier`) com `trail`,
+  `unavailable`, `alsoStudied`, `pieceN`, `trailMode`, `practice`,
+  `listening`, `inputLatencyMs`, `errorMeasureIds`, `markedIds()`/`isMarked`
+  e as ações `attachDocument`, `setup`, `restartTrail`, `setPieceN`,
+  `markErrors`/`clearErrorMarks`, `startStage`, `listenStage`,
+  `stopListening`, `abandonStage`, `loadInputLatency`/`setInputLatency`,
+  `togglePractice`, `endPractice`, `stopPractice`. Recebe o
+  `TrailProgressStore`, o `PlaybackController`, a `ScoreRenderSession`, a
+  `SoundOutputController`, as configurações, o MIDI (gerenciador e
+  entrada), a peça e o termo da biblioteca, os controllers de destaque e
+  fantasma, o detector de deslocamento (Q07) com o `onShift` da tela e a
+  conversão de alturas da entrada (fase Q).
+- Os diálogos ficam na tela, por `TrailRunnerHost`: `stageSummary`,
+  `conclusion`, `backToLibrary`, `practiceReport` (pontuação na biblioteca
+  e resumo do T03) e `pieceNChanged` (guardar o N do hino). A confirmação de
+  trocar o corte vai como `confirm:` de `setPieceN`.
+- **O treino livre foi junto** (item 4): ele e a etapa dividem o mesmo
+  `PracticeController`, a pintura das mãos, o "devolver o player" e a
+  latência calibrada — separados, o runner teria de expor o treino da tela
+  e vice-versa. A tela passa a mão e o modo (`togglePractice(hand:,
+  mode:)`); `_trainingMode` e `_hand` continuam dela (são escolhas da
+  barra/gaveta).
+- O runner ouve as configurações (remontar a trilha quando o corte ou as
+  etapas mudam; cores do treino); o `_onSettingsChanged` da tela só
+  redesenha. A tela não tem mais `_trail`, `_practice`, `_listening`,
+  `_inputLatencyMs` nem os campos das marcas; `_markMeasure` (desenho)
+  ficou e lê do runner.
+- `test/trail_runner_test.dart`, 3 testes (`testWidgets`, Gymnopédie pronta,
+  `FakeSoundEngine` com relógio andado pelo teste e `FakeMidiInput` tocando
+  a etapa "notas da direita" no modo espera): uma etapa passada fica
+  aprovada e a trilha avança; com teclas erradas, o resumo traz os
+  compassos e eles ficam marcados na pauta (dentro do trecho); com a
+  partitura transposta, o progresso vai para o id do tom
+  (`progressIdFor`) e o do tom original fica intocado. Os `trail_*_test`
+  existentes passam sem mudança.
+- Aceite: `wc -l lib/main.dart` 2318 (era 3823 no `fac579c`; 2948 depois do
+  R10); nenhum dos métodos listados existe lá; `just analyze` limpo;
+  `just test` 897 passaram, 10 pulados. **`just telas` (precisa do celular
+  no `adb`) e o critério 3 (manual, teclado) pendentes.**

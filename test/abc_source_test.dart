@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/course/format/course_model.dart';
+import 'package:zywny_course_format/course_model.dart';
 import 'package:zywny/course/score/abc_source.dart';
 
 import 'support/render_helper.dart';

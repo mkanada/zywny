@@ -54,3 +54,24 @@ Mudar a reconexão, a latência ou a escolha de dispositivo.
 
 ## Notas de execução
 
+
+Feito em 2026-10-07.
+
+- `packages/zywny_midi/` (Flutter; `flutter_midi_command`,
+  `shared_preferences`, `web`, `zywny_audio` e `zywny_diag`):
+  `midi_input_service`, `midi_device_manager`, `midi_out_sound_engine`,
+  `midi_monitor`, `midi_labels` e `web_midi_access` (com `_stub`/`_web`, o
+  import condicional igual). O `zywny_music` não entrou: nenhum desses
+  arquivos o usa (quem usa é o `piano_keyboard`, que é tela e ficou).
+- Ficaram no app, em `lib/midi/`: `midi_device_picker`,
+  `midi_monitor_panel` e `piano_keyboard`.
+- Testes do pacote: `midi_device_manager_test`,
+  `midi_device_manager_web_test`, `midi_input_service_test` e
+  `midi_out_sound_engine_test` (23). O `FakeMidiInput` e o
+  `MidiCommandPlatform` falso continuam em `test/support/` e nos testes do
+  app, que os usam junto com o resto (treino, tela, configurações).
+- Imports corrigidos em 40 arquivos. O grupo "midi" saiu do teste de
+  camadas.
+- Aceite: `just analyze` limpo; `just test` verde (app 797, `zywny_audio` 9,
+  `zywny_course_format` 16, `zywny_midi` 23, `zywny_music` 52).
+  **Manual (teclado) pendente.**

@@ -8,7 +8,8 @@
 import 'package:flutter/material.dart';
 
 import '../../ui/theme.dart';
-import '../format/course_issue.dart';
+
+import 'package:zywny_course_format/course_issue.dart';
 
 /// A lista de problemas do rascunho, com Recarregar no topo.
 class CourseIssuesScreen extends StatelessWidget {

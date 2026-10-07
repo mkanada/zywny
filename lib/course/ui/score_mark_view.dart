@@ -13,13 +13,16 @@ import '../../render/score_size_log.dart';
 import 'package:flutter/material.dart';
 import 'package:score_bridge/score_bridge.dart';
 
-import '../../audio/score_audio_scheduler.dart';
-import '../../audio/sound_engine.dart';
-import '../../music/performance_track.dart';
+import 'package:zywny_audio/score_audio_scheduler.dart';
+import 'package:zywny_audio/sound_engine.dart';
+import 'package:zywny_audio/performance_track.dart';
+
 import '../../render/score_renderer.dart';
 import '../../ui/theme.dart';
-import '../format/course_files.dart';
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+
 import '../score/lesson_score.dart';
 import 'course_chrome.dart';
 

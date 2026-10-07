@@ -14,13 +14,13 @@ import 'package:zywny/course/course_installer.dart';
 import 'package:zywny/course/course_progress.dart';
 import 'package:zywny/course/course_store.dart';
 import 'package:zywny/course/exercise/exercise_round.dart';
-import 'package:zywny/course/format/course_files.dart';
-import 'package:zywny/course/format/course_reader.dart';
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_reader.dart';
 import 'package:zywny/course/loaded_course.dart';
 import 'package:zywny/course/ui/courses_screen.dart';
-import 'package:zywny/library/library_blob_store.dart';
-import 'package:zywny/library/library_package.dart' show LibraryFormatException;
-import 'package:zywny/library/library_store.dart';
+import 'package:zywny_library/library_blob_store.dart';
+import 'package:zywny_library/library_package.dart' show LibraryFormatException;
+import 'package:zywny_library/library_store.dart';
 import 'package:zywny/app/courses_section.dart';
 import 'package:zywny/ui/theme.dart';
 

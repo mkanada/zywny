@@ -69,3 +69,40 @@ O motor no Windows (K06). Mudar a API do `SoundEngine`.
 
 ## Notas de execução
 
+
+Feito em 2026-10-07.
+
+- **Decisão do usuário (item 3):** o `diag_log` virou um pacote próprio
+  mínimo, `packages/zywny_diag` (Flutter + `path_provider`; o arquivo igual).
+  O app, o `zywny_audio` e o MIDI dependem dele; `lib/core/` deixou de
+  existir.
+- `packages/zywny_audio/` (Flutter; `ffi`, `path_provider`, `score_bridge`
+  por path — `../../score_bridge`, que continua fora do workspace — e
+  `zywny_diag`): `sound_engine`, `sound_engine_factory` com `_native`/`_web`,
+  `native_sound_engine`, `web_sound_engine`, `score_audio_scheduler`,
+  `metronome`, `audio_playback_clock`, `soundfont_store`, `engine_opener`,
+  `audio_library_path` e `performance_track` (de `lib/music/`, que deixou de
+  existir). O `zywny_music` não entrou como dependência: nenhum desses
+  arquivos o usa. O painel de depuração (`sound_engine_debug_panel*`) ficou
+  em `lib/audio/`.
+- **Build: nada mudou de lugar.** A crate continua em `native/zywny_audio`
+  (o `linux/CMakeLists.txt` e o `tool/build_audio_android.sh` a acham como
+  antes) e o SpessaSynth em `web_src/` → `web/audio/`. O `.sf2` padrão
+  continua asset do app; o `soundfont_store` o lê por `rootBundle` com a
+  mesma chave. Único ajuste: `findAudioLibrary` ganhou o candidato
+  `../../native/…`, para os testes que rodam de dentro do pacote.
+- Testes do pacote: `native_sound_engine_test` (roda de verdade com a `.so`
+  compilada) e `performance_track_test` (fixtures lidas de
+  `../../test/fixtures/`). O `score_audio_scheduler_test` ficou no app:
+  usa `practice/latency_calibration.dart`.
+- Imports corrigidos em 52 arquivos. Os grupos "áudio", "music" e "core"
+  saíram do teste de camadas; ficaram "midi" e "biblioteca" (agora sem
+  dependências dentro de `lib/`) e as regras soltas. A de `app_settings`
+  deixou de citar `music/`.
+- `just test` pula pacotes sem `test/` (o `zywny_diag`).
+- Aceite: `just analyze` limpo; `just test` verde (app 820, `zywny_audio`
+  9, `zywny_course_format` 16, `zywny_music` 52); `just web-smoke` limpo
+  (o som da Web toca e para); `just build-apk` compila e o APK leva
+  `libzywny_audio.so` e o `TimGM6mb.sf2`. **Manual pendente:** `just run`
+  com som no Linux (o build Linux desta máquina está parado no
+  `libunwind.pc`, ver R12) e o APK no celular.

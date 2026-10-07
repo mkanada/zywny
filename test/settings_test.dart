@@ -16,7 +16,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:zywny/render/layout_options.dart';
-import 'package:zywny/library/piece.dart';
+import 'package:zywny_library/piece.dart';
 import 'package:zywny/app/library_screen.dart';
 import 'package:zywny/main.dart';
 import 'package:zywny/practice/hand.dart';

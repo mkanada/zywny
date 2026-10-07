@@ -7,7 +7,9 @@ import 'package:flutter/material.dart';
 
 import '../../ui/theme.dart';
 import '../course_progress.dart';
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_model.dart';
+
 import '../loaded_course.dart';
 import 'course_flow.dart';
 import 'course_screen.dart';

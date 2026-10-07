@@ -65,3 +65,32 @@ a migração. Pacotes de `practice`/`trail`: a revisão recomenda não fazer.
 
 ## Notas de execução
 
+
+Feito em 2026-10-07.
+
+- `packages/zywny_library/` (Flutter; `zywny_music`, `archive`,
+  `cryptography`, `file_selector`, `path_provider`, `shared_preferences` e
+  `web`): os 13 arquivos de `lib/library/` (que deixou de existir), API igual,
+  inclusive `library_term_scope` (só `flutter/widgets`) e o blob store com o
+  import condicional `_native`/`_web`.
+- A chave (`String.fromEnvironment('ZYWNY_LIBRARY_KEY')`) continua chegando
+  pelo `--dart-define` do build do app: o `just web-smoke` instala o pacote
+  assinado pela Web e a lista dos 600 hinos aparece.
+- Testes do pacote: `library_envelope_test`, `library_package_test` (o
+  `dist/hinos.zywny` e `keys/` lidos de `../../`; rodam quando existem) e
+  `library_blob_store_web_test` (`@TestOn('browser')`, pulado na VM como
+  antes). Ficaram no app os que usam o resto: `library_store_test` (usa
+  `test/support/library_fixtures.dart`, que os testes de tela também usam),
+  `legacy_migration_test` e `piece_keys_test` (falam com `PieceSettings` e
+  a trilha) e os de tela.
+- Imports corrigidos em 42 arquivos; comentários de `tool/build_library.py` e
+  `tool/library_crypto.py` apontam o caminho novo.
+- Teste de camadas sem grupo nenhum (item 3): saiu a classe `_Grupo`; ficam
+  as regras soltas — `practice` ↛ `trail`, `app_settings` só com as folhas,
+  só `main.dart` e `app/` importam `app/` — e um comentário dizendo que as
+  camadas de baixo viraram pacotes.
+- Aceite: `just analyze` limpo; `just test` verde (app 763, `zywny_audio` 9,
+  `zywny_course_format` 16, `zywny_library` 34, `zywny_midi` 23,
+  `zywny_music` 52); `just web-smoke` limpo (blob store da Web, IndexedDB
+  depois de recarregar); `just build-apk` compila. **Manual pendente:**
+  `just pacote-hinos` e instalar por arquivo no app (B05).

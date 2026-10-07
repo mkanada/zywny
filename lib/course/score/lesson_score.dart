@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 
 import '../../render/layout_options.dart' show kPhoneUnit;
 import '../../render/page_size.dart' show kVerovioMinPageHeight;
-import '../format/course_files.dart';
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+
 import 'abc_source.dart';
 
 /// Uma partitura pronta para o `ScoreRenderRequest`: os bytes e o nome do

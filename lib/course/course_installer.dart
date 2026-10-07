@@ -10,13 +10,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../library/library_envelope.dart';
-import '../library/library_installer.dart'
+import 'package:zywny_library/library_envelope.dart';
+import 'package:zywny_library/library_installer.dart'
     show installLibraryFromFile, pickLibraryBytes;
-import '../library/library_package.dart' show LibraryFormatException;
-import '../library/library_store.dart';
+import 'package:zywny_library/library_package.dart' show LibraryFormatException;
+import 'package:zywny_library/library_store.dart';
+
 import 'course_store.dart';
-import 'format/course_model.dart';
+
+import 'package:zywny_course_format/course_model.dart';
 
 /// Escolher → validar → (perguntar, se o `id` já está instalado) → gravar →
 /// avisar. Devolve o curso instalado, ou `null` se o usuário cancelou ou deu

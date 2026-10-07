@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/course/format/course_reader.dart';
-import 'package:zywny/course/format/directory_course_files.dart';
+import 'package:zywny_course_format/course_reader.dart';
+import 'package:zywny_course_format/directory_course_files.dart';
 
 import 'support/render_helper.dart' show verovioAvailable;
 
@@ -63,8 +63,8 @@ void main() {
     });
   }
 
-  test('lib/course/format não importa Flutter', () {
-    final dir = Directory('lib/course/format');
+  test('o formato (packages/zywny_course_format) não importa Flutter', () {
+    final dir = Directory('packages/zywny_course_format/lib');
     final files = dir.listSync().whereType<File>().where(
       (f) => f.path.endsWith('.dart'),
     );

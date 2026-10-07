@@ -4,8 +4,8 @@
 // para não guardar progresso de rascunho: o curso inicial vem embutido (I10),
 // o instalado vem do pacote (I04), o rascunho de uma pasta (I12).
 
-import 'format/course_files.dart';
-import 'format/course_model.dart';
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
 
 /// De onde veio o curso aberto.
 enum CourseOrigin {

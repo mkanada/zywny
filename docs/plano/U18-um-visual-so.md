@@ -130,7 +130,8 @@ lateral, deixando a pauta à vista. Achados E1 e E2; sugestões E1 e E2.
   preenchido/texto/contornado, interruptor, controle deslizante, botão
   segmentado, snackbar e progresso). Saíram todos os `activeColor: kAccent` /
   `activeTrackColor: kAccent` e os `backgroundColor: kSurface` das folhas —
-  inclusive os de `lib/mockup/` (o `grep` do critério 2 olha `lib/` inteiro).
+  inclusive os de `lib/mockup/` (o `grep` do critério 2 olha `lib/` inteiro;
+  o mockup mudou para `apps/zywny_mockup/` no R12).
 - Efeito colateral a conferir no aparelho: `surfaceTint` virou transparente e
   o `ColorScheme` deixou de vir da semente, então qualquer widget que lia
   cores derivadas muda de tom.

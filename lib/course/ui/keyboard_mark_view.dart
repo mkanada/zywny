@@ -9,8 +9,10 @@ import 'package:flutter/material.dart';
 
 import '../../midi/piano_keyboard.dart';
 import '../../ui/theme.dart';
-import '../format/course_model.dart';
-import '../../music/note_names.dart';
+
+import 'package:zywny_course_format/course_model.dart';
+
+import 'package:zywny_music/note_names.dart';
 
 /// A marca `zywny-keyboard` desenhada: faixa com marcas e legenda.
 class KeyboardMarkView extends StatelessWidget {

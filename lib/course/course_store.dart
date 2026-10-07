@@ -13,12 +13,14 @@ import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../library/library_blob_store.dart';
-import '../library/library_envelope.dart';
-import '../library/library_package.dart' show LibraryFormatException;
-import 'format/course_files.dart';
-import 'format/course_model.dart';
-import 'format/course_reader.dart';
+import 'package:zywny_library/library_blob_store.dart';
+import 'package:zywny_library/library_envelope.dart';
+import 'package:zywny_library/library_package.dart' show LibraryFormatException;
+
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+import 'package:zywny_course_format/course_reader.dart';
+
 import 'loaded_course.dart';
 
 /// O id do curso inicial embutido (D-LIC-INICIAL): pacote com esse id é

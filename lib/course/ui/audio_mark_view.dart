@@ -6,8 +6,10 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 import '../../ui/theme.dart';
-import '../format/course_files.dart';
-import '../format/course_model.dart';
+
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+
 import 'lesson_audio.dart';
 
 /// Tocador da marca `zywny-audio`: bytes da [CourseFiles], play/pausa, barra

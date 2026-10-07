@@ -21,6 +21,18 @@ version: 1.0.3+4
 environment:
   sdk: ^3.13.3
 
+# Pub workspace (R12): o app na raiz e os pacotes em apps/ e packages/, com
+# um `pubspec.lock` só, aqui. `score_bridge/` fica de fora (é um subtree do
+# verovio_flutter_bridge, e entrar exigiria `resolution: workspace` lá).
+workspace:
+  - apps/zywny_mockup
+  - packages/zywny_music
+  - packages/zywny_course_format
+  - packages/zywny_diag
+  - packages/zywny_audio
+  - packages/zywny_midi
+  - packages/zywny_library
+
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
 # consider running `flutter pub upgrade --major-versions`. Alternatively,
@@ -30,6 +42,19 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Pacotes do workspace (R13–R17).
+  zywny_music:
+    path: packages/zywny_music
+  zywny_course_format:
+    path: packages/zywny_course_format
+  zywny_diag:
+    path: packages/zywny_diag
+  zywny_audio:
+    path: packages/zywny_audio
+  zywny_midi:
+    path: packages/zywny_midi
+  zywny_library:
+    path: packages/zywny_library
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -115,17 +140,10 @@ flutter:
     # por tool/build_verovio_assets.sh a partir do verovio_flutter_bridge e extraído em
     # runtime por lib/render/verovio_resources.dart. Não versionado.
     - assets/verovio_data.zip
-    # Imagens de partitura pré-renderizadas para lib/mockup/ (telas de
-    # celular do artefato "zywny — interface de estudo") — geradas por
-    # tool/build_mockup_images.sh a partir do verovio_flutter_bridge, sem o
-    # motor Verovio ligado no app. Versionadas (ao contrário do zip acima):
-    # são poucos KB e o mockup precisa rodar sem recompilar nada nativo.
     # Soundfont padrão (TimGM6mb, GPL-2 — ver TimGM6mb.copyright ao lado):
     # o som do app funciona sem o usuário procurar um `.sf2`. Ele pode
     # trocar por outro; ver lib/audio/soundfont_store.dart.
     - assets/soundfonts/TimGM6mb.sf2
-    - assets/mockup/partitura_padrao.png
-    - assets/mockup/partitura_grande.png
     # I10 — curso inicial embutido (D-LIC-INICIAL): lido pelo mesmo leitor
     # de uma pasta de terceiros, via AssetCourseFiles. Cada subpasta entra
     # porque o bundler de assets lista diretórios sem recursão.

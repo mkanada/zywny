@@ -19,7 +19,8 @@ import 'package:flutter/material.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
-import '../format/course_files.dart';
+import 'package:zywny_course_format/course_files.dart';
+
 import '../../ui/theme.dart';
 
 /// Abre um link do texto fora do app. Só `https://` (o validador já garante;

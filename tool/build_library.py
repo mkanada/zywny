@@ -14,7 +14,7 @@ com a chave privada de `keys/` — que não vai para o git.
 `pieces` é uma lista de dicts com `id`, `musicxml` (caminho do arquivo) e os
 campos do índice: `t`, `c` e, se quiser, `n`, `l`, `o`, `nv`, `d`, `a`.
 `k`, `ck` e `q` são calculados aqui, com o mesmo `fold` do app
-(`foldForSearch` em lib/library/hymn.dart); passe-os para sobrescrever.
+(`foldForSearch` em packages/zywny_library/lib/piece.dart); passe-os para sobrescrever.
 
 Como programa, lê uma especificação JSON:
 

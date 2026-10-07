@@ -7,14 +7,16 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../audio/engine_opener.dart';
-import '../audio/sound_engine.dart';
-import '../audio/soundfont_store.dart';
-import '../core/diag_log.dart';
-import '../midi/midi_device_manager.dart';
-import '../midi/midi_input_service.dart';
-import '../midi/midi_monitor.dart';
-import '../midi/midi_out_sound_engine.dart';
+import 'package:zywny_audio/engine_opener.dart';
+import 'package:zywny_audio/sound_engine.dart';
+import 'package:zywny_audio/soundfont_store.dart';
+import 'package:zywny_diag/diag_log.dart';
+
+import 'package:zywny_midi/midi_device_manager.dart';
+import 'package:zywny_midi/midi_input_service.dart';
+import 'package:zywny_midi/midi_monitor.dart';
+import 'package:zywny_midi/midi_out_sound_engine.dart';
+
 import '../settings/app_settings.dart';
 import 'general_settings_panel.dart' show pickSoundFontBytes;
 

@@ -60,3 +60,44 @@ Treino e trilha (R11). Mudar o tempo da contagem ou do loop.
 
 ## Notas de execução
 
+
+Feito em 2026-10-07.
+
+- `lib/app/playback_controller.dart`: `PlaybackController` (`ChangeNotifier`)
+  com `player`, `track`, `scheduler`, `playing`, `speed`, `loop`,
+  `loopRangeMs`, `countIn()` e as ações `attach(document, track)`,
+  `setPlaying`, `togglePlay`, `playPlayerAfterCount`, `cancelPlayAfterCount`,
+  `cancelSilentCountIn`, `stop`, `restart`, `seekTo`, `seekToElement`,
+  `setSpeed`, `attachAudio`, `attachSound`/`detachSound` (o
+  `SoundOutputPlayback` do R08), `toggleMetronome`, `setLoop`/`clearLoop`.
+  Recebe a `SoundOutputController`, as `AppSettings`, o `ScoreController`, a
+  vista, o andamento guardado e, como funções, a largura da haste, a altura
+  por motor (fase Q), `onEnded` (o fim da peça encerra o treino),
+  `onLoopChanged` (o treino segue o loop), o relógio de parede da contagem
+  muda (`wallSeconds`, para o teste) e o wakelock.
+- Ouve as configurações ele mesmo (metrônomo → agendador). O `_speed` saiu
+  da tela; ela ainda guarda o andamento no hino (`_setSpeed` chama o
+  controller e `_savePieceSettings`).
+- Na tela ficaram as partes de `_stop`/`_restart` que falam com a trilha e o
+  treino (abandonar a etapa, encerrar o treino) antes de chamar o
+  controller, a limpeza das marcas de erro no play, e `_inputLatencyMs`/
+  `_loadInputLatency`: são do treino e da calibração do teclado, não do
+  transporte (R11 decide).
+- **Mudança de comportamento (correção):** `attachAudio` descarta o
+  agendador anterior. Antes, trocar de saída com o som ligado e a música
+  tocando deixava o `Timer` do agendador velho vivo, agendando no motor
+  antigo junto com o novo (era a observação das notas do R08). O teste "trocar
+  o motor" pegou isso. Fica um caso de canto: trocar de saída **durante o
+  treino** — o `PracticeController` continua com o agendador antigo (agora
+  parado); antes ele seguia tocando no motor velho. Nos dois casos o treino
+  fica errado; o certo seria encerrar o treino ao trocar de saída — anotado,
+  sem mexer.
+- `test/playback_controller_test.dart`, 5 testes (`testWidgets`, relógio do
+  `FakeSoundEngine` e de parede simulados): play/stop sem som com a contagem
+  muda; com o sintetizador aberto e o som desligado, os cliques soam nele e a
+  pausa desiste da contagem; loop A-B com som volta ao início do trecho;
+  trocar o motor tocando não perde a posição; gravura nova dá player novo
+  parado no começo.
+- Aceite: nenhum `ScorePlayer(` nem `ScoreAudioScheduler(` em `main.dart`
+  (3240 → 2948 linhas); `just analyze` limpo; `just test` 894 passaram, 10
+  pulados. **Critério 3 (manual) pendente.**

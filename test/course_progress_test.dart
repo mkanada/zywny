@@ -7,9 +7,9 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/course/course_progress.dart';
 import 'package:zywny/course/exercise/exercise_round.dart';
-import 'package:zywny/course/format/course_files.dart';
-import 'package:zywny/course/format/course_model.dart';
-import 'package:zywny/course/format/course_reader.dart';
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+import 'package:zywny_course_format/course_reader.dart';
 
 MemoryCourseFiles _twoLessons() => MemoryCourseFiles({
   'course.md':

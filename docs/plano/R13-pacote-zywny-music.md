@@ -57,3 +57,26 @@ camadas, impede `music` de importar o app.
 
 ## Notas de execução
 
+
+Feito em 2026-10-07.
+
+- `packages/zywny_music/`: `pubspec.yaml` (`resolution: workspace`; só
+  `meta`, com `test` e `lints` de dev), `analysis_options.yaml`
+  (`package:lints/recommended.yaml`), `lib/` com `note_name`, `note_names`,
+  `transposition`, `pitch_frame` e `tone_choices` (movidos com `git mv`, a
+  API igual), `test/` com `note_names_test`, `pitch_frame_test` e
+  `transposition_test` (de `flutter_test` para `package:test`). Os testes de
+  `tone_choices` ficam no app: estão em `transpor_tela_test` junto com a
+  tela.
+- Raiz: `packages/zywny_music` na lista `workspace:` e como dependência por
+  path. Imports `music/x.dart` (relativos e `package:zywny/music/…`)
+  viraram `package:zywny_music/x.dart` em 36 arquivos de `lib/`, `test/`,
+  `tool/` e `apps/`.
+- `lib/music/` ficou só com `performance_track.dart` (R15). O grupo "music"
+  do teste de camadas ficou, com um comentário: hoje só cobre esse arquivo,
+  que não importa nada do app.
+- `just test` roda também os pacotes: `dart test` nos de Dart puro (sem
+  `sdk: flutter` no `pubspec.yaml`), `flutter test` nos outros.
+- Aceite: `cd packages/zywny_music && dart test` 52 passaram, sem o Flutter
+  no `pubspec.yaml`; `dart analyze` lá e `just analyze` na raiz limpos;
+  `just test` na raiz verde (845 + 52).

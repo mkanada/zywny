@@ -20,11 +20,11 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import 'package:zywny/course/course_progress.dart';
 import 'package:zywny/course/exercise/exercise_kind.dart';
 import 'package:zywny/course/exercise/exercise_round.dart';
-import 'package:zywny/course/format/course_reader.dart';
+import 'package:zywny_course_format/course_reader.dart';
 import 'package:zywny/course/loaded_course.dart';
 import 'package:zywny/course/ui/course_flow.dart';
 import 'package:zywny/course/ui/exercise_screen.dart';
-import 'package:zywny/midi/midi_device_manager.dart';
+import 'package:zywny_midi/midi_device_manager.dart';
 import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/settings/app_settings.dart';
 

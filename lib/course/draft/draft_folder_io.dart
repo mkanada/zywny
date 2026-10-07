@@ -7,8 +7,8 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 
-import '../format/course_files.dart';
-import '../format/directory_course_files.dart';
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/directory_course_files.dart';
 
 /// O seletor de pasta existe aqui? (desktop; no Android/iOS, não.)
 bool get draftPickerAvailable => !Platform.isAndroid && !Platform.isIOS;

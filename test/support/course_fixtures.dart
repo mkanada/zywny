@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart' show Uint8List;
-import 'package:zywny/library/library_envelope.dart';
+import 'package:zywny_library/library_envelope.dart';
 
 import 'library_fixtures.dart' show TestKeys;
 

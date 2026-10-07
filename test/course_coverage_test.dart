@@ -13,11 +13,11 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaml/yaml.dart';
-import 'package:zywny/course/format/course_reader.dart';
-import 'package:zywny/course/format/directory_course_files.dart';
-import 'package:zywny/course/format/lesson_scanner.dart';
-import 'package:zywny/course/format/vocabulary.dart';
-import 'package:zywny/course/format/course_model.dart';
+import 'package:zywny_course_format/course_reader.dart';
+import 'package:zywny_course_format/directory_course_files.dart';
+import 'package:zywny_course_format/lesson_scanner.dart';
+import 'package:zywny_course_format/vocabulary.dart';
+import 'package:zywny_course_format/course_model.dart';
 
 /// Chaves e valores vistos nos YAMLs escritos à mão (não nos padrões do
 /// modelo: o que conta é o autor ter escrito a chave).

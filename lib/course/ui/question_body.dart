@@ -11,16 +11,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart';
 
-import '../../midi/midi_input_service.dart';
+import 'package:zywny_midi/midi_input_service.dart';
+
 import '../../render/score_renderer.dart';
 import '../../settings/app_settings.dart';
 import '../../ui/theme.dart';
 import '../exercise/exercise_round.dart';
 import '../exercise/question_session.dart';
-import '../format/course_files.dart';
-import '../format/course_model.dart';
-import '../../music/note_name.dart';
-import '../../music/note_names.dart';
+
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+
+import 'package:zywny_music/note_name.dart';
+import 'package:zywny_music/note_names.dart';
+
 import '../score/lesson_score.dart';
 import 'course_chrome.dart';
 import 'keyboard_mark_view.dart';

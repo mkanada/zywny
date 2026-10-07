@@ -15,9 +15,11 @@
 import 'package:flutter/foundation.dart';
 
 import '../course_progress.dart';
-import '../format/course_files.dart';
-import '../format/course_model.dart';
-import '../format/course_reader.dart';
+
+import 'package:zywny_course_format/course_files.dart';
+import 'package:zywny_course_format/course_model.dart';
+import 'package:zywny_course_format/course_reader.dart';
+
 import '../loaded_course.dart';
 
 /// Uma pasta aberta como rascunho: o último `readCourse` mais o progresso da
