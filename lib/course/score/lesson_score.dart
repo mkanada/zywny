@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../layout_options.dart' show kPhoneUnit;
+import '../../render/layout_options.dart' show kPhoneUnit;
 import '../../render/page_size.dart' show kVerovioMinPageHeight;
 import '../format/course_files.dart';
 import '../format/course_model.dart';

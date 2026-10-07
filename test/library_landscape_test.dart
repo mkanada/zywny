@@ -13,7 +13,7 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import 'package:zywny/course/format/course_files.dart';
 import 'package:zywny/course/format/course_reader.dart';
 import 'package:zywny/course/loaded_course.dart';
-import 'package:zywny/library/library_screen.dart';
+import 'package:zywny/app/library_screen.dart';
 import 'package:zywny/library/piece.dart';
 import 'package:zywny/library/piece_progress.dart';
 import 'package:zywny/ui/theme.dart';

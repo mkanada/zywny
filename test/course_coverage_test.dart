@@ -184,8 +184,9 @@ Future<_Seen> _collectSeen(DirectoryCourseFiles files) async {
               .map((e) => e.value)
               .firstOrNull;
           final type = typeNode?.value;
-          if (type is! String)
+          if (type is! String) {
             fail('exercício sem type em $path:${segment.line}');
+          }
           seen.marks.add(kExerciseMark);
           seen.types.add(_textOf(type));
           _collectYamlMap(map, seen, name, _textOf(type));

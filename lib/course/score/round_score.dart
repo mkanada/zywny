@@ -2,7 +2,7 @@ import 'dart:math';
 
 import '../format/course_model.dart';
 import '../format/figure_rules.dart';
-import '../format/note_name.dart';
+import '../../music/note_name.dart';
 import '../format/vocabulary.dart';
 import 'key_signature.dart';
 

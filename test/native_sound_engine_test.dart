@@ -13,7 +13,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny/audio/native_sound_engine.dart';
 import 'package:zywny/audio/sound_engine.dart';
-import 'package:zywny/native_paths.dart';
+import 'package:zywny/audio/audio_library_path.dart';
 
 String? _findLibOrNull() {
   try {

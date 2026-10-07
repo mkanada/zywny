@@ -15,7 +15,7 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 
 import 'package:zywny/library/piece.dart';
 import 'package:zywny/library/piece_progress.dart';
-import 'package:zywny/library/library_screen.dart';
+import 'package:zywny/app/library_screen.dart';
 import 'package:zywny/library/library_sort.dart';
 import 'package:zywny/main.dart';
 import 'package:zywny/trail/stage_result.dart';
@@ -510,7 +510,7 @@ void main() {
       // A primeira linha já sai do resumo, sem plano nenhum.
       expect(find.textContaining('12/51'), findsOneWidget);
       // A tela só lê resumos do store: nenhum plano entra aqui.
-      final source = File('lib/library/library_screen.dart').readAsStringSync();
+      final source = File('lib/app/library_screen.dart').readAsStringSync();
       expect(source, isNot(contains('trail_plan')));
       expect(source, isNot(contains('TrailPlan')));
     });

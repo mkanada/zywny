@@ -7,7 +7,7 @@ import 'package:zywny/course/format/course_model.dart';
 import 'package:zywny/course/format/course_reader.dart';
 import 'package:zywny/course/format/directory_course_files.dart';
 import 'package:zywny/course/format/lesson_scanner.dart';
-import 'package:zywny/course/format/note_name.dart';
+import 'package:zywny/music/note_name.dart';
 
 const _course = '''---
 format: 1

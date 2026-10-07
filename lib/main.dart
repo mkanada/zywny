@@ -20,12 +20,12 @@ import 'audio/sound_engine.dart';
 import 'audio/sound_engine_debug_panel.dart';
 import 'audio/soundfont_store.dart';
 import 'course/built_in_course.dart';
-import 'layout_options.dart';
-import 'layout_panel.dart';
+import 'render/layout_options.dart';
+import 'app/layout_panel.dart';
 import 'library/library_keys.dart' show progressIdFor;
 import 'library/piece.dart';
 import 'library/library_package.dart' show LibraryTerm;
-import 'library/library_screen.dart';
+import 'app/library_screen.dart';
 import 'library/library_term_scope.dart';
 import 'midi/midi_device_manager.dart';
 import 'midi/midi_device_picker.dart';
@@ -33,7 +33,7 @@ import 'midi/midi_input_service.dart';
 import 'midi/midi_monitor.dart';
 import 'midi/midi_monitor_panel.dart';
 import 'midi/midi_out_sound_engine.dart';
-import 'midi/transpose_check.dart';
+import 'practice/transpose_check.dart';
 import 'music/pitch_frame.dart';
 import 'music/performance_track.dart';
 import 'music/tone_choices.dart';
@@ -41,6 +41,7 @@ import 'music/transposition.dart';
 import 'practice/app_hand.dart';
 import 'practice/count_in_overlay.dart';
 import 'practice/hand.dart';
+import 'practice/input_latency.dart';
 import 'practice/practice_colors.dart';
 import 'practice/practice_controller.dart';
 import 'practice/shift_banner.dart';
@@ -50,10 +51,11 @@ import 'practice/practice_tools.dart';
 import 'practice/study_mode.dart';
 import 'settings/app_settings.dart';
 import 'settings/effective_transposition.dart';
-import 'settings/general_settings_panel.dart';
+import 'app/general_settings_panel.dart';
 import 'settings/piece_settings.dart';
-import 'splash_screen.dart';
-import 'trail/stage_result.dart' show StageResult, kTrailPassAccuracy;
+import 'app/splash_screen.dart';
+import 'trail/stage_result.dart'
+    show StagePass, StageResult, kTrailPassAccuracy;
 import 'trail/trail_controller.dart';
 import 'trail/trail_path.dart';
 import 'trail/trail_plan.dart';
@@ -65,7 +67,7 @@ import 'ui/practice_legend.dart';
 import 'ui/side_panel.dart';
 import 'ui/theme.dart';
 import 'ui/transpose_widgets.dart';
-import 'diag_log.dart';
+import 'core/diag_log.dart';
 import 'render/score_renderer.dart';
 
 Future<void> main(List<String> args) async {
@@ -103,7 +105,7 @@ class MyApp extends StatelessWidget {
 
   final bool debugMode;
 
-  /// Splash de abertura (`lib/splash_screen.dart`); os testes ficam sem ela.
+  /// Splash de abertura (`lib/app/splash_screen.dart`); os testes ficam sem ela.
   final bool splash;
 
   /// De onde vêm as músicas da biblioteca; sem isto, a biblioteca instalada

@@ -33,7 +33,7 @@ import 'package:zywny/course/ui/course_screen.dart';
 import 'package:zywny/course/ui/courses_screen.dart';
 import 'package:zywny/course/ui/exercise_screen.dart';
 import 'package:zywny/course/ui/lesson_screen.dart';
-import 'package:zywny/library/library_screen.dart';
+import 'package:zywny/app/library_screen.dart';
 import 'package:zywny/library/piece.dart';
 import 'package:zywny/midi/midi_device_manager.dart';
 import 'package:zywny/render/score_renderer.dart';

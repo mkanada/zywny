@@ -14,7 +14,7 @@ import '../../render/score_renderer.dart';
 import '../../ui/theme.dart';
 import '../format/course_files.dart';
 import '../format/course_model.dart';
-import '../note_names.dart';
+import '../../music/note_names.dart';
 import 'audio_mark_view.dart';
 import 'exercise_card.dart';
 import 'keyboard_mark_view.dart';

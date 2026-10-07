@@ -3,7 +3,7 @@ import 'package:yaml/yaml.dart';
 import 'abc_limits.dart';
 import 'course_issue.dart';
 import 'course_model.dart';
-import 'note_name.dart';
+import '../../music/note_name.dart';
 import 'suggest.dart';
 import 'vocabulary.dart';
 

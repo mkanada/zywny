@@ -17,9 +17,9 @@ import 'package:score_bridge/score_bridge.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../audio/audio_playback_clock.dart';
-import '../../audio/engine_opener.dart';
 import '../../audio/score_audio_scheduler.dart';
 import '../../practice/count_in_overlay.dart';
+import '../../practice/input_latency.dart';
 import '../../render/score_size_log.dart';
 import '../exercise/exercise_kind.dart';
 import '../exercise/exercise_round.dart';

@@ -5,7 +5,7 @@ import 'course_model.dart';
 import 'field_reader.dart';
 import 'figure_rules.dart';
 import 'lesson_scanner.dart';
-import 'note_name.dart';
+import '../../music/note_name.dart';
 import 'suggest.dart';
 import 'vocabulary.dart';
 

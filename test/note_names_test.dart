@@ -2,8 +2,8 @@
 // com e sem oitava, sustenido e bemol.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/course/format/note_name.dart';
-import 'package:zywny/course/note_names.dart';
+import 'package:zywny/music/note_name.dart';
+import 'package:zywny/music/note_names.dart';
 
 void main() {
   group('noteLabel', () {

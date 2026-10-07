@@ -1,6 +1,6 @@
 import 'package:meta/meta.dart';
 
-import 'note_name.dart';
+import '../../music/note_name.dart';
 
 /// Valor do formato como aparece no arquivo (`type: play-notes`).
 abstract interface class WireEnum {

@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny/course/score/lesson_score.dart';
 import 'package:zywny/course/ui/course_chrome.dart' show kPhoneLessonScoreZoom;
-import 'package:zywny/layout_options.dart';
+import 'package:zywny/render/layout_options.dart';
 
 import 'support/hymn_package.dart';
 import 'support/render_helper.dart';

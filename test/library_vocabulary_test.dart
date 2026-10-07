@@ -10,11 +10,11 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/library/library_blob_store.dart';
 import 'package:zywny/library/library_package.dart';
-import 'package:zywny/library/library_screen.dart';
+import 'package:zywny/app/library_screen.dart';
 import 'package:zywny/library/library_store.dart';
 import 'package:zywny/library/library_term_scope.dart';
 import 'package:zywny/library/library_sort.dart';
-import 'package:zywny/layout_panel.dart';
+import 'package:zywny/app/layout_panel.dart';
 import 'package:zywny/ui/theme.dart';
 
 import 'support/library_fixtures.dart';

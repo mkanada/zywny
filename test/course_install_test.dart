@@ -21,7 +21,7 @@ import 'package:zywny/course/ui/courses_screen.dart';
 import 'package:zywny/library/library_blob_store.dart';
 import 'package:zywny/library/library_package.dart' show LibraryFormatException;
 import 'package:zywny/library/library_store.dart';
-import 'package:zywny/settings/courses_section.dart';
+import 'package:zywny/app/courses_section.dart';
 import 'package:zywny/ui/theme.dart';
 
 import 'support/course_fixtures.dart';

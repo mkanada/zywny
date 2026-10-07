@@ -3,7 +3,7 @@
 // de todos os pares de armaduras.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/course/note_names.dart';
+import 'package:zywny/music/note_names.dart';
 import 'package:zywny/music/transposition.dart';
 
 /// Uma linha da tabela do Q00 ("Como escolher a transposição"): armadura

@@ -29,7 +29,7 @@ import 'audio/soundfont_store.dart';
 import 'course/format/course_reader.dart';
 import 'course/format/course_model.dart';
 import 'course/format/directory_course_files.dart';
-import 'course/note_names.dart' show NoteNaming;
+import 'music/note_names.dart' show NoteNaming;
 import 'course/ui/lesson_view.dart';
 import 'settings/app_settings.dart';
 import 'ui/theme.dart';

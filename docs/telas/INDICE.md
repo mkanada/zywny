@@ -13,7 +13,7 @@ Total: 67 telas.
 
 Retrato. O que o aluno vê ao abrir o app e ao escolher um hino.
 
-Código: `lib/splash_screen.dart` · `lib/library/library_screen.dart`
+Código: `lib/app/splash_screen.dart` · `lib/app/library_screen.dart`
 
 <table><tr><td align="center"><a href="celular/01-abertura.png"><img src="celular/01-abertura.png" width="200"></a><br><sub><b>01</b> · Abertura (splash)</sub></td><td align="center"><a href="celular/02-biblioteca-primeiro-uso.png"><img src="celular/02-biblioteca-primeiro-uso.png" width="200"></a><br><sub><b>02</b> · Biblioteca, primeiro uso</sub></td><td align="center"><a href="celular/03-biblioteca-busca.png"><img src="celular/03-biblioteca-busca.png" width="200"></a><br><sub><b>03</b> · Busca com resultados</sub></td><td align="center"><a href="celular/04-biblioteca-busca-sem-resultado.png"><img src="celular/04-biblioteca-busca-sem-resultado.png" width="200"></a><br><sub><b>04</b> · Busca sem resultado</sub></td></tr></table>
 
@@ -25,7 +25,7 @@ Código: `lib/splash_screen.dart` · `lib/library/library_screen.dart`
 
 Retrato (06, 29, 07–09) e paisagem (43–45). Seletor de teclado, configurações gerais e ferramentas de MIDI.
 
-Código: `lib/midi/midi_device_picker.dart` · `lib/settings/general_settings_panel.dart` · `lib/settings/color_picker.dart` · `lib/midi/midi_monitor_panel.dart`
+Código: `lib/midi/midi_device_picker.dart` · `lib/app/general_settings_panel.dart` · `lib/settings/color_picker.dart` · `lib/midi/midi_monitor_panel.dart`
 
 <table><tr><td align="center"><a href="celular/06-teclado-midi-nenhum.png"><img src="celular/06-teclado-midi-nenhum.png" width="200"></a><br><sub><b>06</b> · Teclado MIDI: nenhum</sub></td><td align="center"><a href="celular/29-teclado-midi-conectado.png"><img src="celular/29-teclado-midi-conectado.png" width="200"></a><br><sub><b>29</b> · Teclado MIDI: conectado</sub></td><td align="center"><a href="celular/07-configuracoes.png"><img src="celular/07-configuracoes.png" width="200"></a><br><sub><b>07</b> · Configurações gerais</sub></td><td align="center"><a href="celular/08-configuracoes-mudar-o-padrao.png"><img src="celular/08-configuracoes-mudar-o-padrao.png" width="200"></a><br><sub><b>08</b> · Confirmação “Mudar o tamanho dos trechos?”</sub></td></tr></table>
 
@@ -53,7 +53,7 @@ Código: `lib/main.dart` · `lib/trail/trail_widgets.dart` · `lib/ui/side_panel
 
 Paisagem. Painéis laterais abertos sobre a partitura.
 
-Código: `lib/mockup/options_panel.dart` · `lib/layout_panel.dart` · `lib/practice/practice_tools.dart`
+Código: `lib/mockup/options_panel.dart` · `lib/app/layout_panel.dart` · `lib/practice/practice_tools.dart`
 
 <table><tr><td align="center"><a href="celular/14-opcoes-de-estudo.png"><img src="celular/14-opcoes-de-estudo.png" width="440"></a><br><sub><b>14</b> · Opções de estudo (começo)</sub></td><td align="center"><a href="celular/15-opcoes-de-estudo-meio.png"><img src="celular/15-opcoes-de-estudo-meio.png" width="440"></a><br><sub><b>15</b> · Opções de estudo (meio)</sub></td></tr></table>
 
@@ -111,7 +111,7 @@ Código: `lib/course/ui/courses_screen.dart` · `lib/course/ui/course_screen.dar
 
 Paisagem (61–66) e retrato (67). O item “Transpor” da gaveta, a lista dos 12 tons, a confirmação ao trocar de tom com trilha começada, a conferência do teclado, o selo na barra do título, a chave geral e a armadura “3♭ → 0” na biblioteca.
 
-Código: `lib/ui/transpose_widgets.dart` · `lib/music/tone_choices.dart` · `lib/midi/transpose_check.dart` · `lib/main.dart`
+Código: `lib/ui/transpose_widgets.dart` · `lib/music/tone_choices.dart` · `lib/practice/transpose_check.dart` · `lib/main.dart`
 
 <table><tr><td align="center"><a href="celular/61-opcoes-transpor.png"><img src="celular/61-opcoes-transpor.png" width="440"></a><br><sub><b>61</b> · Gaveta: item “Transpor”</sub></td><td align="center"><a href="celular/62-transpor-12-tons.png"><img src="celular/62-transpor-12-tons.png" width="440"></a><br><sub><b>62</b> · Lista dos 12 tons</sub></td></tr></table>
 

@@ -24,20 +24,20 @@ import '../music/tone_choices.dart';
 import '../music/transposition.dart';
 import '../settings/effective_transposition.dart';
 import '../settings/app_settings.dart';
-import '../settings/general_settings_panel.dart';
+import 'general_settings_panel.dart';
 import '../settings/piece_settings.dart';
 import '../trail/trail_progress.dart';
 import '../trail/trail_widgets.dart' show TrailProgressBar, trailResumeText;
 import '../ui/orientation.dart';
 import '../ui/theme.dart';
-import 'library_keys.dart';
-import 'piece.dart';
-import 'piece_progress.dart';
-import 'library_installer.dart';
-import 'library_package.dart' show LibraryTerm;
-import 'library_term_scope.dart';
-import 'library_sort.dart';
-import 'library_store.dart';
+import '../library/library_keys.dart';
+import '../library/piece.dart';
+import '../library/piece_progress.dart';
+import '../library/library_installer.dart';
+import '../library/library_package.dart' show LibraryTerm;
+import '../library/library_term_scope.dart';
+import '../library/library_sort.dart';
+import '../library/library_store.dart';
 
 /// O que a tela de partitura recebe da biblioteca ao abrir um hino.
 @immutable

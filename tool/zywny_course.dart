@@ -18,7 +18,7 @@ import 'package:zywny/course/format/course_model.dart';
 import 'package:zywny/course/format/course_reader.dart';
 import 'package:zywny/course/format/course_render_check.dart';
 import 'package:zywny/course/format/directory_course_files.dart';
-import 'package:zywny/native_paths.dart';
+import 'package:zywny/render/verovio_paths.dart';
 
 Future<void> main(List<String> args) async {
   final render = args.contains('--render');

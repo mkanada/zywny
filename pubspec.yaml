@@ -36,7 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   file_selector: ^1.0.3
   # Descompactação dos dados do Verovio (assets/verovio_data.zip) e
-  # diretório de destino da extração — ver lib/verovio_resources.dart.
+  # diretório de destino da extração — ver lib/render/verovio_resources.dart.
   archive: ^4.0.7
   path_provider: ^2.1.5
   # Bindings de dart:ffi (Pointer<Utf8>, malloc) usados por
@@ -113,7 +113,7 @@ flutter:
     # Liberation de `data/text`), empacotadas num zip único porque o
     # bundler de assets do Flutter lista diretórios sem recursão. Gerado
     # por tool/build_verovio_assets.sh a partir do verovio_flutter_bridge e extraído em
-    # runtime por lib/verovio_resources.dart. Não versionado.
+    # runtime por lib/render/verovio_resources.dart. Não versionado.
     - assets/verovio_data.zip
     # Imagens de partitura pré-renderizadas para lib/mockup/ (telas de
     # celular do artefato "zywny — interface de estudo") — geradas por

@@ -94,6 +94,13 @@ para a música voltar a soar no tom original) tem especificação em
 executa um passo Q lê também esse arquivo. As decisões D-TRP-\* foram
 tomadas em 2026-10-04 (progresso **separado por tom**).
 
+A fase **R** (revisão de código: quebrar os ciclos entre as pastas de
+`lib/`, desmontar `main.dart` em controllers e dividir o app em pacotes de
+um workspace Dart) tem especificação em
+[../revisao/2026-10-06-qualidade-e-divisao.md](../revisao/2026-10-06-qualidade-e-divisao.md)
+— quem executa um passo R lê também esse arquivo. Não muda nada que a
+pessoa veja; os passos seguem a ordem R01 → R17.
+
 ## Convenções
 
 - **Rodar o app (Linux)**: `just run` (= `flutter run -d linux
@@ -151,14 +158,14 @@ zywny
 | Conceito | Onde |
 | --- | --- |
 | Entrada, estado da tela, play/stop | `lib/main.dart`: `main` L17 (`--debug`), `_ScoreHomePageState` L59, `_renderAndShow` L212 (cria `ScorePlayer` ~L262), `_togglePlay` L298, `_stop` L312, `_onEntry` L322, `build` L550 |
-| Render do `.vsb` num isolate (FFI) | `lib/verovio_render.dart`: `VsbRenderRequest` L34, `renderScoreToVsb` L75, `_renderInIsolate` L82 |
-| Localizar `libverovio.so` | `lib/native_paths.dart` `findVerovioLibrary` — **só Linux** hoje |
-| Dados do Verovio (zip → diretório) | `lib/verovio_resources.dart` (`archive` + `path_provider`) |
-| Painel de opções | `lib/layout_panel.dart`, `lib/layout_options.dart` |
+| Render do `.vsb` num isolate (FFI) | `lib/render/verovio_render.dart`: `VsbRenderRequest` L34, `renderScoreToVsb` L75, `_renderInIsolate` L82 |
+| Localizar `libverovio.so` | `lib/render/verovio_paths.dart` `findVerovioLibrary` — **só Linux** hoje |
+| Dados do Verovio (zip → diretório) | `lib/render/verovio_resources.dart` (`archive` + `path_provider`) |
+| Painel de opções | `lib/app/layout_panel.dart`, `lib/render/layout_options.dart` |
 | Build | `justfile`, `tool/build_verovio_linux.sh`, `tool/build_verovio_assets.sh`, `linux/CMakeLists.txt` L109+ (instala `libverovio.so` em `lib/` do bundle) |
 | Testes | `test/widget_test.dart`, `test/vsb_render_test.dart`, `test/layout_options_test.dart` |
 | Bibliotecas (fase B): formato | `lib/library/library_envelope.dart` (cifra AES-256-GCM + assinatura Ed25519, `ZYWN`), `lib/library/library_package.dart` (`LibraryManifest`, `LibraryTerm`, `LibraryPackage.parse` — o zip de dentro), `tool/library_crypto.py`, `tool/build_library.py`, `tool/build_hymn_assets.py` (`just pacote-hinos`) |
-| Bibliotecas: guardar/instalar | `lib/library/library_store.dart` (`LibraryStore`, lista + em uso em `shared_preferences`), `library_blob_store*.dart` (arquivo no nativo, IndexedDB na Web, memória nos testes), `library_installer.dart` (`installLibraryFromFile`), `lib/settings/libraries_section.dart` |
+| Bibliotecas: guardar/instalar | `lib/library/library_store.dart` (`LibraryStore`, lista + em uso em `shared_preferences`), `library_blob_store*.dart` (arquivo no nativo, IndexedDB na Web, memória nos testes), `library_installer.dart` (`installLibraryFromFile`), `lib/app/libraries_section.dart` |
 | Bibliotecas: músicas | `lib/library/piece.dart` (`Piece`, `PieceCatalog`: `libraryId`+`id`, número opcional), `library_keys.dart` (chaves por biblioteca), `piece_progress.dart`, `lib/settings/piece_settings.dart`, `lib/trail/trail_progress.dart`, `legacy_migration.dart`, `library_term_scope.dart` (vocabulário) |
 | Cursos (fase I): formato e motor | `lib/course/format/` (modelo, leitor `course_reader.dart`, validador, `course_render_check.dart` do `--render`), `lib/course/exercise/` (tipos, rodada, `pass`, aluno simulado nos testes), `tool/zywny_course.dart` (`just curso-validar`), `tool/build_course.py` (`just pacote-curso`) |
 | Cursos: telas e progresso | `lib/course/ui/` (`courses_screen.dart`, `course_screen.dart`, `lesson_screen.dart`, `exercise_screen.dart`, `question_body.dart`, `markdown_view.dart`), `lib/course/course_progress.dart` (`CourseProgressStore`, JSON `course_progress:<id>`), `lib/course/draft/` (rascunho I12), `assets/cursos/iniciacao/` (curso embutido) |
@@ -388,6 +395,23 @@ zywny
 | [Q06](Q06-conferencia-no-teclado.md) | Transpor: conferência no teclado | Q05 | D-TRP | **concluído** (2026-10-06) |
 | [Q07](Q07-lembretes-e-detector.md) | Transpor: lembrete de voltar a 0 e detector de deslocamento | Q05 | — | **concluído** (2026-10-06) |
 | [Q08](Q08-tela-e-aceite.md) | Transpor: gaveta, selo, lista dos 12 tons e aceite manual | Q04, Q06, Q07 | D-TRP | código, testes e `just telas` feitos (2026-10-06); **aceite manual pendente** (teclado do usuário) |
+| [R01](R01-teste-de-camadas.md) | Revisão: teste de camadas, com os desvios de hoje listados | — | — | **concluído** (2026-10-06) |
+| [R02](R02-nomes-de-nota-em-music.md) | Revisão: `note_name`/`note_names` para `music/` (achado 9) | R01 | — | **concluído** (2026-10-06) |
+| [R03](R03-configuracoes-sem-ciclo.md) | Revisão: `AppSettings` só com folhas; `audio/` sem `settings`/`midi` (achado 7) | R02 | — | **concluído** (2026-10-06) |
+| [R04](R04-pratica-sem-trilha.md) | Revisão: `practice/` sem `trail/` (achado 8) | R01 | — | **concluído** (2026-10-06) |
+| [R05](R05-telas-do-app-em-lib-app.md) | Revisão: biblioteca e painéis de configuração em `lib/app/` (achado 8) | R03 | — | **concluído** (2026-10-06) |
+| [R06](R06-arquivos-soltos-da-raiz.md) | Revisão: arquivos soltos da raiz de `lib/`; lista de desvios vazia (achado 8) | R03, R04, R05 | — | **concluído** (2026-10-06) |
+| [R07](R07-opened-piece-obrigatorio.md) | Revisão: `OpenedPiece` obrigatório (achado 6) | R05 | — | pendente |
+| [R08](R08-sound-output-controller.md) | Revisão: `SoundOutputController` (achado 5) | R07 | — | pendente |
+| [R09](R09-score-render-session.md) | Revisão: `ScoreRenderSession` (achado 5) | R08 | — | pendente |
+| [R10](R10-playback-controller.md) | Revisão: `PlaybackController` (achado 5) | R09 | — | pendente |
+| [R11](R11-trail-runner.md) | Revisão: `TrailRunner` (achado 5) | R10 | — | pendente |
+| [R12](R12-workspace-e-mockup.md) | Revisão: workspace na raiz; mockup em `apps/zywny_mockup` (achado 10) | — | `lesson_debug_main` (perguntar) | pendente |
+| [R13](R13-pacote-zywny-music.md) | Revisão: pacote `zywny_music` | R06, R12 | — | pendente |
+| [R14](R14-pacote-zywny-course-format.md) | Revisão: pacote `zywny_course_format` | R13 | — | pendente |
+| [R15](R15-pacote-zywny-audio.md) | Revisão: pacote `zywny_audio` | R13 | `diag_log` (perguntar) | pendente |
+| [R16](R16-pacote-zywny-midi.md) | Revisão: pacote `zywny_midi` | R15 | — | pendente |
+| [R17](R17-pacote-zywny-library.md) | Revisão: pacote `zywny_library` | R13 | — | pendente |
 
 Ordem de implementação (decidida pelo usuário): **Linux → Android → Web →
 Windows**. Ordem sugerida dos passos: N01→N02→N03 e C01 (dá para fazer em

@@ -4,7 +4,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/course/score/lesson_score.dart';
 import 'package:zywny/course/ui/course_chrome.dart';
-import 'package:zywny/layout_options.dart' show kPhoneUnit;
+import 'package:zywny/render/layout_options.dart' show kPhoneUnit;
 import 'package:zywny/settings/app_settings.dart';
 
 void main() {

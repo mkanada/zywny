@@ -1,8 +1,7 @@
 import 'package:meta/meta.dart';
 
-import '../course/format/note_name.dart'
-    show Pitch, kHighestPianoMidi, kLowestPianoMidi;
-import '../course/note_names.dart'
+import 'note_name.dart' show Pitch, kHighestPianoMidi, kLowestPianoMidi;
+import 'note_names.dart'
     show NoteNaming, kFlatSign, kSharpSign, noteLabel, pitchFromMidi;
 
 /// Transpor a música para ler sem acidentes (fase Q, docs/plano/Q00): que

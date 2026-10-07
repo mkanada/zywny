@@ -7,7 +7,7 @@ import 'dart:typed_data';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:verovio/verovio.dart';
 
-export 'render/page_size.dart';
+export 'page_size.dart';
 
 /// All inputs for one render job: the whole score as a single `.vsb`
 /// (Verovio Score Bridge package: `scene.json` + `glyphs.json` +

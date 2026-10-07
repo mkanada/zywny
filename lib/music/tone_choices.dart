@@ -1,6 +1,6 @@
 import 'package:meta/meta.dart';
 
-import '../course/note_names.dart' show NoteNaming, kFlatSign, kSharpSign;
+import 'note_names.dart' show NoteNaming, kFlatSign, kSharpSign;
 import 'transposition.dart';
 
 /// Os textos da tela de "Transpor" (fase Q, docs/plano/Q08): a armadura em

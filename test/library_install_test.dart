@@ -11,7 +11,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/library/library_blob_store.dart';
 import 'package:zywny/library/library_installer.dart';
-import 'package:zywny/library/library_screen.dart';
+import 'package:zywny/app/library_screen.dart';
 import 'package:zywny/library/library_store.dart';
 import 'package:zywny/ui/theme.dart';
 

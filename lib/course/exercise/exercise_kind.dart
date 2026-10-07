@@ -3,7 +3,7 @@ import 'dart:math';
 import '../../practice/hand.dart';
 import '../format/course_files.dart';
 import '../format/course_model.dart';
-import '../format/note_name.dart';
+import '../../music/note_name.dart';
 import '../score/lesson_score.dart';
 import '../score/round_score.dart';
 import 'exercise_round.dart';

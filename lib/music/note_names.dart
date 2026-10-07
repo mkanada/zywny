@@ -1,4 +1,4 @@
-import 'format/note_name.dart';
+import 'note_name.dart';
 
 /// Como os nomes das notas aparecem na tela (D-LIC-NOMES).
 ///

@@ -81,11 +81,12 @@ Os artefatos gerados pelos scripts não são versionados:
 
 - `../verovio_flutter_bridge/verovio/bindings/dart/libverovio.so` —
   `linux/CMakeLists.txt` a instala em `lib/` do bundle (RPATH `$ORIGIN/lib`);
-  em `flutter run` ela é achada na árvore do projeto (`lib/native_paths.dart`,
-  ou `VEROVIO_LIBRARY_PATH`).
+  em `flutter run` ela é achada na árvore do projeto
+  (`lib/render/verovio_paths.dart`, ou `VEROVIO_LIBRARY_PATH`).
 - `assets/verovio_data.zip` — as fontes de gravação (`verovio/data`) num zip
-  único, extraído na primeira execução por `lib/verovio_resources.dart`. Zip
-  porque o bundler de assets do Flutter não recursa em diretórios.
+  único, extraído na primeira execução por
+  `lib/render/verovio_resources.dart`. Zip porque o bundler de assets do
+  Flutter não recursa em diretórios.
 
 - `keys/` — o par de chaves das bibliotecas (Ed25519). A **privada** gera
   (assina e cifra) os pacotes e só existe com quem os gera; a **pública** é
