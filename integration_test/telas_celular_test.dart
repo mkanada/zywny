@@ -46,8 +46,8 @@ import 'package:zywny/trail/trail_widgets.dart';
 import 'package:zywny/ui/phone_chrome.dart';
 import 'package:zywny/ui/transpose_widgets.dart';
 
-/// O hino do roteiro: música de Beethoven (domínio público), nível 1 e
-/// logo no começo da lista.
+/// O hino do roteiro: música de Beethoven (domínio público), logo no começo
+/// da lista.
 const _kHymnId = '005';
 const _kHymnTitle = 'Jubilosos Te Adoramos';
 
@@ -750,8 +750,6 @@ void main() {
       FocusManager.instance.primaryFocus?.unfocus();
       await _wait(tester);
 
-      await _sortBy(tester, 'Dificuldade');
-      await _shot(tester, '05-biblioteca-por-dificuldade');
       await _sortBy(tester, 'Número');
 
       await _tap(tester, find.byTooltip('Conectar teclado MIDI'));

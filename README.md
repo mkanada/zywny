@@ -46,6 +46,15 @@ sobrevive a fechar o app e a instalar uma versão nova por cima:
   fora da faixa — um JSON de outra versão do app nunca chega torto ao
   Verovio.
 
+## Sobre o Zywny e o tutorial
+
+A seção **Ajuda** das configurações gerais tem "Sobre o Zywny" (a origem do
+nome e o que o app quer ser, em `lib/about/`) e "Rever o tutorial". O tutorial
+(`lib/tutorial/`) é um passeio que escurece a tela e recorta cada botão: um
+pela biblioteca e outro pela partitura, cada um na primeira vez. O que está em
+cada passeio e como o motor funciona estão em
+[`docs/plano/U20-sobre-e-tutorial.md`](docs/plano/U20-sobre-e-tutorial.md).
+
 ## Build
 
 Com [`just`](https://just.systems) (`just` sozinho lista as receitas):
@@ -95,8 +104,9 @@ Os artefatos gerados pelos scripts não são versionados:
   guarde cópia da privada — sem ela nenhum app instalado aceita pacote novo.
   Sem a pública o app compila, mas recusa instalar biblioteca.
 - `dist/hinos.zywny` — a biblioteca de hinos (`just pacote-hinos`), gerada a
-  partir de `../Hymn_Grabber` (`musicxml/` e
-  `musicxml_special/`, mais a dificuldade de `musicxml/_dificuldade.csv`). Fora
+  partir de `../Hymn_Grabber` (`musicxml/`, `musicxml_special/` e a versão
+  simplificada de `musicxml_simplificado/`, uma por hino, no mesmo número). Sem
+  classificação de dificuldade. Fora
   do git porque as partituras têm direitos de terceiros: o arquivo passa de mão
   em mão e o app nunca diz de onde baixar.
 

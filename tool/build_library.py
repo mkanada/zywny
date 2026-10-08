@@ -12,7 +12,9 @@ O pacote sai sempre cifrado e assinado (`library_crypto.py`, D-BIB-CIFRA)
 com a chave privada de `keys/` — que não vai para o git.
 
 `pieces` é uma lista de dicts com `id`, `musicxml` (caminho do arquivo) e os
-campos do índice: `t`, `c` e, se quiser, `n`, `l`, `o`, `nv`, `d`, `a`.
+campos do índice: `t`, `c` e, se quiser, `n`, `l`, `o`, `a`. Uma versão
+simplificada da mesma música vai em `simples` (outro caminho de MusicXML): o
+arquivo sai em `partituras/<id>.simples.musicxml.gz` e o índice marca `s`.
 `k`, `ck` e `q` são calculados aqui, com o mesmo `fold` do app
 (`foldForSearch` em packages/zywny_library/lib/piece.dart); passe-os para sobrescrever.
 
@@ -39,7 +41,7 @@ import library_crypto
 FORMAT = 1
 LIBRARY_ID = re.compile(r"^[a-z0-9-]{1,40}$")
 PIECE_ID = re.compile(r"^[A-Za-z0-9._-]{1,60}$")
-INDEX_FIELDS = ("n", "t", "c", "l", "o", "nv", "d", "a", "k", "ck", "q")
+INDEX_FIELDS = ("n", "t", "c", "l", "o", "a", "s", "k", "ck", "q")
 
 
 def fold(text: str) -> str:
@@ -62,9 +64,11 @@ def index_entry(piece: dict, numbered: bool) -> dict:
     entry = {"id": piece["id"]}
     if numbered:
         entry["n"] = piece["n"]
-    for key in ("t", "c", "l", "o", "nv", "d", "a"):
+    for key in ("t", "c", "l", "o", "a"):
         if piece.get(key) not in (None, ""):
             entry[key] = piece[key]
+    if piece.get("simples") is not None:
+        entry["s"] = True
     entry["k"] = piece.get("k") or fold(entry["t"])
     entry["ck"] = piece.get("ck") or fold(entry["c"])
     entry["q"] = piece.get("q") or fold(
@@ -108,7 +112,9 @@ def build_package(
         if numbered and not isinstance(piece.get("n"), int):
             raise ValueError(f"peça {pid!r} sem número, numa biblioteca numerada")
         index.append(index_entry(piece, numbered))
-        scores.append((pid, Path(piece["musicxml"])))
+        scores.append((pid, Path(piece["musicxml"]), None))
+        if piece.get("simples") is not None:
+            scores.append((pid, Path(piece["simples"]), "simples"))
 
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(out.suffix + ".tmp")
@@ -126,8 +132,12 @@ def build_package(
             "indice.json",
             json.dumps(index, ensure_ascii=False, separators=(",", ":")).encode(),
         )
-        for pid, path in scores:
-            add(f"partituras/{pid}.musicxml.gz", gzip_bytes(path.read_bytes()))
+        for pid, path, variant in scores:
+            suffix = f".{variant}" if variant else ""
+            add(
+                f"partituras/{pid}{suffix}.musicxml.gz",
+                gzip_bytes(path.read_bytes()),
+            )
     # Sal e nonce aleatórios: o arquivo muda a cada geração, mesmo sem mudança
     # no conteúdo (o zip de dentro é determinístico).
     tmp.write_bytes(library_crypto.seal(plain.getvalue(), key))

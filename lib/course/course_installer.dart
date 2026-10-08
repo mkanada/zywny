@@ -16,6 +16,7 @@ import 'package:zywny_library/library_installer.dart'
 import 'package:zywny_library/library_package.dart' show LibraryFormatException;
 import 'package:zywny_library/library_store.dart';
 
+import '../incoming/incoming_packages.dart';
 import 'course_store.dart';
 
 import 'package:zywny_course_format/course_model.dart';
@@ -223,6 +224,45 @@ Future<Object?> installPackageFromFile(
       bytes,
     ),
   };
+}
+
+/// O pacote que o sistema entregou ao app (B11: clique duplo, "Abrir com…"):
+/// o mesmo fluxo do "Abrir arquivo…", sem o seletor. Se o arquivo não pôde ser
+/// lido, o diálogo diz qual.
+Future<Object?> installIncomingPackage(
+  BuildContext context,
+  LibraryStore libraryStore,
+  CourseStore courseStore,
+  IncomingPackage package,
+) async {
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final Uint8List bytes;
+  try {
+    bytes = await package.read();
+  } on Object catch (e) {
+    if (!navigator.mounted) return null;
+    await showDialog<void>(
+      context: navigator.context,
+      builder: (context) => AlertDialog(
+        title: const Text('Não deu para abrir o arquivo'),
+        content: Text('Não consegui ler "${package.name}": $e'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return null;
+  }
+  if (!navigator.mounted) return null;
+  return installPackageFromFile(
+    navigator.context,
+    libraryStore,
+    courseStore,
+    pick: () async => bytes,
+  );
 }
 
 class _BusyDialog extends StatelessWidget {

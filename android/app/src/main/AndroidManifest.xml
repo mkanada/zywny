@@ -7,10 +7,15 @@
         android:label="zywny"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- `singleTask` (B11): com `singleTop`, abrir um `.zywny` pelo
+             gerenciador de arquivos criava um segundo MainActivity (outro
+             motor do Flutter e do áudio) dentro da tarefa do gerenciador,
+             com o app antigo ainda vivo em segundo plano. Com `singleTask` o
+             arquivo vai para a instância que já existe (`onNewIntent`). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -27,6 +32,35 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- B11: abrir arquivos `.zywny` (gerenciador de arquivos, "Abrir
+                 com…", download). O Android não conhece a extensão, então são
+                 dois filtros: um pelo nome do arquivo no caminho e outro pelo
+                 tipo genérico, para quando o provedor esconde o nome (o
+                 Downloads e o Drive entregam `content://…/123`). O app valida
+                 o conteúdo e explica se não for um pacote.
+
+                 `pathPattern` não tem "um ou mais pontos": cada nível a mais
+                 de ponto no nome (`hinos.v2.zywny`) pede uma linha. O `host`
+                 é exigido pelo Android para o caminho valer. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:host="*"/>
+                <data android:mimeType="*/*"/>
+                <data android:pathPattern=".*\\.zywny"/>
+                <data android:pathPattern=".*\\..*\\.zywny"/>
+                <data android:pathPattern=".*\\..*\\..*\\.zywny"/>
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.zywny"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"/>
+                <data android:mimeType="application/octet-stream"/>
+                <data android:mimeType="application/x-zywny"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

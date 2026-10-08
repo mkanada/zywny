@@ -4,13 +4,12 @@
 Lê `musicxml/NNN.musicxml` e `musicxml_special/NNN.musicxml` (o especial
 vence se os dois existirem) e monta, com `build_library.py`, a biblioteca
 `hinos` (formato `.zywny`, ver docs/plano/B00): manifesto, índice (número,
-título, autores, dificuldade e armadura de cada hino) e as partituras em
-gzip (61 MB viram ~2,5 MB).
+título, autores e armadura de cada hino) e as partituras em gzip.
 
-A dificuldade vem de `musicxml/_dificuldade.csv` (o
-`scripts/classificar-dificuldade.py` de lá): o nível de 1 a 5 e a nota
-contínua, por onde a biblioteca ordena. Sem o arquivo, ou para um hino que
-não está nele, o índice sai sem esses campos.
+Cada hino leva também a versão simplificada de `musicxml_simplificado/NNN.musicxml`
+(melodia, baixo e quinta; ver docs/versao-simplificada.md do Hymn_Grabber), quando
+ela existe. Ela não é um hino a mais: vai como `partituras/NNN.simples.musicxml.gz`
+e o índice marca `s` no mesmo hino. Não há classificação de dificuldade.
 
 O pacote sai cifrado e assinado com a chave privada de `keys/` (gere o par
 com `tool/library_crypto.py gen`; as chaves nunca vão para o git).
@@ -23,7 +22,6 @@ mudar.
   tool/build_hymn_assets.py [PASTA_DO_HYMN_GRABBER]
 """
 
-import csv
 import datetime
 import json
 import os
@@ -92,19 +90,6 @@ def read_fifths(path: Path) -> int | None:
     return None
 
 
-def read_difficulty(src: Path) -> dict[int, tuple[int, float]]:
-    """número -> (nível 1–5, nota de dificuldade) de `_dificuldade.csv`."""
-    path = src / "musicxml" / "_dificuldade.csv"
-    if not path.exists():
-        print(f"AVISO: sem {path}; índice sem dificuldade", file=sys.stderr)
-        return {}
-    with open(path, encoding="utf-8", newline="") as f:
-        return {
-            int(row["hino"]): (int(row["nivel"]), float(row["dificuldade"]))
-            for row in csv.DictReader(f)
-        }
-
-
 def build_entries(src: Path) -> list[dict]:
     """Os hinos do Hymn_Grabber como peças de pacote: `id`, `musicxml` e os
     campos do índice (as chaves de busca já calculadas, como sempre foram)."""
@@ -113,7 +98,10 @@ def build_entries(src: Path) -> list[dict]:
         for path in sorted((src / folder).glob("[0-9][0-9][0-9].musicxml")):
             files[int(path.stem)] = path
 
-    difficulty = read_difficulty(src)
+    simplified = {
+        int(path.stem): path
+        for path in sorted((src / "musicxml_simplificado").glob("[0-9][0-9][0-9].musicxml"))
+    }
     pieces = []
     for number, path in sorted(files.items()):
         head = read_header(path)
@@ -133,12 +121,8 @@ def build_entries(src: Path) -> list[dict]:
                 # Letra só quando é de outra pessoa; título original se houver.
                 **({"l": lyricist} if lyricist and lyricist != composer else {}),
                 **({"o": original} if original else {}),
-                # Nível (1–5) e nota de dificuldade, quando classificado.
-                **(
-                    {"nv": difficulty[number][0], "d": difficulty[number][1]}
-                    if number in difficulty
-                    else {}
-                ),
+                # Versão simplificada, quando o Hymn_Grabber a gerou.
+                **({"simples": simplified[number]} if number in simplified else {}),
                 # Armadura: sustenidos (+) ou bemóis (−) do início.
                 **({"a": fifths} if fifths is not None else {}),
                 "k": fold(title),
@@ -171,9 +155,9 @@ def main() -> int:
         "idioma": "pt-BR",
     }
     stats = build_package(manifest, pieces, PACKAGE)
-    rated = sum("nv" in p for p in pieces)
+    simples = sum("simples" in p for p in pieces)
     print(
-        f"Gerado {PACKAGE}: {stats['pecas']} hinos ({rated} com dificuldade), "
+        f"Gerado {PACKAGE}: {stats['pecas']} hinos ({simples} com versão simplificada), "
         f"{stats['bytes'] / 1e6:.1f} MB (de {src})"
     )
     return 0

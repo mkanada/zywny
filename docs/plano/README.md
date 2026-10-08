@@ -362,6 +362,7 @@ zywny
 | [U17](U17-vocabulario.md) | UX: vocabulário das configurações | U15 | — | concluído (critério 4, no emulador, aguardando verificação) |
 | [U18](U18-um-visual-so.md) | UX: um visual só — tema e superfícies | U12 | — | concluído (critérios 5–6, no emulador e no aparelho, aguardando verificação) |
 | [U19](U19-refazer-as-telas.md) | UX: refazer as telas e conferir os achados | todos os U | — | concluído (fotos refeitas; achados conferidos na seção "Depois da fase U" do estudo) |
+| [U20](U20-sobre-e-tutorial.md) | UX: tela "Sobre o Zywny" e tutorial de primeiro uso | U16, U17 | — | concluído (código, testes e Web; aceite no aparelho pendente, ver o passo) |
 | [B01](B01-formato-e-leitor.md) | Bibliotecas: formato `.zywny` e leitor (Dart puro) | — | D-BIB | concluído |
 | [B02](B02-gerador-de-pacotes.md) | Bibliotecas: gerador de pacotes e o `hinos.zywny` | B01 | D-BIB | concluído |
 | [B03](B03-guardar-bibliotecas.md) | Bibliotecas: guardar pacotes (nativo e IndexedDB) e a em uso | B01 | D-BIB | concluído |
@@ -372,6 +373,7 @@ zywny
 | [B08](B08-app-sem-hinos-embutidos.md) | Bibliotecas: o app sem hinos embutidos | B05, B06, B07 | D-BIB | concluído (aceite manual pendente) |
 | [B09](B09-curadoria-dos-classicos.md) | Bibliotecas: curadoria dos clássicos (musetrainer/library) | — | lista aprovada pelo usuário | proposta pronta (43 peças), **aguardando aprovação** |
 | [B10](B10-pacote-dos-classicos.md) | Bibliotecas: pacote dos clássicos | B02, B09 | D-BIB | pendente (espera a aprovação do B09) |
+| [B11](B11-abrir-pelo-sistema.md) | Bibliotecas: o app abre `.zywny` pelo sistema (associação de arquivos) | B05, I04 | — | Android feito e testado no emulador; Linux parcial; sem commit |
 | [I00](I00-licoes-e-curso-inicial.md) | Lições de terceiros e curso inicial: formato, tipos, testes e índice (passos I01–I13) | — | D-LIC | especificação (decisões tomadas) |
 | [I01](I01-formato-e-validador.md) | Lições: especificação v1, leitor e validador (Dart puro), `zywny_course validate` | — | D-LIC | **concluído** |
 | [I02](I02-partituras-das-licoes.md) | Lições: ABC no Verovio, cabeçalho ABC, gerador de MusicXML das rodadas, tempo de render | I01 | D-LIC | **concluído** (falta medir no celular) |

@@ -188,7 +188,7 @@ void main() {
       expect(find.textContaining('C · Op. 1'), findsOneWidget);
       // A primeira de uso fala em peça, no feminino.
       expect(
-        find.text('Escolha uma peça fácil e ligue o teclado ao celular.'),
+        find.text('Escolha uma peça para começar e ligue o teclado ao celular.'),
         findsOneWidget,
       );
     });

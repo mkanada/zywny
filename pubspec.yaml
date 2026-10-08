@@ -96,6 +96,9 @@ dependencies:
   markdown: ^7.3.1
   # I05 — links do texto e cartão de vídeo abrem fora do app.
   url_launcher: ^6.3.3
+  # "Sobre o Zywny": a versão do app (a mesma do `version:` acima). Já vinha
+  # transitiva, pelo wakelock_plus; direta porque agora é usada direto.
+  package_info_plus: ^10.2.1
   # I05 — `zywny-audio`: toca `.ogg`/`.mp3` a partir de bytes nas quatro
   # plataformas (na Web não há arquivo). Escolha medida em I05, ver
   # `lib/course/ui/lesson_audio_choice.md`.
@@ -144,6 +147,9 @@ flutter:
     # o som do app funciona sem o usuário procurar um `.sf2`. Ele pode
     # trocar por outro; ver lib/audio/soundfont_store.dart.
     - assets/soundfonts/TimGM6mb.sf2
+    # O aviso de copyright do soundfont, mostrado na página de licenças do
+    # "Sobre o Zywny" (lib/about/licenses.dart).
+    - assets/soundfonts/TimGM6mb.copyright
     # I10 — curso inicial embutido (D-LIC-INICIAL): lido pelo mesmo leitor
     # de uma pasta de terceiros, via AssetCourseFiles. Cada subpasta entra
     # porque o bundler de assets lista diretórios sem recursão.

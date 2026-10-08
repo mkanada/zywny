@@ -55,7 +55,8 @@ teclado ligado. Achado C6; sugestão C6.
 
 ## Fora de escopo
 
-- Tutorial passo a passo, dicas sobre a tela da partitura.
+- Tutorial passo a passo, dicas sobre a tela da partitura (feito depois, no
+  [U20](U20-sobre-e-tutorial.md)).
 - Recomendar hinos pelo histórico.
 - Texto de boas-vindas na tela de abertura.
 

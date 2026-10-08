@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=Zywny
+GenericName=Estudo de partituras
+Comment=Estude partituras ao piano com o teclado MIDI
+# @EXEC@ vira o caminho do app instalado (tool/install_linux.sh). O `env` repete
+# o que `just run-release` faz: sem Impeller no Linux, a partitura sairia
+# serrilhada (ver o justfile).
+Exec=env FLUTTER_ENGINE_SWITCHES=1 FLUTTER_ENGINE_SWITCH_1=enable-impeller=false "@EXEC@" %F
+TryExec=@EXEC@
+Icon=zywny
+Terminal=false
+Categories=AudioVideo;Audio;Music;Education;
+# O tipo dos pacotes `.zywny` (bibliotecas e cursos): linux/packaging/zywny-mime.xml.
+MimeType=application/x-zywny;
+# O GTK nomeia a janela pelo id do app (APPLICATION_ID em linux/CMakeLists.txt).
+StartupWMClass=com.example.zywny

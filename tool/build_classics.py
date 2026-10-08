@@ -7,10 +7,8 @@ biblioteca `classicos` com as 43 peças aprovadas no B09 (grupos A e B). Os
 títulos e compositores são os da tabela abaixo, não os do XML (22 arquivos
 não trazem nenhum).
 
-A dificuldade vem do classificador do Hymn_Grabber
-(`scripts/classificar-dificuldade.py`, D-BIB-DIFIC), usado como módulo: as
-medidas são as mesmas dos hinos, mas a posição (e o nível 1–5) é relativa
-aos clássicos — o nível 3 daqui não é o nível 3 do hinário.
+Sem dificuldade: a biblioteca não classifica mais as peças (ver
+docs/plano/B10 e o `build_hymn_assets.py`).
 
 O pacote sai cifrado e assinado com a chave privada de `keys/`. Não
 versionado (`dist/` está no .gitignore): os arquivos são transcrições da
@@ -20,7 +18,6 @@ comunidade MuseScore, de direitos não verificáveis — uso privado.
 """
 
 import datetime
-import importlib.util
 import sys
 from pathlib import Path
 
@@ -29,7 +26,6 @@ from build_library import build_package
 
 PROJ = Path(__file__).resolve().parent.parent
 DEFAULT_SRC = Path.home() / "IdeaProjects" / "zywny_classicos"
-DEFAULT_GRABBER = Path.home() / "IdeaProjects" / "Hymn_Grabber"
 PACKAGE = PROJ / "dist" / "classicos.zywny"
 
 BACH = "Johann Sebastian Bach"
@@ -131,33 +127,18 @@ PIECES = [
 ]  # fmt: skip
 
 
-def load_classifier(grabber: Path):
-    """O `classificar-dificuldade.py` do Hymn_Grabber como módulo (o nome tem
-    hífen, então não dá para importar direto)."""
-    path = grabber / "scripts" / "classificar-dificuldade.py"
-    spec = importlib.util.spec_from_file_location("classificar_dificuldade", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def main() -> int:
     args = sys.argv[1:]
-    if len(args) > 2 or any(a.startswith("-") for a in args):
+    if len(args) > 1 or any(a.startswith("-") for a in args):
         print(__doc__, file=sys.stderr)
         return 2
     src = Path(args[0]) if args else DEFAULT_SRC
-    grabber = Path(args[1]) if len(args) > 1 else DEFAULT_GRABBER
 
     paths = {pid: src / "xml" / f"{stem}.musicxml" for pid, stem, *_ in PIECES}
     missing = [str(p) for p in paths.values() if not p.exists()]
     if missing:
         print("ERRO: faltam arquivos:", *missing, sep="\n  ", file=sys.stderr)
         return 1
-
-    classifier = load_classifier(grabber)
-    measures = {pid: classifier.medir(path) for pid, path in paths.items()}
-    classifier.classificar(measures)
 
     pieces = []
     for pid, _, title, composer, catalog in PIECES:
@@ -169,8 +150,6 @@ def main() -> int:
                 "t": title,
                 "c": composer,
                 **({"o": catalog} if catalog else {}),
-                "nv": measures[pid]["nivel"],
-                "d": round(measures[pid]["dificuldade"], 1),
                 **({"a": fifths} if fifths is not None else {}),
             }
         )
@@ -188,8 +167,6 @@ def main() -> int:
         "idioma": "pt-BR",
     }
     stats = build_package(manifest, pieces, PACKAGE)
-    for p in sorted(pieces, key=lambda p: p["d"]):
-        print(f"  nível {p['nv']}  {p['d']:5.1f}  {p['t']}")
     print(f"Gerado {PACKAGE}: {stats['pecas']} peças, {stats['bytes'] / 1e6:.1f} MB")
     return 0
 

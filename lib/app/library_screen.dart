@@ -19,6 +19,7 @@ import '../course/loaded_course.dart';
 import '../course/ui/course_flow.dart';
 import '../course/ui/courses_screen.dart';
 import '../course/ui/course_screen.dart' show openLessonScreen;
+import '../incoming/incoming_packages.dart';
 
 import 'package:zywny_midi/midi_device_manager.dart';
 
@@ -37,6 +38,10 @@ import '../settings/piece_settings.dart';
 import '../trail/trail_progress.dart';
 import '../trail/trail_widgets.dart' show TrailProgressBar, trailResumeText;
 import '../ui/orientation.dart';
+import '../tutorial/library_tour.dart';
+import '../tutorial/tour.dart';
+import '../tutorial/tour_store.dart';
+import '../ui/phone_chrome.dart' show kPhoneLayoutMaxWidth;
 import '../ui/theme.dart';
 
 import 'package:zywny_library/library_keys.dart';
@@ -62,9 +67,17 @@ class OpenedPiece {
     required this.trailProgress,
     this.term = LibraryTerm.hymn,
     this.numbered = true,
+    this.onChooseVersion,
   });
 
+  /// A música aberta; na versão simplificada, a visão dela com id próprio
+  /// ([Piece.simplified]).
   final Piece piece;
+
+  /// Troca a versão (`true` = simplificada): a biblioteca guarda a escolha,
+  /// fecha a partitura e a abre de novo na outra versão. `null` quando a
+  /// música só tem uma.
+  final ValueChanged<bool>? onChooseVersion;
 
   /// Como a biblioteca chama a música e se ela é numerada (B07).
   final LibraryTerm term;
@@ -136,6 +149,10 @@ class LibraryScreen extends StatefulWidget {
     this.courseProgress,
     this.courseStore,
     this.initialDraftPath,
+    this.tourStore,
+    this.tourDelay = Duration.zero,
+    this.incoming,
+    this.incomingDelay = Duration.zero,
   });
 
   /// Constrói a tela de partitura do hino aberto (`ScoreHomePage`).
@@ -170,6 +187,24 @@ class LibraryScreen extends StatefulWidget {
   /// I12 (`just curso <pasta>`): abre direto no rascunho da pasta.
   final String? initialDraftPath;
 
+  /// O registro do tutorial de primeiro uso (`lib/tutorial/`). `null` (os
+  /// testes) é sem tutorial: o passeio nem começa sozinho.
+  final TourStore? tourStore;
+
+  /// Espera antes de começar o passeio sozinho: a abertura (splash) cobre a
+  /// tela nos primeiros instantes e o cartão de boas-vindas não pode nascer
+  /// por baixo dela.
+  final Duration tourDelay;
+
+  /// Os `.zywny` que o sistema entrega ao app (B11): clique duplo no
+  /// gerenciador de arquivos, "Abrir com…". Cada um é instalado como se
+  /// tivesse saído do "Abrir arquivo…". `null` (os testes) é sem isso.
+  final IncomingPackages? incoming;
+
+  /// Espera antes de instalar o primeiro arquivo recebido: como o passeio, não
+  /// pode abrir diálogos por baixo da abertura (splash).
+  final Duration incomingDelay;
+
   /// O seletor de arquivos `.zywny` (biblioteca ou curso, I04); os testes
   /// trocam por um falso.
 
@@ -203,6 +238,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// I12: a pasta aberta como rascunho (some ao fechar o app). `null` sem
   /// rascunho. O progresso é o do controlador (só memória).
   CourseDraftController? _draft;
+
+  /// Os botões que o tutorial aponta, e se ele já foi decidido nesta
+  /// abertura (começa sozinho no máximo uma vez por abertura do app).
+  final LibraryTourKeys _tourKeys = LibraryTourKeys();
+  bool _tourChecked = false;
+
+  /// A espera da abertura (`tourDelay`) já passou: o passeio que recomeça
+  /// depois de uma instalação não espera de novo.
+  bool _splashWaited = false;
+
+  /// Os `.zywny` recebidos do sistema, à espera da vez de instalar (um por
+  /// vez: os diálogos de cada instalação não se misturam).
+  final List<IncomingPackage> _incomingQueue = [];
+  bool _drainingIncoming = false;
+  bool _incomingReady = false;
 
   /// Entrada MIDI do fluxo de cursos (só ele usa). O carimbo sai do relógio
   /// do motor de som em uso, como na `ScoreHomePage`: o tempo real compara
@@ -385,6 +435,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _followDevice();
     unawaited(_loadProgress());
     unawaited(_settingsLoaded);
+    widget.incoming?.attach(_onIncoming);
     final initial = widget.initialDraftPath;
     if (initial != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -395,6 +446,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   @override
   void dispose() {
+    widget.incoming?.detach(_onIncoming);
     _listScroll.dispose();
     _searchController.dispose();
     _midi.dispose();
@@ -449,6 +501,47 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _refreshCourses();
   }
 
+  void _onIncoming(IncomingPackage package) {
+    _incomingQueue.add(package);
+    if (!_drainingIncoming) unawaited(_drainIncoming());
+  }
+
+  /// B11: instala, um a um, os `.zywny` que o sistema entregou. Se deu certo,
+  /// volta à biblioteca (fecha a partitura, os cursos ou as configurações que
+  /// estiverem por cima): é lá que o resultado aparece.
+  Future<void> _drainIncoming() async {
+    _drainingIncoming = true;
+    try {
+      // Os stores precisam ter lido o que já está instalado, senão um pacote
+      // que já existe seria gravado sem perguntar se substitui.
+      await WidgetsBinding.instance.endOfFrame;
+      await Future.wait<Object?>([_catalog, _courses])
+          .then<void>((_) {}, onError: (Object _) {});
+      if (!_incomingReady) {
+        _incomingReady = true;
+        if (widget.incomingDelay > Duration.zero) {
+          await Future<void>.delayed(widget.incomingDelay);
+        }
+      }
+      while (_incomingQueue.isNotEmpty) {
+        if (!mounted) return;
+        final installed = await installIncomingPackage(
+          context,
+          _libraries,
+          _coursesStore,
+          _incomingQueue.removeAt(0),
+        );
+        if (installed == null || !mounted) continue;
+        if (installed is InstalledLibrary) _reloadCatalog();
+        _refreshCourses();
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } finally {
+      _drainingIncoming = false;
+    }
+    if (mounted) unawaited(_maybeStartTour());
+  }
+
   /// O tom em que [piece] abre agora (fase Q): a escolha que a música tem
   /// (guardada junto do progresso) ou, sem escolha, a chave geral. É o tom
   /// cujo progresso a biblioteca mostra.
@@ -499,23 +592,97 @@ class _LibraryScreenState extends State<LibraryScreen> {
       // Catálogo com erro: a tela já mostra o erro.
     }
     if (mounted) setState(() => _progressLoaded = true);
+    unawaited(_maybeStartTour());
   }
 
-  Future<void> _open(Piece piece) async {
+  /// Primeiro uso: com a lista e os cursos na tela, mostra o passeio, uma vez.
+  Future<void> _maybeStartTour() async {
+    final store = widget.tourStore;
+    if (store == null || _tourChecked || widget.initialDraftPath != null) {
+      return;
+    }
+    if (_incomingBusy) return;
+    _tourChecked = true;
+    try {
+      await Future.wait([_catalog, _courses]);
+    } on Object {
+      return; // Sem catálogo não há o que mostrar: a tela já diz o erro.
+    }
+    if (await store.seen(TourId.library)) return;
+    if (!_splashWaited && widget.tourDelay > Duration.zero) {
+      await Future<void>.delayed(widget.tourDelay);
+    }
+    _splashWaited = true;
+    if (!mounted) return;
+    // O arquivo recebido pode ter chegado durante a espera (o Android copia o
+    // conteúdo antes de avisar): o passeio cede a vez e recomeça quando a fila
+    // esvazia, em [_drainIncoming].
+    if (_incomingBusy) {
+      _tourChecked = false;
+      return;
+    }
+    await _runTour();
+  }
+
+  /// Um arquivo recebido está na fila ou sendo instalado: os diálogos dele não
+  /// dividem a tela com o passeio.
+  bool get _incomingBusy => _drainingIncoming || _incomingQueue.isNotEmpty;
+
+  /// O passeio pela biblioteca, sob demanda ("Rever o tutorial") ou no
+  /// primeiro uso. Marca como visto ao fim, de qualquer jeito que termine.
+  Future<void> _runTour() async {
+    final store = widget.tourStore;
+    if (store == null || ModalRoute.of(context)?.isCurrent != true) return;
+    final catalog = await _catalog.then<PieceCatalog?>(
+      (c) => c,
+      onError: (Object _) => null,
+    );
+    if (!mounted || catalog == null) return;
+    // Um quadro para a lista, os cartões e os botões estarem montados.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final end = await showTour(
+      context,
+      libraryTourSteps(
+        _tourKeys,
+        term: catalog.term,
+        numbered: catalog.numbered,
+        hasLibrary: catalog.hasLibrary,
+        scoreTour: MediaQuery.sizeOf(context).width < kPhoneLayoutMaxWidth,
+      ),
+    );
+    if (end != null) await store.markSeen(TourId.library);
+  }
+
+  /// Abre [base] na versão que a pessoa deixou nela (a completa, se nunca
+  /// escolheu). Trocar de versão na partitura volta aqui já na outra.
+  Future<void> _open(Piece base) async {
     if (_opening) return;
     _opening = true;
+    bool? reopenSimplified;
     try {
       final catalog = await _catalog;
-      final loadScore = widget.loadScore ?? catalog.loadScore;
-      final scoreXml = await loadScore(piece);
+      final simplified =
+          base.hasSimplified &&
+          await _pieceSettings.loadSimplified(base.libraryId, base.id);
+      final piece = simplified ? base.asSimplified() : base;
+      final scoreXml = simplified
+          ? await catalog.loadScore(base, simplified: true)
+          : await (widget.loadScore ?? catalog.loadScore)(base);
       final pieceSettings = await _pieceSettings.load(
         piece.libraryId,
         piece.id,
       );
       await _settingsLoaded;
       if (!mounted) return;
+      // A lista e o "Continuar" conhecem a música, não a versão.
       unawaited(
-        _progress.markOpened(piece.id, transpose: pieceSettings.transpose),
+        _progress.markOpened(
+          base.id,
+          transpose: simplified
+              ? _progress[base.id]?.transpose
+              : pieceSettings.transpose,
+        ),
       );
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -542,6 +709,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
               trailProgress: _trail,
               term: catalog.term,
               numbered: catalog.numbered,
+              onChooseVersion: base.hasSimplified
+                  ? (toSimplified) {
+                      reopenSimplified = toSimplified;
+                      unawaited(
+                        _pieceSettings.saveSimplified(
+                          base.libraryId,
+                          base.id,
+                          toSimplified,
+                        ),
+                      );
+                      Navigator.of(context).pop();
+                    }
+                  : null,
             ),
           ),
         ),
@@ -549,13 +729,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não deu para abrir "${piece.title}": $e')),
+        SnackBar(content: Text('Não deu para abrir "${base.title}": $e')),
       );
     } finally {
       _opening = false;
       if (mounted) {
         _followDevice();
         unawaited(_syncTrails());
+        if (reopenSimplified != null) unawaited(_open(base));
       }
     }
   }
@@ -570,6 +751,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       onError: (Object _) => LibraryTerm.hymn,
     );
     if (!mounted) return;
+    var replayTour = false;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => LibraryTermScope(
@@ -580,6 +762,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
             libraryStore: _libraries,
             pickLibraryFile: widget.pickLibraryFile,
             courseStore: _coursesStore,
+            onTutorial: widget.tourStore == null
+                ? null
+                : () {
+                    replayTour = true;
+                    Navigator.of(context).pop();
+                  },
             onOpenDraft: draftPickerAvailable
                 ? () {
                     Navigator.of(context).pop();
@@ -598,6 +786,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       // A chave "abrir já sem acidentes" pode ter mudado o tom em uso.
       unawaited(_syncTrails());
     }
+    if (mounted && replayTour) await _runTour();
   }
 
   /// Qual biblioteca (e versão) a lista mostra: muda quando a em uso troca,
@@ -832,14 +1021,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget _coursesRow(List<LoadedCourse> courses) {
     final first = courses.first;
     final counts = _courseProgress[first.id].lessonCounts(first.course);
-    return _CoursesRowCard(
-      title: courses.length == 1
-          ? first.course.title
-          : '${courses.length} cursos',
-      subtitle:
-          'Cursos · ${counts.done} de ${counts.total} '
-          '${counts.total == 1 ? 'lição' : 'lições'}',
-      onTap: () => _openCourses(courses),
+    return KeyedSubtree(
+      key: _tourKeys.courses,
+      child: _CoursesRowCard(
+        title: courses.length == 1
+            ? first.course.title
+            : '${courses.length} cursos',
+        subtitle:
+            'Cursos · ${counts.done} de ${counts.total} '
+            '${counts.total == 1 ? 'lição' : 'lições'}',
+        onTap: () => _openCourses(courses),
+      ),
     );
   }
 
@@ -865,23 +1057,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Widget _initialCourseCard(List<LoadedCourse> courses) {
-    return _InitialCourseCard(
-      onStart: () {
-        final first = courses.first;
-        final progress = _courseProgress[first.id];
-        final next =
-            [
-              for (final lesson in first.course.lessons)
-                if (!progress.lessonDone(lesson)) lesson,
-            ].firstOrNull ??
-            first.course.lessons.first;
-        openLessonScreen(context, first, next, deps: _courseDeps());
-      },
+    return KeyedSubtree(
+      key: _tourKeys.courses,
+      child: _InitialCourseCard(
+        onStart: () {
+          final first = courses.first;
+          final progress = _courseProgress[first.id];
+          final next =
+              [
+                for (final lesson in first.course.lessons)
+                  if (!progress.lessonDone(lesson)) lesson,
+              ].firstOrNull ??
+              first.course.lessons.first;
+          openLessonScreen(context, first, next, deps: _courseDeps());
+        },
+      ),
     );
   }
 
   Widget _installCard() {
     return Container(
+      key: _tourKeys.install,
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
       decoration: BoxDecoration(
         color: kSurface,
@@ -963,12 +1159,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// Engrenagem e teclado juntos, no canto.
   List<Widget> _headerActions() => [
     IconButton(
+      key: _tourKeys.settings,
       tooltip: 'Configurações gerais',
       onPressed: () => unawaited(_openSettings()),
       color: kIconQuiet,
       icon: const Icon(Icons.settings_outlined),
     ),
-    MidiStatusPill(deviceManager: _midi),
+    MidiStatusPill(key: _tourKeys.keyboard, deviceManager: _midi),
   ];
 
   Widget _searchField(bool numbered) {
@@ -977,6 +1174,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       borderSide: BorderSide(color: color),
     );
     return SizedBox(
+      key: _tourKeys.search,
       height: 44,
       child: TextField(
         controller: _searchController,
@@ -1031,6 +1229,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (progress?.bestScore case final score?) 'melhor $score%',
     ].join(' · ');
     return Container(
+      key: _tourKeys.start,
       padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
       decoration: BoxDecoration(
         color: kSurface,
@@ -1135,6 +1334,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// hino foi aberto. Não bloqueia nada e some sozinho no primeiro hino.
   Widget _startCard(LibraryTerm term) {
     return Container(
+      key: _tourKeys.start,
       padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
       decoration: BoxDecoration(
         color: kSurface,
@@ -1156,8 +1356,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
           const SizedBox(height: 2),
           Text(
-            'Escolha ${term.um} ${term.singular} fácil e ligue o teclado ao '
-            'celular.',
+            'Escolha ${term.um} ${term.singular} para começar e ligue o teclado '
+            'ao celular.',
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -1170,10 +1370,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              FilledButton(
-                onPressed: _showEasiest,
-                child: const Text('Ver os mais fáceis'),
-              ),
               ListenableBuilder(
                 listenable: _midi.connected,
                 builder: (context, _) => _midi.connected.value != null
@@ -1198,12 +1394,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  /// "Ver os mais fáceis": ordena por dificuldade (crescente) e volta ao topo.
-  void _showEasiest() {
-    setState(() => _sort = const SortState(key: SortKey.difficulty));
-    if (_listScroll.hasClients) _listScroll.jumpTo(0);
-  }
-
   /// As pastilhas de ordenação. [wrapped] (duas colunas, celular deitado):
   /// as seis à vista, quebrando em linhas, sem rolagem nem esmaecido.
   Widget _sortChips(bool numbered, {bool wrapped = false}) {
@@ -1217,6 +1407,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       onTap: () => setState(() => _sort = _sort.toggled(key)),
     );
     return Column(
+      key: _tourKeys.sort,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
@@ -1314,7 +1505,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       itemBuilder: (context, i) {
         final piece = pieces[i];
-        return _PieceRow(
+        final row = _PieceRow(
           piece: piece,
           progress: _progressOf(piece),
           trail: _trailOf(piece),
@@ -1324,6 +1515,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
           numbered: catalog.numbered,
           onTap: () => unawaited(_open(piece)),
         );
+        // A primeira linha é o alvo do tutorial.
+        return i == 0 ? KeyedSubtree(key: _tourKeys.firstRow, child: row) : row;
       },
     );
   }
@@ -1666,7 +1859,6 @@ class _PieceRow extends StatelessWidget {
     final parts = [
       // A armadura, que nas numeradas abre a linha.
       if (!numbered) ?_keyText,
-      if (piece.level case final level?) 'nível $level de 5',
       if (progress?.lastOpened case final at?) whenStudied(at, now),
       if (score != null) 'melhor $score%',
     ];

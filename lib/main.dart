@@ -13,8 +13,10 @@ import 'package:score_bridge/score_bridge.dart';
 
 import 'package:zywny_audio/sound_engine.dart';
 
+import 'about/licenses.dart';
 import 'audio/sound_engine_debug_panel.dart';
 import 'course/built_in_course.dart';
+import 'incoming/incoming_packages.dart';
 import 'render/layout_options.dart';
 import 'app/layout_panel.dart';
 
@@ -66,6 +68,9 @@ import 'trail/stage_result.dart' show kTrailPassAccuracy;
 import 'trail/trail_progress.dart';
 import 'trail/trail_stage.dart' show kTrailMinMeasures;
 import 'trail/trail_widgets.dart';
+import 'tutorial/score_tour.dart';
+import 'tutorial/tour.dart';
+import 'tutorial/tour_store.dart';
 import 'ui/page_pager.dart';
 import 'ui/phone_chrome.dart';
 import 'ui/practice_legend.dart';
@@ -84,11 +89,18 @@ Future<void> main(List<String> args) async {
   // score_bridge and has to be registered before the first paint —
   // otherwise the engine falls back to a system serif without warning.
   await loadScoreFonts();
+  registerBundledLicenses();
+  // B11: o `.zywny` que abriu o app (e os que chegarem depois) espera na fila
+  // até a biblioteca estar na tela.
+  final incoming = IncomingPackages();
+  unawaited(listenForIncomingPackages(incoming, args: args));
   runApp(
     MyApp(
       debugMode: args.contains('--debug'),
       splash: true,
       initialDraftPath: _cursoArg(args),
+      tourStore: TourStore(),
+      incoming: incoming,
     ),
   );
 }
@@ -108,6 +120,8 @@ class MyApp extends StatelessWidget {
     this.splash = false,
     this.loadCatalog,
     this.initialDraftPath,
+    this.tourStore,
+    this.incoming,
   });
 
   final bool debugMode;
@@ -122,6 +136,13 @@ class MyApp extends StatelessWidget {
   /// I12: abre direto no rascunho da pasta (`just curso <pasta>`).
   final String? initialDraftPath;
 
+  /// O registro do tutorial de primeiro uso; os testes ficam sem ele (e, com
+  /// isso, sem o passeio).
+  final TourStore? tourStore;
+
+  /// Os `.zywny` que o sistema entrega ao app (B11); os testes ficam sem.
+  final IncomingPackages? incoming;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -135,10 +156,24 @@ class MyApp extends StatelessWidget {
           loadCatalog: loadCatalog,
           loadCourses: loadBuiltInCourses,
           initialDraftPath: initialDraftPath,
+          tourStore: tourStore,
+          // A abertura (1,8 s mais o esmaecer) cobre a biblioteca: o passeio
+          // espera ela sair.
+          tourDelay: splash
+              ? const Duration(milliseconds: 2400)
+              : Duration.zero,
+          incoming: incoming,
+          incomingDelay: splash
+              ? const Duration(milliseconds: 2400)
+              : Duration.zero,
           scoreBuilder: (context, opened) => LibraryTermScope(
             term: opened.term,
             numbered: opened.numbered,
-            child: ScoreHomePage(debugMode: debugMode, opened: opened),
+            child: ScoreHomePage(
+              debugMode: debugMode,
+              opened: opened,
+              tourStore: tourStore,
+            ),
           ),
         ),
       ),
@@ -152,7 +187,12 @@ class ScoreHomePage extends StatefulWidget {
     required this.opened,
     this.debugMode = false,
     this.renderer,
+    this.tourStore,
   });
+
+  /// O registro do tutorial de primeiro uso (`lib/tutorial/`); `null` (os
+  /// testes) é sem passeio.
+  final TourStore? tourStore;
 
   /// Quem grava a partitura. Só os testes passam o seu; o app usa o da
   /// plataforma ([createScoreRenderer]).
@@ -673,6 +713,35 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _sound.restoreSound();
     _maybeCheckTranspose();
     _maybeRemindTransposeReset();
+    unawaited(_maybeStartTour());
+  }
+
+  /// Os botões que o tutorial aponta, e se ele já foi decidido nesta
+  /// abertura da música.
+  final ScoreTourKeys _tourKeys = ScoreTourKeys();
+  bool _tourChecked = false;
+
+  /// A primeira música aberta: o passeio pela tela, uma vez.
+  Future<void> _maybeStartTour() async {
+    final store = widget.tourStore;
+    if (store == null || _tourChecked) return;
+    _tourChecked = true;
+    if (await store.seen(TourId.score)) return;
+    await _runTour();
+  }
+
+  /// O passeio pela tela da partitura, sozinho ou por "Rever o tutorial". Só
+  /// no layout de celular: a janela larga do desktop é o banco de testes, com
+  /// outros botões.
+  Future<void> _runTour() async {
+    final store = widget.tourStore;
+    if (store == null || !mounted) return;
+    if (MediaQuery.sizeOf(context).width >= kPhoneLayoutMaxWidth) return;
+    // Um quadro para a gaveta fechar e a barra assentar.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final end = await showTour(context, scoreTourSteps(_tourKeys, term: _term));
+    if (end != null) await store.markSeen(TourId.score);
   }
 
   /// Todos os compassos da música, para o véu dos que não são do trecho.
@@ -1279,11 +1348,20 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// treino, os selos de modo/mão e de acertos e erros.
   Widget _buildPhoneTitleBar() {
     final piece = _piece;
+    final chip = _trailChip();
     return PhoneTitleBar(
       number: piece.number,
       title: piece.title,
       onBack: _backToLibrary,
-      center: _trailChip(),
+      backKey: _tourKeys.back,
+      center: chip == null
+          ? null
+          : KeyedSubtree(
+              // Só o chip de uma etapa da trilha é o alvo do tutorial: o de
+              // "Treino livre" e o de trilha indisponível dizem outra coisa.
+              key: _runner.trailMode ? _tourKeys.trail : null,
+              child: chip,
+            ),
       trailing: [
         _phoneSoundButton(),
         ?_transposeSeal(),
@@ -1339,6 +1417,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           _sound.output == SoundOutput.midiKeyboard && device == null;
       if (noKeyboard) {
         return PhoneSoundButton(
+          key: _tourKeys.sound,
           on: false,
           tooltip: 'Som no teclado: nenhum conectado',
           onPressed: () =>
@@ -1346,6 +1425,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
         );
       }
       return PhoneSoundButton(
+        key: _tourKeys.sound,
         on: _sound.soundOn,
         loading: _sound.loadingSoundFont,
         tooltip: _sound.soundOn ? 'Som ligado' : 'Som desligado',
@@ -1503,7 +1583,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _buildPhoneTitleBar(),
-                      Expanded(child: _buildScoreArea(phone: true)),
+                      Expanded(
+                        child: KeyedSubtree(
+                          key: _tourKeys.score,
+                          child: _buildScoreArea(phone: true),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1519,6 +1604,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   final trail = _runner.trailMode ? _runner.trail : null;
                   final keyboard = _midiDeviceManager.connected.value != null;
                   return PhoneRail(
+                    tourKeys: _tourKeys.rail,
                     playing: _playback.playing,
                     onListen: trail != null && !trail.running
                         ? () => unawaited(_runner.listenStage())
@@ -1620,6 +1706,19 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       // A trilha vem primeiro: na trilha a gaveta abre por ela, e no treino
       // livre "Voltar à trilha" fica no topo, à vista (U11).
       top: [
+        if (widget.opened.onChooseVersion case final choose?) ...[
+          const PhoneSectionLabel('VERSÃO'),
+          PhoneActionRow(
+            icon: Icons.swap_horiz,
+            label: _piece.simplified
+                ? 'Simplificada — ver a completa'
+                : 'Completa — ver a simplificada',
+            onTap: () {
+              setState(() => _optionsOpen = false);
+              choose(!_piece.simplified);
+            },
+          ),
+        ],
         if (_runner.trail != null) ...[
           const PhoneSectionLabel('TRILHA'),
           PhoneActionRow(
@@ -1824,14 +1923,16 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     haloSigmaScale: _haloWidth,
                     barColor: _barColor,
                     barWidth: _barWidthOf(document),
-                    // A página nova fica ilegível até a haste começar a sair:
-                    // o foco é o fim da página que ainda toca. No treino com
-                    // tempo não: o aluno precisa ler o que vem antes de tocar,
-                    // e a virada é curta (300 ms de parede, em qualquer
-                    // andamento — o teto é em ms musicais).
+                    // A página nova fica fora de foco até a haste começar a
+                    // sair — mas só de leve, e a haste sai a tempo de o 1º
+                    // compasso dela estar nítido antes da última nota da
+                    // página que toca. No treino com tempo não há desfoque: o
+                    // aluno precisa ler o que vem antes de tocar, e a virada é
+                    // curta (300 ms de parede, em qualquer andamento — o teto
+                    // é em ms musicais).
                     revealBlurSigma: _timedPractice
                         ? 0
-                        : _barWidthOf(document) * 4,
+                        : _barWidthOf(document) * 2,
                     maxSweepDuration: _timedPractice
                         ? Duration(
                             milliseconds:
@@ -1968,6 +2069,12 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   onChooseSoundFont: () => unawaited(_sound.chooseSoundFont()),
                   onResetSoundFont: () => unawaited(_sound.resetSoundFont()),
                   onClose: () => setState(() => _generalOpen = false),
+                  onTutorial: phone
+                      ? () {
+                          setState(() => _generalOpen = false);
+                          unawaited(_runTour());
+                        }
+                      : null,
                   live: LiveSettingsActions(
                     busy: _sound.loadingSoundFont,
                     monitorOn: _sound.midiMonitorOn,

@@ -34,15 +34,12 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
 const _phoneLandscape = Size(844, 390);
 const _phonePortrait = Size(390, 844);
 
-// Mais difícil primeiro: ordenar por dificuldade muda o hino do topo.
 final _pieces = [
   for (var n = 1; n <= 600; n++)
     Piece(
       number: n,
       title: 'Hino $n',
       composer: 'Autor',
-      level: n == 1 ? 5 : 1,
-      difficulty: n == 1 ? 90 : 10.0 + n / 100,
       titleKey: 'hino $n',
       composerKey: 'autor',
       searchKey: 'hino $n autor',
@@ -149,7 +146,7 @@ void main() {
       expect(find.byTooltip('Conectar teclado MIDI'), findsOneWidget);
     });
 
-    testWidgets('as seis ordens ficam à vista, sem rolar as pastilhas', (
+    testWidgets('as cinco ordens ficam à vista, sem rolar as pastilhas', (
       tester,
     ) async {
       await pumpLibrary(tester);
@@ -157,7 +154,6 @@ void main() {
       for (final label in [
         'Número ↑',
         'Nome',
-        'Dificuldade',
         'Acidentes',
         'Recentes',
         'Pontuação',
@@ -176,13 +172,6 @@ void main() {
         tester.getRect(find.widgetWithText(InkWell, 'Nome')).width,
         lessThan(tester.getRect(find.byType(TextField)).left - column - 100),
       );
-
-      // E ordenam: o mais difícil (1) sai do topo.
-      await tester.tap(find.text('Dificuldade'));
-      await tester.pump();
-      expect(find.text('Dificuldade ↑'), findsOneWidget);
-      expect(_inList('Hino 1'), findsNothing);
-      expect(_inList('Hino 2'), findsOneWidget);
     });
 
     testWidgets('a busca mostra os resultados e a mensagem de vazio', (
@@ -222,11 +211,7 @@ void main() {
           lessThan(tester.getRect(_verticalLists).left),
         );
 
-        await tester.ensureVisible(find.text('Ver os mais fáceis'));
-        await tester.tap(find.text('Ver os mais fáceis'));
-        await tester.pump();
-        expect(find.text('Dificuldade ↑'), findsOneWidget);
-        expect(_inList('Hino 1'), findsNothing);
+        expect(find.text('Ver os mais fáceis'), findsNothing);
       },
     );
 

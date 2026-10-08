@@ -24,23 +24,19 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Piece _piece(int n, String title, {double? difficulty, int? level}) => Piece(
+Piece _piece(int n, String title) => Piece(
   number: n,
   title: title,
   composer: 'Autor',
-  level: level,
-  difficulty: difficulty,
   titleKey: foldForSearch(title),
   composerKey: 'autor',
   searchKey: foldForSearch('$n $title autor'),
 );
 
-// Na ordem do número, o mais difícil vem primeiro: ordenar por dificuldade
-// muda o hino do topo.
 final _pieces = [
-  _piece(1, 'Hino Difícil', difficulty: 60, level: 5),
-  _piece(2, 'Hino Médio', difficulty: 40, level: 3),
-  _piece(3, 'Hino Fácil', difficulty: 20, level: 1),
+  _piece(1, 'Hino Um'),
+  _piece(2, 'Hino Dois'),
+  _piece(3, 'Hino Três'),
 ];
 
 void main() {
@@ -79,25 +75,8 @@ void main() {
     await pumpLibrary(tester);
     expect(find.text('COMECE POR AQUI'), findsOneWidget);
     expect(find.text('CONTINUAR'), findsNothing);
-    expect(find.text('Ver os mais fáceis'), findsOneWidget);
     expect(find.text('Conectar teclado'), findsOneWidget);
-  });
-
-  testWidgets('"Ver os mais fáceis" ordena por dificuldade, o mais fácil no '
-      'topo', (tester) async {
-    await pumpLibrary(tester);
-    // Por número, o "Difícil" (1) vem antes do "Fácil" (3).
-    expect(
-      tester.getTopLeft(find.text('Hino Difícil')).dy,
-      lessThan(tester.getTopLeft(find.text('Hino Fácil')).dy),
-    );
-    await tester.tap(find.text('Ver os mais fáceis'));
-    await tester.pumpAndSettle();
-    expect(find.text('Dificuldade ↑'), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.text('Hino Fácil')).dy,
-      lessThan(tester.getTopLeft(find.text('Hino Difícil')).dy),
-    );
+    expect(find.text('Ver os mais fáceis'), findsNothing);
   });
 
   testWidgets('com um hino já aberto o cartão de começo não existe', (
@@ -108,11 +87,6 @@ void main() {
     await pumpLibrary(tester, progress: progress);
     expect(find.text('COMECE POR AQUI'), findsNothing);
     expect(find.text('CONTINUAR'), findsOneWidget);
-  });
-
-  testWidgets('a linha diz a escala: "nível 1 de 5"', (tester) async {
-    await pumpLibrary(tester);
-    expect(find.textContaining('nível 1 de 5'), findsOneWidget);
   });
 
   testWidgets('em 360 dp o cartão não estoura', (tester) async {

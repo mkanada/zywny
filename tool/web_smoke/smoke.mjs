@@ -4,6 +4,9 @@
 // O app não traz música (fase B): o teste instala dist/hinos.zywny pelo seletor
 // de arquivos de verdade (o diálogo é interceptado e o arquivo, entregue pelo
 // CDP) e confere que a biblioteca fica no IndexedDB depois de recarregar.
+// O navegador começa sem nada guardado, então o tutorial de primeiro uso
+// aparece: o roteiro confere que ele abre sozinho, que "Pular" o fecha e que
+// não volta depois de recarregar (a preferência fica no localStorage).
 // Sobe um servidor para build/web, injeta um teclado Web MIDI falso e confere:
 // permissão só no clique (sysex falso), conexão, som do Play, silêncio ao parar,
 // monitor MIDI e saída MIDI. Sai com código 1 se algo falhar. Prints em /tmp
@@ -58,6 +61,17 @@ try {
 
   check((await b.evalJs('window.__reqOptions.length')) === 0, 'MIDI: nenhuma pergunta de permissão na abertura');
 
+  // Primeiro uso: o passeio pela biblioteca abre sozinho (depois da abertura).
+  const touring = async () => (await semantics(b)).some((n) => /Bem-vindo ao Zywny/.test(n.label));
+  await find(/Bem-vindo ao Zywny/);
+  check(true, 'tutorial: o passeio abre sozinho no primeiro uso');
+  await tap(/^Pular$/, 1200);
+  check(!(await touring()), 'tutorial: "Pular" fecha o passeio');
+  check(
+    (await b.evalJs("localStorage.getItem('tutorial_seen_library')")) === '1',
+    'tutorial: ficou marcado como visto no localStorage',
+  );
+
   // Sem biblioteca: o cartão ensina a instalar; o seletor entrega o pacote.
   const waitEvent = async (method, ms = 10000) => {
     for (let t = 0; t < ms; t += 100) {
@@ -85,6 +99,7 @@ try {
   await sleep(6000);
   await find(/Instale uma biblioteca/);
   check(true, 'cursos: voltou à biblioteca');
+  check(!(await touring()), 'tutorial: depois de recarregar, o passeio não volta');
 
   await tap(/Abrir arquivo/, 100);
   const chooser = await waitEvent('Page.fileChooserOpened');

@@ -102,51 +102,11 @@ void main() {
   });
 
   group('ordenação', () {
-    test('dificuldade: do mais fácil ao mais difícil, pela nota (não pelo '
-        'nível); sem classificação vai para o fim nas duas direções', () {
-      Piece h(int n, {int? level, double? difficulty}) => Piece(
-        number: n,
-        title: 'Hino $n',
-        composer: '',
-        level: level,
-        difficulty: difficulty,
-        titleKey: 'hino $n',
-        composerKey: '',
-        searchKey: '$n',
-      );
-      final pieces = [
-        h(1, level: 3, difficulty: 40.5),
-        h(2),
-        h(3, level: 1, difficulty: 20),
-        h(4, level: 3, difficulty: 38.25),
-        h(5, level: 5, difficulty: 61),
-      ];
-      final progress = PieceProgressStore();
-      final easyFirst = const SortState().toggled(SortKey.difficulty);
-      expect(easyFirst.ascending, isTrue);
-      expect(_numbers(sortedPieces(pieces, easyFirst, progress)), [
-        3,
-        4,
-        1,
-        5,
-        2,
-      ]);
-      expect(
-        _numbers(
-          sortedPieces(pieces, easyFirst.toggled(SortKey.difficulty), progress),
-        ),
-        [5, 1, 4, 3, 2],
-      );
-    });
-
-    test('índice: nível e dificuldade são opcionais', () {
+    test('índice: a versão simplificada é um sinal, não outra música', () {
       final base = {'n': 7, 't': 'T', 'c': 'C', 'k': 't', 'ck': 'c', 'q': '7'};
-      final plain = Piece.fromJson(base);
-      expect(plain.level, isNull);
-      expect(plain.difficulty, isNull);
-      final rated = Piece.fromJson({...base, 'nv': 2, 'd': 36});
-      expect(rated.level, 2);
-      expect(rated.difficulty, 36.0);
+      expect(Piece.fromJson(base).hasSimplified, isFalse);
+      expect(Piece.fromJson({...base, 's': true}).hasSimplified, isTrue);
+      expect(Piece.fromJson({...base, 's': 'sim'}).hasSimplified, isFalse);
     });
 
     test('número, nome e compositor', () {

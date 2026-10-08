@@ -27,11 +27,10 @@ class _NoDevicesMidiCommandPlatform extends MidiCommandPlatform
   Stream<MidiSetupChange>? get onMidiSetupChanged => null;
 }
 
-Piece _piece(int n, String composer, {int? level, int? fifths}) => Piece(
+Piece _piece(int n, String composer, {int? fifths}) => Piece(
   number: n,
   title: 'Hino $n',
   composer: composer,
-  level: level,
   fifths: fifths,
   titleKey: 'hino $n',
   composerKey: foldForSearch(composer),
@@ -103,7 +102,7 @@ void main() {
     await trail.save('007', _progress(approved: 12, skipped: 1, total: 75));
     await pumpLibrary(
       tester,
-      pieces: [_piece(7, composer, level: 3, fifths: -3)],
+      pieces: [_piece(7, composer, fifths: -3)],
       progress: store,
       trail: trail,
       size: const Size(1000, 900),
@@ -112,21 +111,19 @@ void main() {
     expect(find.text('13/75 · 1 pul.'), findsOneWidget);
     expect(find.text('3 bemóis'), findsOneWidget);
     expect(find.textContaining('Compositor'), findsNothing);
-    const restText = ' · nível 3 de 5 · hoje · melhor 78%';
+    const restText = ' · hoje · melhor 78%';
     final rest = find.text(restText);
     expect(rest, findsOneWidget);
+    // Medido com o estilo que o tema dá ao texto (a fonte do app).
+    final base = DefaultTextStyle.of(tester.element(rest)).style;
     final natural = (TextPainter(
-      text: const TextSpan(text: restText, style: TextStyle(fontSize: 13)),
+      text: TextSpan(
+        text: restText,
+        style: base.merge(const TextStyle(fontSize: 13)),
+      ),
       textDirection: TextDirection.ltr,
     )..layout()).width;
     expect(tester.getSize(rest).width, closeTo(natural, 1));
-  });
-
-  testWidgets('sem armadura no índice a linha não começa com separador', (
-    tester,
-  ) async {
-    await pumpLibrary(tester, pieces: [_piece(9, 'Fulano', level: 2)]);
-    expect(find.text('nível 2 de 5'), findsOneWidget);
   });
 
   testWidgets('hino nunca aberto não tem nada na coluna da direita', (

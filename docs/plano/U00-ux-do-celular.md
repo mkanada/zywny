@@ -148,6 +148,7 @@ Os achados baixos do estudo (A12, A13, B5, D2–D4, E4) não têm passo.
 | [U17](U17-vocabulario.md) | Vocabulário das configurações | U15 | — | concluído (critério 4, no emulador, aguardando verificação) |
 | [U18](U18-um-visual-so.md) | Um visual só: tema e superfícies | U12 | — | concluído (critérios 5–6, no emulador e no aparelho, aguardando verificação) |
 | [U19](U19-refazer-as-telas.md) | Refazer as telas e conferir os achados | todos os U | — | concluído (fotos refeitas; achados conferidos na seção "Depois da fase U" do estudo) |
+| [U20](U20-sobre-e-tutorial.md) | "Sobre o Zywny" e tutorial de primeiro uso | U16, U17 | — | concluído (código, testes e Web; aceite no aparelho pendente) |
 
 Ordem sugerida: **U01 → U02 → U03 e U04 → U05** (os achados altos que não
 dependem de teste com aluno) → U08 e U07 → U06 → U09, U10, U11 → U12 → a
@@ -162,5 +163,6 @@ qualquer momento, em paralelo com o resto.
 - Regras da trilha, tolerâncias do treino, porcentagem de aprovação.
 - Teste com alunos — o estudo diz o que só ele responde; a fase U deixa o
   app pronto para ele.
-- Tutorial, animações de conquista, sons de acerto.
+- Animações de conquista, sons de acerto. (O tutorial de primeiro uso estava
+  aqui e foi pedido depois: [U20](U20-sobre-e-tutorial.md).)
 - Os achados baixos do estudo.
