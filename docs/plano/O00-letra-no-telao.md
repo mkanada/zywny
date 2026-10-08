@@ -4,6 +4,15 @@
 (2026-10-07), **nada implementado** · **Quando:** depois da 1.0 ·
 **Decisões necessárias:** sim, ver "Decisões" no fim.
 
+**Revisado** em 2026-10-07 contra o contrato da letra do Hymn_Grabber
+(`Hymn_Grabber/docs/formato-da-letra.md`, LT01; decisão D-LT-O00).
+
+**Revisado de novo** em 2026-10-07 (decisões D-LT-FONTE e D-LT-O00-2 do
+Hymn_Grabber, `Hymn_Grabber/docs/letra/LT00-letra-no-telao.md`): o texto do
+telão **vem do catálogo de letras do app**, já em estrofes e versos e na ordem
+cantada; a partitura só diz **quando** cada verso começa (as âncoras). O passo
+G e o O01 mudam de acordo.
+
 Este arquivo é autossuficiente: reúne o problema, o que o zywny e os hinos já
 oferecem, a pesquisa sobre seguir uma execução ao vivo, o desenho proposto e
 uma quebra preliminar em passos O01…O08 (+ um passo G no bridge). Ao executar
@@ -24,10 +33,24 @@ está tocando**, com o andamento, as pausas e os erros de uma execução real.
 
 ## O que já existe (medido em 2026-10-07)
 
-- **A letra já está nos hinos.** No Hymn_Grabber, 581 dos 584 arquivos de
-  `musicxml/` têm `<lyric>` por nota, numerados por estrofe
-  (`<lyric name="1" number="1">`, `"2"`, `"3"`…); em `musicxml_special/`, 19
-  dos 41. O hino 001 tem 46 sílabas em cada uma das 3 estrofes.
+- **A letra já está nos hinos.** No Hymn_Grabber, os 600 hinos têm
+  `<lyric>` por nota: 581 em `musicxml/` e 19 em `musicxml_special/` (os
+  outros arquivos dessas pastas não são hinos). Hoje o `number` é a ordem da
+  linha no compasso (`<lyric name="1" number="1">`, `"2"`, `"3"`…); o contrato
+  pede a passagem (ver abaixo). O hino 001 tem 46, 49 e 49 sílabas nas 3
+  estrofes (144 no total).
+- **O texto do telão vem do catálogo do app, com âncoras** (Hymn_Grabber
+  LT07, LT03 e LT08, feitos em 2026-10-07). O catálogo traz os 600 hinos em
+  estrofes e versos, **na ordem cantada e já desdobrada** (estrofe, coro,
+  estrofe, coro…; o coro vem por extenso a cada vez): 14.035 versos, 357 hinos
+  com coro. Para cada verso, `Hymn_Grabber/musicxml/NNN.letra.json` guarda a
+  **âncora**: a nota da 1ª sílaba, na passagem certa, como `k` (índice do
+  compasso na música desdobrada, contando a introdução), `compasso` (o
+  `number` do `<measure>`), `passagem` e `tempo` (em semínimas, como fração).
+  13.641 versos (97,2%) têm a âncora na 1ª palavra, 359 numa palavra seguinte
+  do verso e 35 não têm instante (`inicio` nulo); 407 hinos têm todos os
+  versos na 1ª palavra. A letra do MusicXML continua sendo desenhada sob as
+  notas, mas não é mais a fonte do telão.
 - **As estrofes já viraram repetições.** O extrator
   (`Hymn_Grabber/docs/plano-extrator.md`, seção "Repetição das estrofes") dá
   a cada linha de letra uma passagem: o hino sem repetição escrita ganha
@@ -42,12 +65,16 @@ está tocando**, com o andamento, as pausas e os erros de uma execução real.
   `lib/render/layout_options.dart:352`).
 - **A ordem de execução já é conhecida.** `ScoreTimeline.measures`
   (`score_bridge/lib/src/score_timeline.dart`) lista cada compasso uma vez
-  **por passagem**, com `pass`. Logo, **passagem N ↔ estrofe N** (a
-  conferir nos hinos com casas e coro; ver Riscos).
+  **por passagem**, com `pass`. Logo, **`<lyric number="N">` é a passagem N**,
+  com a letra da estrofe cantada nela. Não é sempre a estrofe N: em 496, a
+  passagem 3 canta a estrofe 1 de novo (contrato em
+  `Hymn_Grabber/docs/formato-da-letra.md`, item 1; ver Riscos).
 - **O que falta:**
-  1. o `.vsb` **não** exporta a letra de forma estruturada — a spec
+  1. o `.vsb` **não** leva a letra estruturada nem as âncoras — a spec
      `docs/formato/especificacao-v1.md` do bridge só cita `lyricist`. A
-     letra existe apenas como glifos na cena;
+     letra existe apenas como glifos na cena. O que falta levar é o
+     `NNN.letra.json` do Hymn_Grabber (versos e âncoras), e não mais sílabas
+     por nota;
   2. um **seguidor** de execução livre. O `WaitModeSession` e o
      `RealtimeSession` (`lib/practice/practice_session.dart`) são casadores
      de treino: o primeiro espera o acorde exato (janela de 300 ms) e não
@@ -98,21 +125,34 @@ fonte da posição            letra em slides            telão
  ou seguidor MIDI)          próximo slide)            2ª tela, Holyrics…)
 ```
 
-### 1. Letra em slides, a partir da partitura
+### 1. Letra em slides, a partir do catálogo e das âncoras
 
-- **Exportar a letra no bridge** (passo G novo): para cada nota com letra,
-  `noteId → [(estrofe, texto da sílaba, posição na palavra)]`, onde a
-  posição vem do `syllabic` do MusicXML / `@wordpos` do MEI
-  (`single|begin|middle|end`), mais elisão e prolongamento (`extend`). Mesmo
-  espírito do `notes.json` (N01/G01).
+- **Levar os versos ancorados ao zywny** (passo G, simplificado): o
+  `NNN.letra.json` do Hymn_Grabber vai para o pacote (`.vsb` ou o formato da
+  biblioteca, B01/B02) como está: a lista de versos na ordem cantada, cada um
+  com `ordem`, `coro`, `linha`, `texto`, `ancora` e `inicio` (`k`,
+  `compasso`, `passagem`, `tempo`). Não há mais sílabas por nota, `syllabic`
+  ou `@wordpos`, elisão nem `extend`. **Exceção:** o destaque da sílaba
+  (karaokê, D-TEL-VISUAL) precisa de sílaba por nota, que o catálogo não tem;
+  se essa opção for escolhida, o passo G volta a exportar a letra da
+  partitura (e o LT06 do Hymn_Grabber entra).
 - **No zywny (Dart puro):**
-  - juntar sílabas em palavras e palavras em frases. Corte de frase:
-    pontuação seguida de nota longa ou pausa; teto de caracteres por linha;
-  - frases em slides de 2 linhas;
-  - o coro (só uma linha de letra) repete em toda estrofe;
-  - cada slide guarda o intervalo de eventos (no hino desdobrado) que cobre:
-    é isso que liga slide e música.
-- **Correção manual:** se o corte automático ficar ruim num hino, uma
+  - os versos já vêm prontos: não é preciso juntar sílabas em palavras nem
+    cortar frases por pontuação. Montar os slides de 2 linhas a partir dos
+    versos (teto de caracteres por linha);
+  - converter `k` + `tempo` em posição no hino desdobrado e em ms, pelo
+    `ScoreTimeline` do zywny. **A conferir no O01:** o `k` do Hymn_Grabber
+    (índice da música desdobrada, que conta também a introdução) tem de ser o
+    índice de `ScoreTimeline.measures`; testar nos 600 hinos;
+  - `ancora` diz a precisão: `"1a palavra"` é a nota certa; `"palavra N"` é
+    mais tarde que o começo do verso; `"nenhuma"` (`inicio` nulo) não tem
+    instante, e o zywny decide (por exemplo, trocar no fim do verso anterior);
+  - o coro vem marcado (`coro`: true) e por extenso a cada vez que é cantado,
+    na ordem cantada: o zywny não precisa procurar `name="coro"` na
+    partitura;
+  - cada slide guarda a âncora do 1º verso que cobre: é isso que liga slide e
+    música.
+- **Correção manual:** se o corte em slides ficar ruim num hino, uma
   sobreposição opcional dentro do pacote `.zywny` (fase B) ajusta as quebras.
 
 ### 2. Fontes da posição
@@ -170,9 +210,14 @@ seguidor.
 
 ## Riscos conhecidos
 
-- **Passagem ↔ estrofe** nos hinos com casas, coro de uma linha, estrofe de
-  duas linhas (496, 461, 473, 513) e repetição implícita (506, 496, 473):
-  conferir no corpus antes de confiar no mapeamento simples.
+- **Âncoras faltando ou imprecisas.** A ordem dos versos vem do catálogo e
+  não depende mais do `number` do `<lyric>`; o risco passou para as âncoras:
+  das 14.035, 359 estão numa palavra depois da 1ª e 35 não têm instante. Os
+  piores hinos (458, 514, 405, 248, 525, 336, 159, 033) têm erro de texto ou
+  coro sem marca na partitura (LT05 e LT09 do Hymn_Grabber melhoram isso).
+  Hinos com casas, coro de uma linha, estrofe de duas linhas (496, 461, 473,
+  513) e repetição implícita (506, 496, 473) seguem como os casos a conferir
+  no O01, porque `k` e `passagem` dependem do desdobramento.
 - **Introdução:** pianistas costumam tocar uma introdução própria (ou só os
   últimos compassos). O seguidor não deve trocar o slide da 1ª estrofe
   durante a introdução; a relocalização precisa saber que a introdução é
@@ -181,17 +226,20 @@ seguidor.
   acordes derruba o casamento por notas. A modulação pode ser tratada como
   transposição (a fase Q já tem o cálculo); acordes sem melodia precisam de
   observação por classe de altura.
-- **Hinos sem letra** (3 em `musicxml/`, 22 em `musicxml_special/`): o
-  telão diz que não há letra; nada mais.
+- **Hinos sem letra:** nenhum no corpus (os 600 têm letra). Se um hino vier
+  sem letra, o telão diz que não há letra; nada mais.
 - **Direitos:** as letras têm direitos de terceiros, como as partituras;
   seguem a mesma regra do pacote de hinos (B00: o app não traz hino nenhum).
+  No Hymn_Grabber, os `NNN.letra.json` trazem o texto do catálogo (CPB) e
+  ficam no git (D-LT-ROTEIRO); no zywny devem entrar só nos pacotes, nunca no
+  app.
 
 ## Passos (preliminares)
 
 | Passo | Título | Depende de |
 | --- | --- | --- |
-| G (bridge, nº a definir) | Exportar a letra estruturada no `.vsb` (nota → estrofe → sílaba, `wordpos`) + spec | — |
-| O01 | Letra em slides (Dart puro): sílabas → palavras → frases → slides; passagem → estrofe; testes no corpus | G |
+| G (bridge, nº a definir) | Levar os versos ancorados (`NNN.letra.json`) ao pacote/`.vsb` + spec | — |
+| O01 | Letra em slides (Dart puro): versos → slides de 2 linhas; `k` + `tempo` → posição no hino desdobrado; testes no corpus, inclusive `k` × `ScoreTimeline` | G |
 | O02 | Roteiro do hino: estrofes escolhidas, com/sem introdução; desdobrar o `PerformanceTrack` nessa ordem | O01 |
 | O03 | Telão: servidor HTTP/WebSocket local, página do telão, QR code | O01 |
 | O04 | Letra seguindo o playback do zywny (fonte 2a) — **primeira entrega** | O02, O03 |
@@ -200,6 +248,11 @@ seguidor.
 | O07 | Letra seguindo o pianista (fonte 2b) + correção manual (estrofe, avançar/voltar) | O04, O06 |
 | O08 | Segunda tela (Android `Presentation`, janela no desktop) | O04 |
 | (depois) | Integração com o Holyrics; seguir piano acústico pelo microfone | — |
+
+**Dependência do Hymn_Grabber:** O01, O02 e O04 precisam do LT08 do Hymn_Grabber
+(que usa o LT07 e o LT03), feito em 2026-10-07: ele grava
+`Hymn_Grabber/musicxml/NNN.letra.json`. O LT02 (`number` = passagem) só importa
+para a letra desenhada sob as notas, não para o telão.
 
 **Medida do seguidor (O05/O06):** a porcentagem de trocas de slide feitas
 antes da 1ª sílaba da frase seguinte e não antes de ~1 tempo do fim da frase
