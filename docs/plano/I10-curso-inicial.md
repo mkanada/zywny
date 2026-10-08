@@ -163,6 +163,51 @@ curso usa só o que está lá. Único aprendizado anotado: `lib/course/format`
 não pode importar Flutter (o validador roda com `dart run`) — o
 `AssetCourseFiles` nasceu lá e foi movido para `lib/course/`.
 
+**Revisão do conteúdo (2026-10-08)**, a pedido do usuário ("coisas fora
+do lugar, passos desnecessários, outros faltando"). A tabela do I00 já
+mostra o currículo novo. O que mudou:
+
+- Fora do lugar: o tom de Sol e o compasso saíram da lição 2 (a armadura
+  é da lição 9; o compasso, da 6); o C no lugar do 4/4 foi da lição 9 para
+  a 6; o áudio dó-ré-mi saiu da mão esquerda da Ode; o link do MIDI saiu do
+  dó central; o vídeo de figuras ficou como revisão no fim da lição 7.
+  Cada figura agora mostra o que o texto da seção diz (antes, "Notas em
+  espaços" ilustrava as linhas suplementares, e a clave de fá mostrava um
+  teclado).
+- Faltavam: oitava e o número da oitava (Dó4) antes da primeira pauta; o
+  dó central na linha suplementar já na lição 2, onde aparece; os números
+  dos dedos e a posição de Dó (direita na 2, esquerda na 4); pulso, barra e
+  fórmula de compasso antes das figuras; tom e meio tom antes do
+  sustenido; a ligadura (estava no I00 e não no curso); uma melodia cedo
+  ("Brilha, brilha", lição 3, modo espera).
+- Desnecessários ou trocados: o `find-key` de oitava exata da lição 4 foi
+  para a lição 1 (é geografia do teclado); a "peça em Ré" virou exercícios
+  de Sol e Fá maior (Ré e Si♭ só para reconhecer); "quantos sustenidos tem
+  Sol maior" virou "que tom é este"; o exercício "O Dó nas duas mãos"
+  (`[C3, C4, E4, G3]`) virou Dó-Mi-Sol subindo e descendo nas duas mãos.
+- Ode (pedido do aceite de 06/10): primeiro só as notas (modo espera),
+  depois no ritmo; as duas mãos também passam antes pelo modo espera. Todos
+  os de tempo real com `bpm: 80` (antes a esquerda e as duas mãos ficavam
+  nos 120 do arquivo).
+- Erros corrigidos: ABC `F#`/`Bb` (no ABC são `^F`/`_B`, e `Bb` vira duas
+  notas); `G, A, B, C` na clave de fá mostrava G3–C4 com destaque num F3
+  que não estava lá; compasso de 8 tempos em 4/4; colcheias sem barra
+  (`C/2 C/2` com espaço não liga); `G ^G G` dizia "Sol de novo" (a
+  partitura de verdade leria Sol sustenido); o Fá maior sorteava C4–G4 e
+  nunca passava pelo Si♭; o `rhythm` com `abc` pedia Dó, Ré, Mi e Fá ("uma tecla
+  só") e ignorava o `bpm` (código consertado em `RhythmKind`); as figuras
+  saíam com fundo ciano (o Chrome lê `--default-background-color` como
+  RRGGBBAA).
+- Achado do formato (regra 1): no ABC o acidente não vale até a barra no
+  som — `^F F` toca Fá sustenido e Fá natural, sem bequadro na pauta. A
+  especificação dizia o contrário; corrigida. O exemplo da lição 8 é um
+  `.musicxml` (`media/vale-ate-a-barra.musicxml`).
+- Mídia: saíram `clave-de-sol.png`, `clave-de-fa.png`, `armadura-sol.png`,
+  `sol.ogg` e `do-re-mi.ogg` (repetiam uma partitura que já toca);
+  entraram `dos.ogg` (Dós do grave ao agudo) e o `.musicxml` da lição 8;
+  `compasso.ogg` marca o primeiro tempo. 31 exercícios (eram 28); ids
+  mantidos onde o exercício é o mesmo.
+
 **Pendente (manual)**: critério 4 (ler as 10 lições no celular e aprovar o
 texto), critério 5 (fazer o curso 1–10 com teclado MIDI anotando travas),
 rebuild do APK + medida antes/depois exata (I13).

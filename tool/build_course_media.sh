@@ -2,15 +2,17 @@
 # I10 — receita reprodutível da mídia do curso inicial embutido.
 #
 # Gera os arquivos versionados em `assets/cursos/iniciacao/media/`:
-# - imagens de partitura (clave de sol, clave de fá, pauta dupla,
-#   armaduras): Verovio CLI → SVG → PNG (Chrome headless + ImageMagick),
-#   como o `tool/build_mockup_images.sh`;
-# - áudios curtos (o Sol da 2ª linha, dó-ré-mi, um compasso contado):
+# - imagens de partitura (a pauta dupla da lição 5 e a armadura de Fá da
+#   pergunta da lição 9): Verovio CLI → SVG → PNG (Chrome headless +
+#   ImageMagick), como o `tool/build_mockup_images.sh`;
+# - áudios curtos (cinco Dós do grave ao agudo, dois compassos contados):
 #   sintetizados com o soundfont do app (D-SF, `assets/soundfonts/TimGM6mb.sf2`)
 #   pelo exemplo `render_wav` do crate (`native/zywny_audio/examples/render_wav.rs`,
 #   que reaproveita o `render` de `examples/play.rs`) e convertidos com `ffmpeg`;
-# - a partitura da lição 10 (`ode-a-alegria.musicxml`) é escrita à mão
-#   (arranjo próprio sobre melodia de domínio público) e só é conferida aqui.
+# - as partituras `.musicxml` são escritas à mão e só conferidas aqui: a
+#   da lição 10 (`ode-a-alegria.musicxml`, arranjo próprio sobre melodia de
+#   domínio público) e a da lição 8 (`vale-ate-a-barra.musicxml`: o ABC não
+#   estende o acidente até a barra no som).
 #
 # Os arquivos gerados SÃO versionados: o curso embutido não depende de rodar
 # esta receita. Rode-a quando quiser refazer a mídia (ela sobrescreve).
@@ -66,22 +68,20 @@ render_abc_png() {
     --header none --footer none --no-instrument-labels --breaks auto \
     -p 1 -o "$svg" "$abc" >/dev/null
   "$chrome_bin" --headless --disable-gpu --no-sandbox --hide-scrollbars \
-    --window-size=1400,500 --default-background-color=00ffffff \
+    --window-size=1400,500 --default-background-color=ffffffff \
     --screenshot="$full" "file://$svg" >/dev/null 2>&1
   convert "$full" -trim +repage -bordercolor white -border 12 "$media_dir/$name.png"
   echo "imagem $name.png: $(du -h "$media_dir/$name.png" | cut -f1)"
 }
 
-# Clave de sol: cinco notas subindo até o Sol da 2ª linha.
-render_abc_png "clave-de-sol" "C D E F G|" "M:4/4
-K:C clef=treble"
-# Clave de fá: a região grave, com o Fá da 4ª linha.
-render_abc_png "clave-de-fa" "G, A, B, C|" "M:4/4
-K:C clef=bass"
-# Armadura de Sol (1 sustenido) e de Fá (1 bemol).
-render_abc_png "armadura-sol" "G A B c|" "M:4/4
-K:G clef=treble"
-render_abc_png "armadura-fa" "F G A Bb|" "M:4/4
+# O fundo é branco opaco: o Chrome lê `--default-background-color` como
+# RRGGBBAA (o `00ffffff` de antes saía ciano). Transparente não serve: no
+# tema escuro as notas pretas sumiriam.
+#
+# Armadura de Fá (1 bemol), para a pergunta "Que tom é este?" da lição 9:
+# o Si da melodia é bemol pela armadura, sem sinal (`B`, não `Bb`, que no
+# ABC são duas notas).
+render_abc_png "armadura-fa" "F G A B | c4|" "M:4/4
 K:F clef=treble"
 
 # Pauta dupla: duas pautas só saem por MusicXML (o ABC não faz duas pautas,
@@ -107,7 +107,7 @@ XML
   --header none --footer none --no-instrument-labels --breaks auto \
   -p 1 -o "$work/pauta-dupla.svg" "$work/pauta-dupla.musicxml" >/dev/null
 "$chrome_bin" --headless --disable-gpu --no-sandbox --hide-scrollbars \
-  --window-size=1400,600 --default-background-color=00ffffff \
+  --window-size=1400,600 --default-background-color=ffffffff \
   --screenshot="$work/pauta-dupla_full.png" "file://$work/pauta-dupla.svg" >/dev/null 2>&1
 convert "$work/pauta-dupla_full.png" -trim +repage -bordercolor white -border 12 "$media_dir/pauta-dupla.png"
 echo "imagem pauta-dupla.png: $(du -h "$media_dir/pauta-dupla.png" | cut -f1)"
@@ -123,27 +123,29 @@ fi
 # --- áudios: soundfont do app via render_wav → ffmpeg → .ogg mono ---
 echo
 echo "== áudios (soundfont TimGM6mb via render_wav) =="
+# Lição 1: um Dó de cada região, do grave (Dó2) ao agudo (Dó6). Argumentos
+# do render_wav: a primeira nota, a duração da ÚLTIMA (ms) e as demais;
+# cada nota antes da última dura 450 ms + 50 ms de silêncio.
 cargo run --quiet --release --example render_wav --manifest-path "$crate_dir/Cargo.toml" -- \
-  "$soundfont" "$work/sol.wav" 67 800 >/dev/null
-ffmpeg -y -loglevel error -i "$work/sol.wav" -ac 1 -c:a libvorbis -q:a 3 "$media_dir/sol.ogg"
-echo "áudio sol.ogg: $(du -h "$media_dir/sol.ogg" | cut -f1)"
+  "$soundfont" "$work/dos.wav" 36 900 48 60 72 84 >/dev/null
+ffmpeg -y -loglevel error -i "$work/dos.wav" -ac 1 -c:a libvorbis -q:a 3 "$media_dir/dos.ogg"
+echo "áudio dos.ogg: $(du -h "$media_dir/dos.ogg" | cut -f1)"
 
+# Lição 6: dois compassos de quatro tempos a 120 bpm; o primeiro tempo de
+# cada compasso é o Dó de cima (o render_wav não tem acento de volume).
 cargo run --quiet --release --example render_wav --manifest-path "$crate_dir/Cargo.toml" -- \
-  "$soundfont" "$work/doremi.wav" 60 450 62 64 >/dev/null
-ffmpeg -y -loglevel error -i "$work/doremi.wav" -ac 1 -c:a libvorbis -q:a 3 "$media_dir/do-re-mi.ogg"
-echo "áudio do-re-mi.ogg: $(du -h "$media_dir/do-re-mi.ogg" | cut -f1)"
-
-cargo run --quiet --release --example render_wav --manifest-path "$crate_dir/Cargo.toml" -- \
-  "$soundfont" "$work/compasso.wav" 60 450 60 60 60 >/dev/null
+  "$soundfont" "$work/compasso.wav" 72 450 60 60 60 72 60 60 60 >/dev/null
 ffmpeg -y -loglevel error -i "$work/compasso.wav" -ac 1 -c:a libvorbis -q:a 3 "$media_dir/compasso.ogg"
 echo "áudio compasso.ogg: $(du -h "$media_dir/compasso.ogg" | cut -f1)"
 
-# --- partitura da lição 10: só confere que o Verovio abre ---
+# --- partituras escritas à mão: só confere que o Verovio abre ---
 echo
-echo "== partitura da lição 10 =="
-"$verovio_bin" -r "$data_dir" --header none --footer none \
-  -o "$work/ode.svg" "$media_dir/ode-a-alegria.musicxml" >/dev/null
-echo "ode-a-alegria.musicxml abre no Verovio OK: $(du -h "$media_dir/ode-a-alegria.musicxml" | cut -f1)"
+echo "== partituras .musicxml =="
+for score in ode-a-alegria vale-ate-a-barra; do
+  "$verovio_bin" -r "$data_dir" --header none --footer none \
+    -o "$work/$score.svg" "$media_dir/$score.musicxml" >/dev/null
+  echo "$score.musicxml abre no Verovio OK: $(du -h "$media_dir/$score.musicxml" | cut -f1)"
+done
 
 echo
 echo "== total =="

@@ -6,35 +6,51 @@ requires: [clave-de-sol, clave-de-fa]
 
 ## Duas pautas de mãos dadas
 
-O piano lê duas pautas ao mesmo tempo. Em cima, a clave de sol para a
-mão direita. Embaixo, a clave de fá para a esquerda.
+O piano se lê em duas pautas ao mesmo tempo, unidas por uma chave. Em
+cima, a clave de sol, da mão direita; embaixo, a clave de fá, da
+esquerda.
 
-A chave no começo abraça as duas. O dó central mora no meio, entre elas.
+Leia as duas juntas, da esquerda para a direita. Notas uma em cima da
+outra soam juntas.
 
 ![A pauta dupla](media/pauta-dupla.png)
 
 ## O dó central no meio
 
-O mesmo Dó aparece nas duas claves: acima da pauta de fá e abaixo da de
-sol. Veja como ele se repete.
+Entre as duas pautas fica o dó central. Ele pode aparecer em qualquer
+uma: na linha suplementar abaixo da pauta de sol ou na de cima da pauta
+de fá. É sempre a mesma tecla.
 
 ```zywny-score
 clef: treble
-abc: "C D E"
+abc: "C4"
 highlight: [C4]
-caption: O dó central na clave de sol
+caption: O dó central na pauta de sol
 ```
-
-## Toque nas duas
-
-Leia nas duas pautas. A nota abaixo do Dó central vai para a de fá, as
-demais para a de sol. O app não toca a outra mão por você.
 
 ```zywny-score
 clef: bass
-abc: "C D E"
-highlight: [C3]
-caption: O dó central na clave de fá
+abc: "C4"
+highlight: [C4]
+caption: O mesmo Dó na pauta de fá
+```
+
+## As duas mãos em posição de Dó
+
+Ponha as duas mãos em posição de Dó: a esquerda do Dó3 ao Sol3, a direita
+do dó central ao Sol4. Entre os dois polegares sobram só o Lá e o Si.
+
+Nos exercícios, o que fica abaixo do dó central vem na pauta de fá, para
+a esquerda. O dó central e o que fica acima vêm na pauta de sol, para a
+direita.
+
+```zywny-exercise
+id: l5-do-mi-sol
+type: play-notes
+title: Dó, Mi e Sol nas duas mãos
+clef: grand
+notes: [C3, E3, G3, C4, E4, G4, E4, C4, G3, E3, C3]
+pass: {accuracy: 90}
 ```
 
 ```zywny-exercise
@@ -42,20 +58,6 @@ id: l5-duas-pautas
 type: play-notes
 title: Nas duas pautas
 clef: grand
-notes: {random: G2-G4, count: 12}
-pass: {accuracy: 90}
-```
-
-## O Dó nas duas mãos
-
-Uma sequência curta e fixa para sentir a troca de pauta. Toque com calma,
-uma mão de cada vez se precisar.
-
-```zywny-exercise
-id: l5-do-central
-type: play-notes
-title: O Dó nas duas mãos
-clef: grand
-notes: [C3, C4, E4, G3]
+notes: {random: C3-G4, count: 12}
 pass: {accuracy: 90}
 ```

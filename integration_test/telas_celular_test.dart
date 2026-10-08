@@ -1063,6 +1063,7 @@ void main() {
           'records': {
             'l1-achar-do': {'p': true, 's': 1, 'b': 100, 't': now},
             'l1-achar-brancas': {'p': true, 's': 1, 'b': 100, 't': now},
+            'l1-oitava-certa': {'p': true, 's': 1, 'b': 100, 't': now},
           },
           'doneLessons': [],
           'lastLessonId': 'pauta-e-clave-de-sol',

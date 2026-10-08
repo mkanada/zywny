@@ -6,57 +6,73 @@ requires: [o-teclado]
 
 ## Cinco linhas
 
-A pauta tem cinco linhas e quatro espaços. Quanto mais alta a nota, mais
-agudo o som.
+A música se escreve na **pauta**: cinco linhas e os quatro espaços entre
+elas. Conte sempre de baixo para cima: a primeira linha é a de baixo.
 
-Leia de baixo para cima: a primeira linha é a mais grave. Toque no desenho
-para ouvir como soa cada altura.
+Cada nota mora numa linha ou num espaço. Quanto mais alta na pauta, mais
+agudo o som. Toque na partitura para ouvir a escada subir.
 
 ```zywny-score
 clef: treble
-abc: "C D E F G"
-highlight: [G4]
-caption: Do Dó ao Sol na clave de sol
+abc: "E F G A B c d e f"
+caption: Da primeira à quinta linha, passando pelos espaços
 ```
 
 ## A clave de sol
 
-A clave de sol abraça a segunda linha. Ela diz que ali mora o Sol.
+O desenho no começo da pauta é a **clave de sol**. Ela se enrola na
+segunda linha e diz: aqui mora o Sol, o Sol logo acima do dó central.
 
-Olhe a figura com calma. Depois ache esse Sol no seu teclado: ele fica
-perto do dó central, um pouco acima.
-
-![A clave de sol](media/clave-de-sol.png)
-
-## O Sol da segunda linha
-
-Ouça o Sol da segunda linha. É o mesmo Sol que você vê na pauta e na
-figura.
-
-Cante junto uma vez, depois toque. O ouvido aprende antes da mão.
-
-```zywny-audio
-file: media/sol.ogg
-caption: O Sol da segunda linha
-```
-
-## O tom de Sol
-
-Em Sol maior o Fá é sustenido. Veja como a armadura muda a pauta e como o
-compasso organiza o tempo.
+Sabendo onde está o Sol, você acha as vizinhas. O espaço logo acima é o
+Lá; o espaço logo abaixo, o Fá. Subir um degrau na pauta é ir para a
+branca vizinha da direita.
 
 ```zywny-score
 clef: treble
-key: G
-time: 4/4
-abc: "G A B c"
-caption: Em Sol maior, com compasso
+abc: "F G A"
+highlight: [G4]
+caption: Fá, Sol e Lá em volta da segunda linha
 ```
 
-## Toque as notas
+## O dó central
 
-Leia cada nota na pauta e toque. Não precisa ser rápido: precisa ser de
-primeira na maioria das vezes.
+Abaixo da pauta ainda cabem notas. O dó central fica numa linha curtinha
+só dele, a **linha suplementar**. Logo acima dela vem o Ré, encostado na
+pauta; na primeira linha, o Mi.
+
+Do dó central ao Sol são cinco notas: Dó, Ré, Mi, Fá e Sol.
+
+```zywny-score
+clef: treble
+abc: "C D E F G"
+highlight: [C4]
+caption: Do Dó ao Sol na clave de sol
+```
+
+## A posição de Dó
+
+Os dedos têm número, nas duas mãos: polegar 1, indicador 2, médio 3,
+anelar 4 e mínimo 5.
+
+Ponha o polegar direito no dó central e um dedo em cada branca até o
+Sol: é a **posição de Dó**. Cada nota fica com o seu dedo, e você não
+precisa olhar para a mão.
+
+```zywny-keyboard
+from: C4
+to: C5
+mark: [C4, D4, E4, F4, G4]
+names: true
+caption: "Mão direita: dedo 1 no Dó, dedo 5 no Sol"
+```
+
+## Leia e toque
+
+Leia cada nota e toque, com a mão na posição de Dó. Não precisa ser
+rápido: precisa ser de primeira na maioria das vezes.
+
+Depois leia a nota destacada e responda pelo botão com o nome dela. Esse
+exercício não usa o teclado, só a tela.
 
 ```zywny-exercise
 id: l2-tocar-do-sol
@@ -68,16 +84,12 @@ accidentals: none
 pass: {accuracy: 80}
 ```
 
-## Diga os nomes
-
-Agora leia a nota destacada e toque o botão com o nome dela. Sem teclado
-desta vez: só a tela.
-
 ```zywny-exercise
 id: l2-nomes-do-sol
 type: name-note
 title: Que nota é esta
 clef: treble
 notes: {random: C4-G4, count: 8}
+choices: [C, D, E, F, G]
 pass: {accuracy: 80}
 ```

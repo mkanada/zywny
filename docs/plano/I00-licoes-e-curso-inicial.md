@@ -233,16 +233,16 @@ traz um tipo de exercício escreve as lições que o usam (tabela dos passos).
 
 | # | Lição (`id`) | Explica | Exercícios | Exercita da plataforma |
 | --- | --- | --- | --- | --- |
-| 1 | `o-teclado` | Grupos de 2 e 3 teclas pretas; o Dó; as teclas brancas; o dó central | `find-key` (`octave: any`) | texto, `zywny-keyboard` (`mark`, `names`, `from`/`to`), `find-key` |
-| 2 | `pauta-e-clave-de-sol` | 5 linhas, 4 espaços; agudo e grave; a clave de sol | `play-notes` C4–G4, `name-note` | `zywny-score` com `abc` e `highlight`, imagem, `zywny-audio`, sorteio |
-| 3 | `clave-de-sol` | Linhas e espaços; linhas suplementares | `play-notes` C4–G5 `only: lines`/`only: spaces`, `name-note` com `time-limit` | `rounds`, `time-limit`, `choices` |
-| 4 | `clave-de-fa` | O Fá na 4ª linha; linhas e espaços | `play-notes` G2–C4, `find-key` com `octave: exact` | `clef: bass`, `octave: exact` |
-| 5 | `pauta-dupla` | Chave, as duas claves, o dó central entre elas | `play-notes` nas duas pautas | `clef: grand`, `requires` com duas lições |
-| 6 | `figuras-e-pausas` | Semibreve, mínima, semínima e as pausas; 4/4 | `rhythm` sorteado, `count-beats` | `figures`, `measures`, `bpm`, `note`, `speed`, metrônomo |
-| 7 | `mais-tempos` | Colcheia, ponto, ligadura; 2/4 e 3/4 | `rhythm` com `abc` | `zywny-video` (contar em voz alta), `time` |
-| 8 | `acidentes` | Sustenido, bemol, bequadro; vale até a barra | `play-notes` com `accidentals: sharps`, `flats` e `mixed`; `choice` | `accidentals`, `choice` com `abc` |
-| 9 | `armadura` | Armadura de 1 e 2 acidentes | `play-score` com `abc`, `choice` com `image` | `key`, `mode: wait` |
-| 10 | `juntando-tudo` | Altura e ritmo ao mesmo tempo | `play-score` de um `.musicxml` da pasta: `hand: right`, `hand: left`, depois `both` | `file`, `hand`, `measures`, `mode: realtime` |
+| 1 | `o-teclado` | Grupos de 2 e 3 pretas; o Dó; grave e agudo; as brancas; a oitava e o dó central (Dó4) | `find-key` (`octave: any`), `find-key` com `octave: exact` | texto, `zywny-keyboard` (`mark`, `names`, `from`/`to`), `zywny-audio`, `find-key` |
+| 2 | `pauta-e-clave-de-sol` | 5 linhas, 4 espaços; a clave de sol; o dó central na linha suplementar; os dedos e a posição de Dó | `play-notes` C4–G4, `name-note` com `choices` | `zywny-score` com `abc` e `highlight`, sorteio |
+| 3 | `clave-de-sol` | Linhas e espaços da clave de sol; linhas suplementares; a primeira melodia | `play-notes` C4–G5 `only: lines`/`only: spaces`, `name-note` com `time-limit`, `play-score` com `abc` | `rounds`, `time-limit`, `mode: wait` |
+| 4 | `clave-de-fa` | O Fá na 4ª linha; linhas e espaços; o dó central por cima; a posição de Dó da esquerda | `play-notes` C3–G3 e G2–C4 | `clef: bass` |
+| 5 | `pauta-dupla` | Chave, as duas claves, o dó central entre elas, as duas mãos em posição de Dó | `play-notes` nas duas pautas (lista fixa e sorteio) | imagem, `clef: grand`, `requires` com duas lições |
+| 6 | `figuras-e-pausas` | Pulso, compasso e barra, 4/4 e C; semibreve, mínima, semínima e as pausas | `count-beats`, `rhythm` sorteado | `figures`, `measures`, `bpm`, `note`, `speed`, `time: C`, metrônomo |
+| 7 | `mais-tempos` | Colcheia; 2/4; ponto e 3/4; ligadura; 6/8 só para reconhecer | `rhythm` sorteado, `rhythm` com `abc`, `count-beats` em 6/8 | `zywny-video`, `time` |
+| 8 | `acidentes` | Tom e meio tom; sustenido, bemol, bequadro; vale até a barra | `play-notes` com `accidentals: sharps`, `flats` e `mixed`; `choice` | `accidentals`, `zywny-score` com `file`, `choice` com `abc` |
+| 9 | `armadura` | Armadura de um sustenido e de um bemol; que tom é; dois acidentes, só para reconhecer | `choice` com `image`, `name-note` com `key`, `play-notes` com `key` | `key` |
+| 10 | `juntando-tudo` | Altura e ritmo ao mesmo tempo, nas duas pautas | `play-score` de um `.musicxml`: direita só as notas e no ritmo, esquerda, as duas mãos só as notas e no ritmo | `file`, `hand`, `measures`, `mode`, link |
 
 ## O que já existe e será reaproveitado
 

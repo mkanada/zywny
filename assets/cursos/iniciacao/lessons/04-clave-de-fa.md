@@ -6,39 +6,77 @@ requires: [clave-de-sol]
 
 ## O Fá da quarta linha
 
-A clave de fá marca o Fá na quarta linha, contando de baixo para cima.
+Os sons graves, da mão esquerda, se escrevem na **clave de fá**. Os dois
+pontinhos dela ficam um acima e outro abaixo da quarta linha: ali mora o
+Fá, o Fá logo abaixo do dó central.
 
-Ela cuida dos graves: a mão esquerda mora aqui. O desenho mostra onde
-fica esse Fá.
+```zywny-score
+clef: bass
+abc: "F,4"
+highlight: [F3]
+caption: O Fá da quarta linha
+```
+
+## Linhas e espaços
+
+Na clave de fá os nomes mudam de lugar. As linhas são **Sol, Si, Ré, Fá,
+Lá**; os espaços, **Lá, Dó, Mi, Sol**, sempre de baixo para cima.
+
+Se travar, parta do Fá da clave: o espaço logo acima é o Sol; o logo
+abaixo, o Mi.
+
+```zywny-score
+clef: bass
+abc: "G,, B,, D, F, A,"
+caption: "As linhas: Sol, Si, Ré, Fá e Lá"
+```
+
+```zywny-score
+clef: bass
+abc: "A,, C, E, G,"
+caption: "Os espaços: Lá, Dó, Mi e Sol"
+```
+
+## O dó central, por cima
+
+O dó central também aparece aqui, numa linha suplementar **acima** da
+pauta. É a mesma tecla do dó central da clave de sol, só que escrita na
+outra pauta.
 
 ```zywny-score
 clef: bass
 abc: "G, A, B, C"
-highlight: [F3]
-caption: A região grave e o Fá da quarta linha
+highlight: [C4]
+caption: Subindo até o dó central, na clave de fá
 ```
 
-![A clave de fá](media/clave-de-fa.png)
+## A posição de Dó da mão esquerda
 
-## Linhas e espaços no grave
-
-As linhas na clave de fá são Sol, Si, Ré, Fá e Lá. Os espaços são Lá, Dó,
-Mi e Sol.
-
-É a mesma lógica da clave de sol, só que mais grave. Veja, ouça e toque.
+A mão esquerda também tem posição de Dó, uma oitava abaixo: dedo 5 no
+Dó3 e dedo 1 no Sol3. Na esquerda, o polegar fica do lado agudo.
 
 ```zywny-keyboard
 from: C3
 to: C4
-mark: [C4]
+mark: [C3, D3, E3, F3, G3]
 names: true
-caption: O dó central visto do grave
+caption: "Mão esquerda: dedo 5 no Dó3, dedo 1 no Sol3"
 ```
 
-## Toque no grave
+```zywny-exercise
+id: l4-posicao-de-do
+type: play-notes
+title: Do Dó ao Sol, no grave
+clef: bass
+notes: {random: C3-G3, count: 12}
+pass: {accuracy: 90}
+```
 
-Toque as notas na clave de fá, do Sol grave ao Dó central. Três rodadas
-seguidas sem errar para fixar.
+## Toda a clave de fá
+
+Agora a pauta inteira, do Sol da primeira linha até o dó central. A mão
+precisa andar; o exercício espera. Para fixar, são três rodadas aprovadas
+seguidas.
 
 ```zywny-exercise
 id: l4-linhas-fa
@@ -47,18 +85,4 @@ title: Toque no grave
 clef: bass
 notes: {random: G2-C4, count: 12}
 pass: {accuracy: 90, rounds: 3}
-```
-
-## A oitava certa
-
-Agora ache a tecla na oitava exata, não em qualquer oitava. O dó central
-conta como referência: ele está marcado no desenho acima.
-
-```zywny-exercise
-id: l4-oitava-certa
-type: find-key
-title: Na oitava exata
-notes: {random: C3-B3, count: 8}
-octave: exact
-pass: {accuracy: 90, time-limit: 15}
 ```

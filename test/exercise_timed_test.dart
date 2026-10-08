@@ -117,6 +117,51 @@ void main() {
     }, skip: verovioAvailable ? false : _noLib);
   });
 
+  group('rhythm escrito (abc) e o bpm', () {
+    test('o bpm vale (o ABC sem Q: sairia a 120)', () async {
+      final spec = await specFrom(
+        'id: r\ntype: rhythm\ntitle: R\ntime: 3/4\n'
+        'abc: "C2 C | C3/2 C/2 C | C3"\nbpm: 60',
+      );
+      final files = oneLessonCourse('oi');
+      final round = await generateRound(spec, files, Random(1)) as ScoreRound;
+      expect(round.mode, PlayMode.realtime);
+      expect(round.bpm, 60);
+    });
+
+    test('em 6/8 o bpm conta a semínima pontuada', () async {
+      final spec = await specFrom(
+        'id: r\ntype: rhythm\ntitle: R\ntime: 6/8\n'
+        'abc: "C/2C/2C/2 C3/2 | C3"\nbpm: 60',
+      );
+      final files = oneLessonCourse('oi');
+      final round = await generateRound(spec, files, Random(1)) as ScoreRound;
+      // 60 semínimas pontuadas por minuto = 90 semínimas.
+      expect(round.bpm, 90);
+    });
+
+    test('a rodada toca no bpm pedido', () async {
+      final spec = await specFrom(
+        'id: r\ntype: rhythm\ntitle: R\ntime: 3/4\n'
+        'abc: "C2 C | C3/2 C/2 C | C3"\nbpm: 60',
+      );
+      final files = oneLessonCourse('oi');
+      final round = await generateRound(spec, files, Random(1)) as ScoreRound;
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      final runner = ScoreRoundRunner(
+        midiInput: midi,
+        engine: FakeSoundEngine(),
+        renderer: LibverovioRenderer(),
+        autoTick: false,
+      );
+      addTearDown(runner.dispose);
+      await runner.load(round);
+      // Sem `Q:` o arquivo vale 120: 60 bpm é metade da velocidade.
+      expect(runner.scheduler.speed, closeTo(0.5, 1e-9));
+    }, skip: verovioAvailable ? false : _noLib);
+  });
+
   group('play-score em tempo real e andamento', () {
     MemoryCourseFiles filesWithScore(String xml) => MemoryCourseFiles({
       'course.md':

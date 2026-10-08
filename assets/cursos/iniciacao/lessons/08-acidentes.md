@@ -4,51 +4,66 @@ title: Acidentes
 requires: [mais-tempos]
 ---
 
-## Sustenido sobe, bemol desce
+## Tom e meio tom
 
-O sustenido sobe meio tom. O bemol desce meio tom. Eles moram antes da
-nota, na mesma linha ou espaço.
+De uma tecla para a vizinha mais próxima, preta ou branca, a distância é
+**meio tom**. Dois meios tons fazem um **tom**: de Dó para Ré é um tom,
+com a preta no meio.
 
-Veja o Sol sustenido e toque. Depois compare com o Sol natural.
+Entre Mi e Fá, e entre Si e Dó, não há preta: ali, de branca para branca,
+já é meio tom.
 
-```zywny-score
-clef: treble
-abc: "G ^G G|"
-highlight: [G4]
-caption: Sol, Sol sustenido e Sol de novo
+```zywny-keyboard
+from: C4
+to: C5
+mark: [E4, F4, B4, C5]
+names: true
+caption: "Mi e Fá, Si e Dó: meio tom sem preta no meio"
 ```
 
-## O bequadro anula
+## Sustenido e bemol
 
-O bequadro anula o acidente até a barra do compasso. Passou da barra, a
-nota volta ao normal.
+O **sustenido** (♯) sobe a nota meio tom; o **bemol** (♭) desce meio
+tom. O sinal vem antes da nota, na mesma linha ou espaço dela.
 
-Nunca saem Mi sustenido nem Dó bemol com os nomes que usamos aqui: o
-sorteio evita esses casos.
+Quase sempre isso leva a uma tecla preta. A preta entre Fá e Sol tem dois
+nomes: Fá sustenido e Sol bemol. Ouça: a segunda e a quarta nota soam
+iguais.
 
 ```zywny-score
 clef: treble
-abc: "B _B B|"
-highlight: [B4]
-caption: Si, Si bemol e Si de novo
+abc: "F ^F G _G"
+caption: Fá, Fá sustenido, Sol e Sol bemol
 ```
 
 ## Vale até a barra
 
-Um acidente vale até a barra, como na partitura de verdade. Na mesma
-compasso a nota continua alterada sem precisar escrever de novo.
+O acidente vale até a barra do compasso: a mesma nota, de novo no mesmo
+compasso, continua alterada, sem precisar do sinal. Passou da barra, ela
+volta ao natural.
+
+```zywny-score
+file: media/vale-ate-a-barra.musicxml
+caption: O terceiro Fá também é sustenido; depois da barra, o Fá é natural
+```
+
+## O bequadro
+
+O **bequadro** (♮) desfaz o acidente antes da barra: a nota volta a ser
+natural ali mesmo.
 
 ```zywny-score
 clef: treble
-abc: "C ^C =C|"
-highlight: [C4]
-caption: Dó, Dó sustenido e Dó natural na mesma barra
+abc: "C ^C =C2"
+caption: Dó, Dó sustenido e Dó natural de novo, com bequadro
 ```
 
-## Toque com sustenidos
+## Leia com acidentes
 
-Só teclas com sustenido no sorteio, em média metade das notas. O resto
-são naturais, para você ver o bequadro aparecer.
+Nestes exercícios, em média metade das notas é uma tecla preta: primeiro
+só com sustenidos, depois só com bemóis, depois misturados. Lembre que o
+sinal vale até a barra, e que o bequadro aparece quando a nota volta a
+ser natural.
 
 ```zywny-exercise
 id: l8-sustenidos
@@ -60,10 +75,6 @@ accidentals: sharps
 pass: {accuracy: 90}
 ```
 
-## Toque com bemóis
-
-Agora com bemóis. A mesma lógica, o mesmo cuidado com a barra.
-
 ```zywny-exercise
 id: l8-bemois
 type: play-notes
@@ -73,11 +84,6 @@ notes: {random: C4-G4, count: 12}
 accidentals: flats
 pass: {accuracy: 90}
 ```
-
-## Misturado e o bequadro
-
-Sustenidos e bemóis juntos, duas rodadas seguidas. Depois responda o que
-o bequadro faz.
 
 ```zywny-exercise
 id: l8-misturados
@@ -89,13 +95,17 @@ accidentals: mixed
 pass: {accuracy: 90, rounds: 2}
 ```
 
+## Para que serve o bequadro
+
+Uma pergunta para fechar a lição.
+
 ```zywny-exercise
 id: l8-bequadro
 type: choice
 title: Para que serve o bequadro
-question: O que o bequadro faz?
-options: [Anula o acidente até a barra, Sobe meio tom, Desce meio tom]
-answer: Anula o acidente até a barra
-abc: "C ^C =C"
+question: O que o bequadro faz com a terceira nota?
+options: ["Anula o sustenido, e a nota volta ao natural", Sobe meio tom, Desce meio tom]
+answer: "Anula o sustenido, e a nota volta ao natural"
+abc: "C ^C =C2"
 pass: {accuracy: 90, time-limit: 20}
 ```

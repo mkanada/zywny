@@ -4,32 +4,41 @@ title: Juntando tudo
 requires: [armadura]
 ---
 
-## Altura e ritmo juntos
+## A peça
 
-Até aqui você leu altura ou ritmo separados. Agora os dois andam juntos,
-numa peça de verdade em Dó maior.
+Até aqui você leu a altura e o ritmo em separado. Agora os dois andam
+juntos, nas duas pautas, no começo da
+[Ode à Alegria](https://pt.wikipedia.org/wiki/Ode_%C3%A0_Alegria), de
+Beethoven, em Dó maior.
 
-Ouça primeiro a peça inteira, com as duas mãos. Depois toque uma mão de
-cada vez.
+A direita canta a melodia na posição de Dó. A esquerda segura uma nota
+longa por compasso. Toque na partitura para ouvir a peça inteira.
 
 ```zywny-score
 file: media/ode-a-alegria.musicxml
-caption: A peça inteira, 8 compassos em Dó maior
+caption: Ode à Alegria, 8 compassos em Dó maior
 ```
 
-## A mão direita
+## Primeiro, só as notas
 
-A direita canta a melodia da Ode à Alegria. Oito compassos, sem pressa,
-no andamento pedido.
+Comece pela mão direita, sem se preocupar com o tempo: o app espera cada
+nota.
 
-A partitura abaixo mostra o começo. Toque para ouvir antes de tocar você.
-
-```zywny-score
-clef: treble
-time: 4/4
-abc: "E E F G|G F E D|"
-caption: O começo da melodia
+```zywny-exercise
+id: l10-ode-direita-notas
+type: play-score
+title: A Ode, mão direita, só as notas
+file: media/ode-a-alegria.musicxml
+hand: right
+mode: wait
+pass: {accuracy: 90}
 ```
+
+## Agora no ritmo
+
+A mesma mão direita, agora no tempo, com contagem e metrônomo. O
+exercício começa no andamento mínimo para passar; quando ficar fácil,
+suba a velocidade na barra do exercício.
 
 ```zywny-exercise
 id: l10-ode-direita
@@ -45,14 +54,9 @@ pass: {accuracy: 85, speed: 75}
 
 ## A mão esquerda
 
-A esquerda segura notas longas, um acorde por compasso. É o chão da peça.
-
-Ouça como ela sustenta a direita. Depois toque só ela, no tempo.
-
-```zywny-audio
-file: media/do-re-mi.ogg
-caption: Dó, Ré e Mi para aquecer
-```
+A esquerda alterna duas notas, uma por compasso: o Dó3 e o Sol logo
+abaixo dele. Deixe o dedo 1 no Dó e o 5 no Sol, e conte os quatro tempos
+de cada nota.
 
 ```zywny-exercise
 id: l10-ode-esquerda
@@ -61,16 +65,27 @@ title: A Ode, mão esquerda
 file: media/ode-a-alegria.musicxml
 hand: left
 mode: realtime
-measures: "1-8"
+bpm: 80
 pass: {accuracy: 85, speed: 75}
 ```
 
 ## As duas mãos
 
-Agora as duas mãos juntas, do começo ao fim. Você pode treinar mais
-devagar: a rodada roda e diz se faltou andamento.
+Junte as mãos primeiro sem relógio: quando duas notas caem juntas, o app
+espera as duas. Depois, no ritmo.
 
-Quando passar nas três, o curso está completo. Parabéns.
+Quando passar no último exercício, o curso está completo. Parabéns! Com
+o que aprendeu, você já lê as peças mais simples da biblioteca.
+
+```zywny-exercise
+id: l10-ode-juntas-notas
+type: play-score
+title: A Ode, as duas mãos, só as notas
+file: media/ode-a-alegria.musicxml
+hand: both
+mode: wait
+pass: {accuracy: 90}
+```
 
 ```zywny-exercise
 id: l10-ode-juntas
@@ -79,5 +94,6 @@ title: A Ode, as duas mãos
 file: media/ode-a-alegria.musicxml
 hand: both
 mode: realtime
+bpm: 80
 pass: {accuracy: 85, speed: 75}
 ```

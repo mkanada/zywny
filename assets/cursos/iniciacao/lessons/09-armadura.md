@@ -6,61 +6,76 @@ requires: [acidentes]
 
 ## Um sustenido no começo
 
-A armadura mora no começo da pauta e vale a peça inteira. Em Sol maior o
-Fá é sempre sustenido, sem precisar escrever.
+Quando uma música usa sempre Fá sustenido, a partitura não escreve o ♯
+em cada Fá: põe um ♯ só, logo depois da clave, na linha do Fá. Isso é a
+**armadura**.
 
-Veja a figura e toque as notas do tom. O Fá que sair no sorteio já soa
-sustenido.
-
-![Armadura de Sol maior](media/armadura-sol.png)
+A armadura vale para todo Fá, em qualquer altura, até o fim da peça, e
+não só até a barra. Com um sustenido na armadura, a música está em **Sol
+maior**.
 
 ```zywny-score
 clef: treble
 key: G
 time: 4/4
-abc: "G A B c"
-caption: Sol maior tem um sustenido
+abc: "G A B c | d c B A | G F G2"
+highlight: [F#4]
+caption: Em Sol maior, o Fá destacado é sustenido, sem sinal nenhum
 ```
 
 ## Um bemol no começo
 
-Em Fá maior o Si é sempre bemol. A mesma ideia, do outro lado.
-
-![Armadura de Fá maior](media/armadura-fa.png)
+Com um ♭ na armadura, na linha do Si, todo Si é bemol: a música está em
+**Fá maior**.
 
 ```zywny-score
 clef: treble
 key: F
-time: C
-abc: "F G A Bb"
-caption: Fá maior em compasso C
-```
-
-## Dois acidentes
-
-Ré maior tem dois sustenidos. Si bemol maior tem dois bemóis. O sorteio
-usa as notas do tom: você ouve a armadura valendo.
-
-```zywny-score
-clef: treble
-key: D
 time: 4/4
-abc: "D E F# G"
-caption: Ré maior tem dois sustenidos
+abc: "F G A B | c B A G | F4"
+highlight: [Bb4]
+caption: Em Fá maior, todo Si é bemol
 ```
 
-```zywny-score
+## Que tom é este
+
+Para saber o tom, olhe a armadura antes da primeira nota. Sem nada, Dó
+maior. Um sustenido, Sol maior. Um bemol, Fá maior.
+
+```zywny-exercise
+id: l9-que-tom
+type: choice
+title: Que tom é este
+question: Pela armadura, em que tom está esta música?
+options: [Dó maior, Sol maior, Fá maior]
+answer: Fá maior
+image: media/armadura-fa.png
+pass: {accuracy: 90, time-limit: 15}
+```
+
+## O nome continua o mesmo
+
+A armadura muda a tecla, não o lugar da nota na pauta. Em Sol maior, a
+nota na quinta linha toca Fá sustenido, mas ela continua sendo o Fá da
+pauta.
+
+Os botões trazem só o nome da linha ou do espaço. Responda pelo lugar da
+nota.
+
+```zywny-exercise
+id: l9-nomes-em-sol
+type: name-note
+title: Nomes em Sol maior
 clef: treble
-key: Bb
-time: 4/4
-abc: "Bb C D Eb"
-caption: Si bemol maior tem dois bemóis
+key: G
+notes: {random: D4-F5, count: 8}
+pass: {accuracy: 90}
 ```
 
-## Toque em Sol e Fá
+## Toque com a armadura
 
-Duas sequências no tom, uma com um sustenido e outra com um bemol. Sem
-pressa: o ouvido aprende a armadura antes dos dedos.
+Agora toque com a armadura valendo. Em Sol maior, todo Fá é a preta à
+direita do Fá. Em Fá maior, todo Si é a preta à esquerda do Si.
 
 ```zywny-exercise
 id: l9-sol-maior
@@ -68,7 +83,7 @@ type: play-notes
 title: Em Sol maior
 clef: treble
 key: G
-notes: {random: C4-G4, count: 12}
+notes: {random: D4-D5, count: 12}
 pass: {accuracy: 90}
 ```
 
@@ -78,58 +93,31 @@ type: play-notes
 title: Em Fá maior
 clef: treble
 key: F
-notes: {random: C4-G4, count: 12}
+notes: {random: C4-C5, count: 12}
 pass: {accuracy: 90}
 ```
 
-## Nomes no tom
+## Armaduras com mais acidentes
 
-Leia a nota com a armadura valendo e toque o botão com o nome. O Fá que
-você vê já soa sustenido, mas o nome continua Fá.
+Uma armadura pode ter mais de um acidente, e todos valem a peça inteira.
+Ré maior tem dois sustenidos, Fá e Dó. Si bemol maior tem dois bemóis, Si
+e Mi.
 
-```zywny-exercise
-id: l9-nomes-em-sol
-type: name-note
-title: Nomes em Sol maior
+Você vai encontrá-las nas peças da biblioteca: leia a armadura antes de
+começar.
+
+```zywny-score
 clef: treble
-key: G
-notes: {random: C4-G4, count: 8}
-pass: {accuracy: 90}
+key: D
+time: 4/4
+abc: "D E F G | A B c d"
+caption: Ré maior, com Fá e Dó sustenidos
 ```
 
-## A peça em Ré
-
-Toque a partitura que o professor escreveu, em Ré maior, no modo espera.
-O app espera cada nota: sem andamento, sem pressa.
-
-```zywny-exercise
-id: l9-peca-em-re
-type: play-score
-title: A peça em Ré
-abc: |
-  X:1
-  T:Peca em Re
-  M:4/4
-  L:1/4
-  K:D
-  D E F# G|A B A G|
-hand: right
-mode: wait
-pass: {accuracy: 90}
-```
-
-## Quantos acidentes
-
-Responda quantos sustenidos tem Sol maior, olhando a figura. Quinze
-segundos por pergunta.
-
-```zywny-exercise
-id: l9-quantos-acidentes
-type: choice
-title: Quantos sustenidos
-question: Quantos sustenidos tem Sol maior?
-options: [0, 1, 2]
-answer: 1
-image: media/armadura-sol.png
-pass: {accuracy: 90, time-limit: 15}
+```zywny-score
+clef: treble
+key: Bb
+time: 4/4
+abc: "B, C D E | F G A B"
+caption: Si bemol maior, com Si e Mi bemóis
 ```

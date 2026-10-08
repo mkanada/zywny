@@ -46,6 +46,10 @@ class RhythmKind extends ExerciseKind<RhythmSpec> {
         fileName: fileName,
         mode: PlayMode.realtime,
         hand: Hand.direita,
+        // O ABC não traz `Q:`: sem isto a rodada sairia nos 120 do Verovio.
+        // `bpm` conta o tempo da fórmula (em 6/8, a semínima pontuada); a
+        // rodada compara com o andamento do arquivo, em semínimas.
+        bpm: spec.time == '6/8' ? (spec.bpm * 3 / 2).round() : spec.bpm,
       );
     }
     final figures = pickFigures(

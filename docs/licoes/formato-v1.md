@@ -482,7 +482,7 @@ avisa.
 | Ligadura de valor | `C2- C2` | sim (uma nota só no toque, com a duração somada) |
 | Quiáltera de colcheias | `L:1/8` e `(3CDE` | sim |
 | **Quiáltera de semínimas ou maiores** | `(3CDE` com `L:1/4` | **limite**: o `(3` é ignorado, sem erro, e o tempo sai errado — use colcheias ou um `.musicxml` |
-| Acidentes e bequadro | `^C _E =E` | sim (valem até a barra) |
+| Acidentes e bequadro | `^C _E =E` | sim, mas **só na nota onde estão escritos**: em `^F F`, o segundo Fá soa natural e a pauta não mostra bequadro. Repita o sinal (`^F ^F`) ou use `=F`; para mostrar a regra da barra, use um `.musicxml` |
 | Armaduras | `K:G`, `K:Bb`, `K:Am` | sim |
 | Compassos | `M:2/4`, `3/4`, `4/4`, `6/8`, `C` | sim |
 | Anacruse | primeiro compasso curto | sim |
