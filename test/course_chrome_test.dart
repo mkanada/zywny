@@ -4,7 +4,8 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/course/score/lesson_score.dart';
 import 'package:zywny/course/ui/course_chrome.dart';
-import 'package:zywny/render/layout_options.dart' show kPhoneUnit;
+import 'package:zywny/render/layout_options.dart' show kPhoneUnit, kTabletUnit;
+import 'package:zywny/ui/device_kind.dart';
 import 'package:zywny/settings/app_settings.dart';
 
 void main() {
@@ -14,8 +15,35 @@ void main() {
   });
 
   test('partitura da lição no celular usa o unit dos hinos', () {
-    expect(lessonScoreLayout(800, phone: true).options['unit'], kPhoneUnit);
-    expect(lessonScoreLayout(800, phone: false).options['unit'], 6);
+    expect(
+      lessonScoreLayout(800, kind: DeviceKind.phone).options['unit'],
+      kPhoneUnit,
+    );
+    expect(
+      lessonScoreLayout(
+        800,
+        kind: DeviceKind.tablet,
+        pixelRatio: 2,
+      ).options['unit'],
+      kTabletUnit,
+    );
+    expect(
+      lessonScoreLayout(
+        800,
+        kind: DeviceKind.desktop,
+        pixelRatio: 1,
+      ).options['unit'],
+      6,
+    );
+    // No desktop a notação acompanha a densidade da tela.
+    expect(
+      lessonScoreLayout(
+        800,
+        kind: DeviceKind.desktop,
+        pixelRatio: 2,
+      ).options['unit'],
+      kPhoneUnit,
+    );
   });
 
   test('tamanho do texto fica nos limites e sobrevive a reabrir', () async {

@@ -37,11 +37,11 @@ import 'general_settings_panel.dart';
 import '../settings/piece_settings.dart';
 import '../trail/trail_progress.dart';
 import '../trail/trail_widgets.dart' show TrailProgressBar, trailResumeText;
+import '../ui/device_kind.dart';
 import '../ui/orientation.dart';
 import '../tutorial/library_tour.dart';
 import '../tutorial/tour.dart';
 import '../tutorial/tour_store.dart';
-import '../ui/phone_chrome.dart' show kPhoneLayoutMaxWidth;
 import '../ui/theme.dart';
 
 import 'package:zywny_library/library_keys.dart';
@@ -116,9 +116,13 @@ typedef PracticeScoreCallback = void Function(
 );
 
 /// Abaixo desta altura, com a janela mais larga que alta, a biblioteca vira
-/// duas colunas (um celular deitado tem ~390–430 dp; um tablet ou uma janela
-/// de desktop passa disso e fica como no retrato).
+/// duas colunas (um celular deitado tem ~390–430 dp).
 const _kSideBySideMaxHeight = 600.0;
+
+/// A partir desta largura, com a janela mais larga que alta (tablet deitado,
+/// desktop, navegador), também: numa coluna só a lista ficava estreita no
+/// meio de uma tela vazia.
+const _kSideBySideMinWideWidth = 1000.0;
 
 /// Largura máxima do corpo em duas colunas (em retrato, 720).
 const _kSideBySideMaxWidth = 1000.0;
@@ -648,7 +652,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
         term: catalog.term,
         numbered: catalog.numbered,
         hasLibrary: catalog.hasLibrary,
-        scoreTour: MediaQuery.sizeOf(context).width < kPhoneLayoutMaxWidth,
       ),
     );
     if (end != null) await store.markSeen(TourId.library);
@@ -818,10 +821,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// Celular deitado: a janela é mais larga que alta e baixa. Aí o topo
   /// empilhado (título, cursos, busca, "Continuar", ordenação) ocupava a
   /// altura inteira e a lista ficava com zero (O1); a biblioteca passa a duas
-  /// colunas. Lê a janela, e não o corpo: com o teclado virtual aberto o corpo
-  /// encolhe, e um celular em pé não pode trocar de arranjo no meio da busca.
+  /// colunas. Numa janela deitada e larga (tablet, desktop) também: a mesma
+  /// arrumação aproveita a largura. Lê a janela, e não o corpo: com o teclado
+  /// virtual aberto o corpo encolhe, e um celular em pé não pode trocar de
+  /// arranjo no meio da busca.
   static bool _sideBySide(Size window) =>
-      window.width > window.height && window.height < _kSideBySideMaxHeight;
+      window.width > window.height &&
+      (window.height < _kSideBySideMaxHeight ||
+          window.width >= _kSideBySideMinWideWidth);
 
   Widget _body() {
     final sideBySide = _sideBySide(MediaQuery.sizeOf(context));
@@ -1357,7 +1364,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           const SizedBox(height: 2),
           Text(
             'Escolha ${term.um} ${term.singular} para começar e ligue o teclado '
-            'ao celular.',
+            'ao ${deviceNoun(context)}.',
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,

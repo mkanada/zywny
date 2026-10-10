@@ -5,7 +5,8 @@
 // usar qualquer um deles não altera a caixa da partitura nem o tamanho de
 // página pedido ao Verovio (que só o mudaria por um re-render). O zoom vive
 // dentro do painel (não mais flutuando sobre a partitura), então os testes
-// que o exercitam abrem o painel primeiro.
+// que o exercitam abrem o painel primeiro. O zoom só existe fora do celular:
+// esses testes rodam como desktop ([_desktopPlatform]).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
@@ -15,6 +16,7 @@ import 'package:score_bridge/score_bridge.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import 'package:zywny/app/layout_panel.dart';
 import 'package:zywny/main.dart';
 import 'package:zywny/ui/phone_chrome.dart';
 import 'package:zywny/ui/theme.dart';
@@ -63,14 +65,27 @@ Size _scoreBox(WidgetTester tester) =>
 String _fittedPage(WidgetTester tester) =>
     tester.widget<Text>(find.textContaining(' mm)')).data!;
 
+/// O painel "Ajustes da partitura" abre pela gaveta ⋯, em qualquer largura.
 Future<void> _openPanel(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('Ajustes da partitura'));
+  await tester.tap(find.byTooltip('Mais opções'));
+  await tester.pump();
+  final item = find.text('Ajustes da partitura (avançado)');
+  await tester.ensureVisible(item);
+  await tester.pump();
+  await tester.tap(item);
   await tester.pump();
 }
 
-/// O app tem dois layouts conforme a largura (`kPhoneLayoutMaxWidth`): o
-/// banco de testes largo (desktop) e o de celular em paisagem. O tamanho
-/// padrão de `flutter test` (800×600) cairia no de celular.
+/// Um texto do painel de ajustes (o "100%" do zoom; a barra lateral tem o
+/// seu, do andamento).
+Finder _inPanel(String text) =>
+    find.descendant(of: find.byType(LayoutPanel), matching: find.text(text));
+
+/// `flutter test` finge ser Android, onde a partitura não tem zoom.
+final _desktopPlatform = TargetPlatformVariant.only(TargetPlatform.linux);
+
+/// A partitura tem um layout só, o do celular, em qualquer largura; os
+/// testes fixam o tamanho da janela para valerem nas duas pontas.
 void _useSize(WidgetTester tester, Size logical) {
   tester.view.physicalSize = logical;
   tester.view.devicePixelRatio = 1;
@@ -91,22 +106,42 @@ void main() {
 
     // O app não importa partitura: não há "Abrir partitura" em lugar algum.
     expect(find.text('Abrir partitura'), findsNothing);
-    expect(find.text('Biblioteca'), findsOneWidget);
+    expect(find.byTooltip('Voltar à biblioteca'), findsOneWidget);
     expect(find.text('Ó Vem à Igreja Comigo'), findsOneWidget);
     // Antes do primeiro layout não há caixa para gravar: nada desenhado.
-    expect(find.text('status: nenhuma partitura'), findsOneWidget);
     expect(find.byType(ScorePageView), findsNothing);
-    expect(find.text('—'), findsOneWidget);
 
     await tester.pump(); // a caixa passa a ser conhecida
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byType(ScorePageView), findsWidgets);
-    expect(find.text('status: nenhuma partitura'), findsNothing);
 
+    // A janela larga usa o layout do celular: barra lateral e gaveta ⋯, sem
+    // a barra de botões nem a linha "status:" do antigo banco de testes.
+    expect(find.byTooltip('Mais opções'), findsOneWidget);
+    expect(find.textContaining('status:'), findsNothing);
+    expect(find.byTooltip('Armar modo treino (T02)'), findsNothing);
     // O painel de opções (que hospeda o zoom) começa fechado.
-    expect(find.byTooltip('Ajustes da partitura'), findsOneWidget);
     expect(find.text('Ajustes da partitura'), findsNothing);
   });
+
+  testWidgets('no celular a partitura não tem zoom', (tester) async {
+    _phone(tester);
+    await tester.pumpWidget(_scoreApp());
+    await tester.pump();
+    expect(find.byType(InteractiveViewer), findsNothing);
+    await _openPanel(tester);
+    expect(find.text('Ajustes da partitura'), findsOneWidget);
+    expect(find.byTooltip('Aumentar zoom'), findsNothing);
+  });
+
+  testWidgets('no desktop, mesmo layout e com zoom no painel', (tester) async {
+    _desktop(tester);
+    await tester.pumpWidget(_scoreApp());
+    await tester.pump();
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    await _openPanel(tester);
+    expect(find.byTooltip('Aumentar zoom'), findsOneWidget);
+  }, variant: _desktopPlatform);
 
   testWidgets('o painel mostra a página derivada da caixa da partitura', (
     tester,
@@ -119,7 +154,7 @@ void main() {
     expect(find.text('Ajustes da partitura'), findsOneWidget);
     expect(find.text('Página acompanha a área'), findsOneWidget);
     expect(_fittedPage(tester), matches(RegExp(r'^\d+×\d+ \(\d+×\d+ mm\)$')));
-  });
+  }, variant: _desktopPlatform);
 
   testWidgets('zoom não altera a caixa nem a página pedida ao Verovio', (
     tester,
@@ -135,20 +170,20 @@ void main() {
     await tester.tap(find.byTooltip('Aumentar zoom'));
     await tester.tap(find.byTooltip('Aumentar zoom'));
     await tester.pump();
-    expect(find.text('156%'), findsOneWidget); // 1,25²
+    expect(_inPanel('156%'), findsOneWidget); // 1,25²
     expect(_scoreBox(tester), box);
     expect(_fittedPage(tester), page);
 
     await tester.tap(find.byTooltip('Diminuir zoom'));
     await tester.pump();
-    expect(find.text('125%'), findsOneWidget);
+    expect(_inPanel('125%'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Voltar a 100%'));
     await tester.pump();
-    expect(find.text('100%'), findsOneWidget);
+    expect(_inPanel('100%'), findsOneWidget);
     expect(_scoreBox(tester), box);
     expect(_fittedPage(tester), page);
-  });
+  }, variant: _desktopPlatform);
 
   testWidgets('abrir e fechar o painel não altera a caixa da partitura', (
     tester,
@@ -165,7 +200,7 @@ void main() {
     await tester.pump();
     expect(find.text('Ajustes da partitura'), findsNothing);
     expect(_scoreBox(tester), box);
-  });
+  }, variant: _desktopPlatform);
 
   testWidgets('o zoom não passa dos limites', (tester) async {
     _desktop(tester);
@@ -177,7 +212,7 @@ void main() {
       await tester.tap(find.byTooltip('Diminuir zoom'), warnIfMissed: false);
       await tester.pump();
     }
-    expect(find.text('50%'), findsOneWidget);
+    expect(_inPanel('50%'), findsOneWidget);
     expect(
       tester
           .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.remove))
@@ -191,8 +226,8 @@ void main() {
       await tester.tap(find.byTooltip('Aumentar zoom'), warnIfMissed: false);
       await tester.pump();
     }
-    expect(find.text('800%'), findsOneWidget);
-  });
+    expect(_inPanel('800%'), findsOneWidget);
+  }, variant: _desktopPlatform);
 
   testWidgets('celular: barra lateral e gaveta de opções do artefato', (
     tester,

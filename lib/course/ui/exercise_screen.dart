@@ -118,6 +118,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   ScoreAudioScheduler? _listenScheduler;
   Timer? _listenTimer;
 
+  /// Celular ou tablet (Android/iOS): tela cheia e orientação livre no
+  /// exercício.
   static bool get _isPhone =>
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;

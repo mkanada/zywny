@@ -1,7 +1,8 @@
 // Biblioteca em paisagem (O1 do estudo de orientação): num celular deitado o
 // topo empilhado comia a altura inteira e a lista ficava com zero. Em duas
 // colunas — atalhos à esquerda, busca e lista à direita — a lista tem a
-// altura toda. Em retrato (e em janela alta, como a de desktop) nada muda.
+// altura toda. Numa janela deitada e larga (tablet, desktop) também; em
+// retrato nada muda.
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -301,10 +302,25 @@ void main() {
       );
     });
 
-    testWidgets('janela larga e alta (desktop): fica como em retrato', (
+    testWidgets('janela larga e deitada (tablet, desktop): duas colunas', (
       tester,
     ) async {
       await pumpLibrary(tester, size: const Size(1280, 800));
+      expect(tester.takeException(), isNull);
+      // "Continuar" à esquerda, a busca e a lista à direita dele.
+      final continueRight = tester.getRect(find.text('CONTINUAR')).right;
+      expect(
+        tester.getTopLeft(find.byType(TextField)).dx,
+        greaterThan(continueRight),
+      );
+      expect(
+        tester.getRect(_verticalLists.last).left,
+        greaterThan(continueRight),
+      );
+    });
+
+    testWidgets('tablet em pé: fica como em retrato', (tester) async {
+      await pumpLibrary(tester, size: const Size(820, 1180));
       expect(tester.takeException(), isNull);
       expect(_horizontalChips, findsOneWidget);
       expect(

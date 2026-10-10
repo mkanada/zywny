@@ -434,6 +434,17 @@ void main() {
       addTearDown(tester.view.reset);
     }
 
+    /// Um item da gaveta ⋯ (o mesmo caminho do celular, em qualquer largura).
+    Future<void> fromDrawer(WidgetTester tester, String label) async {
+      await tester.tap(find.byTooltip('Mais opções'));
+      await tester.pump();
+      final item = find.text(label);
+      await tester.ensureVisible(item);
+      await tester.pump();
+      await tester.tap(item);
+      await tester.pump();
+    }
+
     testWidgets('geral e do hino são painéis separados', (tester) async {
       desktop(tester);
       await tester.pumpWidget(
@@ -447,8 +458,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.byTooltip('Ajustes da partitura'));
-      await tester.pump();
+      await fromDrawer(tester, 'Ajustes da partitura (avançado)');
       expect(find.text('Ajustes da partitura'), findsOneWidget);
       expect(find.text('Tamanho da notação (unit)'), findsOneWidget);
       // Nada do que é geral mora aqui.
@@ -457,8 +467,7 @@ void main() {
       await tester.tap(find.byTooltip('Fechar'));
       await tester.pump();
 
-      await tester.tap(find.byTooltip('Configurações gerais'));
-      await tester.pump();
+      await fromDrawer(tester, 'Configurações gerais');
       expect(find.text('Configurações gerais'), findsOneWidget);
       expect(find.text('o app toca a música'), findsOneWidget);
       // Um nome só para o teclado, no cabeçalho e na linha (U15).
@@ -493,8 +502,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.tap(find.byTooltip('Configurações gerais'));
-      await tester.pump();
+      await fromDrawer(tester, 'Configurações gerais');
 
       await tester.tap(find.text('Teclado').first); // o segmento da saída
       await tester.pump();

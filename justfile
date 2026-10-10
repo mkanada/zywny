@@ -156,6 +156,13 @@ telas *ARGS:
     flutter drive --profile --driver=test_driver/telas_celular.dart \
         --target=integration_test/telas_celular_test.dart -d android {{lib_key}} {{ARGS}}
 
+# Fotografa a partitura num tablet Android, deitado e em pé (no tablet ela
+# segue o aparelho). Emulador: `emulator -avd Medium_Tablet_Edited -read-only
+# -no-window -no-audio`; o `.zywny` vai como no `telas`. PNGs em TELAS_DIR.
+telas-tablet *ARGS:
+    flutter drive --profile --driver=test_driver/telas_celular.dart \
+        --target=integration_test/telas_tablet_test.dart -d android {{lib_key}} {{ARGS}}
+
 # Gera web/audio/ (SpessaSynth empacotado com esbuild, W04; não versionado).
 # Precisa de node/npm e rede na primeira vez.
 web-audio:

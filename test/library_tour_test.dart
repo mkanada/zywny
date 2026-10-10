@@ -352,7 +352,7 @@ void main() {
     expect(await holeOf('Agora é com você'), isNull);
   });
 
-  testWidgets('a despedida promete o passeio da partitura só no celular', (
+  testWidgets('a despedida promete o passeio da partitura em qualquer janela', (
     tester,
   ) async {
     /// O texto do último passo, numa abertura nova do app (sem "visto").
@@ -385,7 +385,10 @@ void main() {
       await farewell(const Size(390, 844)),
       contains('mostro também a tela da partitura'),
     );
-    // Janela larga: o desktop é o banco de testes, sem o passeio da partitura.
-    expect(await farewell(const Size(1280, 800)), isNot(contains('partitura')));
+    // Janela larga: a partitura tem o mesmo layout e o mesmo passeio.
+    expect(
+      await farewell(const Size(1280, 800)),
+      contains('mostro também a tela da partitura'),
+    );
   });
 }

@@ -10,9 +10,11 @@ import 'package:score_bridge/score_bridge.dart' show VsbDocument;
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/app/score_render_session.dart';
+import 'package:zywny/render/layout_options.dart' show kTabletUnit;
 import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/settings/app_settings.dart';
 import 'package:zywny/settings/piece_settings.dart';
+import 'package:zywny/ui/device_kind.dart';
 
 import 'support/score_page_fakes.dart';
 
@@ -171,5 +173,58 @@ void main() {
       stored: const PieceSettings(),
       name: 'x',
     );
+  });
+
+  group('caixa em pé', () {
+    const grace = Duration(milliseconds: 60);
+
+    ScoreRenderSession sessionFor(DeviceKind kind) {
+      session.dispose();
+      return session = ScoreRenderSession(
+        renderer: renderer,
+        scoreXml: Uint8List(1),
+        piece: fakePiece(),
+        settings: settings,
+        stored: const PieceSettings(),
+        name: '13 · Hino',
+        kind: kind,
+        pixelRatio: 2,
+        resizeDebounce: const Duration(milliseconds: 20),
+        rotationGrace: grace,
+      );
+    }
+
+    test('celular: a caixa em pé espera a deitada, que é a gravada', () async {
+      final s = sessionFor(DeviceKind.phone);
+      expect(s.setBox(const Size(1080, 2200)), isTrue);
+      await Future<void>.delayed(grace ~/ 3);
+      expect(renderer.requests, isEmpty);
+      s.setBox(const Size(2200, 1080));
+      await Future<void>.delayed(grace * 2);
+      expect(renderer.requests, hasLength(1));
+      expect(renderer.requests.single.pageWidth, 2200);
+    });
+
+    test(
+      'celular: se a deitada não vem (trava ignorada), grava em pé',
+      () async {
+        final s = sessionFor(DeviceKind.phone);
+        s.setBox(const Size(1080, 2200));
+        await Future<void>.delayed(grace ~/ 3);
+        expect(renderer.requests, isEmpty);
+        await Future<void>.delayed(grace);
+        expect(renderer.requests, hasLength(1));
+        expect(renderer.requests.single.pageWidth, 1080);
+      },
+    );
+
+    test('tablet: em pé é uma caixa como outra, gravada na hora', () async {
+      final s = sessionFor(DeviceKind.tablet);
+      s.setBox(const Size(1600, 2400));
+      await pumpEventQueue();
+      expect(renderer.requests, hasLength(1));
+      expect(renderer.requests.single.pageWidth, 1600);
+      expect(s.layout['unit'], kTabletUnit);
+    });
   });
 }

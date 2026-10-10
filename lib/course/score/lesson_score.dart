@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
-import '../../render/layout_options.dart' show kPhoneUnit;
+import '../../render/layout_options.dart'
+    show kPhoneUnit, screenUnit, tabletUnit;
+import '../../ui/device_kind.dart';
 import '../../render/page_size.dart' show kVerovioMinPageHeight;
 
 import 'package:zywny_course_format/course_files.dart';
@@ -80,20 +82,26 @@ class LessonScoreLayout {
 LessonScoreLayout lessonScoreLayout(
   double widthPx, {
   double? heightPx,
-  bool? phone,
+  DeviceKind? kind,
+  double? pixelRatio,
 }) => LessonScoreLayout(
   pageWidth: widthPx.round().clamp(kLessonMinWidth, kLessonMaxWidth),
   pageHeight:
       heightPx?.round().clamp(kVerovioMinPageHeight, kLessonPageHeight) ??
       kLessonPageHeight,
-  options: (phone ?? _isPhone)
-      ? {...lessonScoreOptions, 'unit': kPhoneUnit}
-      : lessonScoreOptions,
+  options: {
+    ...lessonScoreOptions,
+    'unit': switch (kind ?? currentDeviceKind) {
+      DeviceKind.phone => kPhoneUnit,
+      DeviceKind.tablet => tabletUnit(pixelRatio ?? currentPixelRatio),
+      // A largura chega em pixels do aparelho: o `unit` segue a densidade.
+      DeviceKind.desktop => screenUnit(
+        (lessonScoreOptions['unit']! as num).toDouble(),
+        pixelRatio ?? currentPixelRatio,
+      ),
+    },
+  },
 );
-
-bool get _isPhone =>
-    defaultTargetPlatform == TargetPlatform.android ||
-    defaultTargetPlatform == TargetPlatform.iOS;
 
 const kLessonMinWidth = 500;
 const kLessonMaxWidth = 10000;

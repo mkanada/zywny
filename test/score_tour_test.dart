@@ -225,15 +225,14 @@ void main() {
     expect(touring(tester), isFalse);
   });
 
-  testWidgets('na janela larga do desktop, o passeio da partitura não roda', (
+  testWidgets('na janela larga (tablet, desktop) o passeio também roda', (
     tester,
   ) async {
     useSize(tester, const Size(1280, 800));
     final store = TourStore();
     await tester.pumpWidget(scoreApp(store));
     await settle(tester);
-    expect(touring(tester), isFalse);
-    expect(await store.seen(TourId.score), isFalse);
+    expect(touring(tester), isTrue);
   });
 
   testWidgets('"Rever o tutorial" nas configurações volta ao passeio', (

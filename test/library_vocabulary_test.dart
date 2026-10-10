@@ -186,9 +186,10 @@ void main() {
       expect(find.text('Buscar número, título ou autor'), findsNothing);
       // Compositor e catálogo na segunda linha.
       expect(find.textContaining('C · Op. 1'), findsOneWidget);
-      // A primeira de uso fala em peça, no feminino.
+      // A primeira de uso fala em peça, no feminino (e a janela de 760 px
+      // de largura é a de um tablet: ver `deviceNoun`).
       expect(
-        find.text('Escolha uma peça para começar e ligue o teclado ao celular.'),
+        find.text('Escolha uma peça para começar e ligue o teclado ao tablet.'),
         findsOneWidget,
       );
     });

@@ -23,15 +23,12 @@ class LibraryTourKeys {
 }
 
 /// O passeio pela biblioteca. [numbered] diz se as músicas têm número (muda
-/// o que a busca aceita); [hasLibrary], se há biblioteca instalada;
-/// [scoreTour], se o passeio da partitura vai rodar quando se abrir uma
-/// música (na janela larga do desktop não roda).
+/// o que a busca aceita); [hasLibrary], se há biblioteca instalada.
 List<TourStep> libraryTourSteps(
   LibraryTourKeys keys, {
   required LibraryTerm term,
   required bool numbered,
   required bool hasLibrary,
-  required bool scoreTour,
 }) {
   final openIt = term.feminine ? 'abri-la' : 'abri-lo';
   // Sem biblioteca o app ainda não sabe como chamar as músicas ("hinos",
@@ -111,8 +108,8 @@ List<TourStep> libraryTourSteps(
     TourStep(
       title: hasLibrary ? 'Agora é com você' : 'Pronto para começar',
       body: hasLibrary
-          ? 'Abra ${term.um} ${term.singular}'
-                '${scoreTour ? ': na primeira vez, mostro também a tela da partitura.' : '.'}'
+          ? 'Abra ${term.um} ${term.singular}: na primeira vez, mostro '
+                'também a tela da partitura.'
           : 'Comece pelo curso inicial. Quando você instalar uma biblioteca, '
                 'as músicas aparecem aqui.',
     ),

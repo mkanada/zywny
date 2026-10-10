@@ -17,7 +17,6 @@ import 'about/licenses.dart';
 import 'audio/sound_engine_debug_panel.dart';
 import 'course/built_in_course.dart';
 import 'incoming/incoming_packages.dart';
-import 'render/layout_options.dart';
 import 'app/layout_panel.dart';
 
 import 'package:zywny_library/piece.dart';
@@ -71,6 +70,8 @@ import 'trail/trail_widgets.dart';
 import 'tutorial/score_tour.dart';
 import 'tutorial/tour.dart';
 import 'tutorial/tour_store.dart';
+import 'ui/device_kind.dart';
+import 'ui/orientation.dart';
 import 'ui/page_pager.dart';
 import 'ui/phone_chrome.dart';
 import 'ui/practice_legend.dart';
@@ -245,8 +246,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   bool _panelOpen = false;
   bool _generalOpen = false;
 
-  /// Layout de celular (`kPhoneLayoutMaxWidth`): gaveta "Opções de estudo"
-  /// aberta (botão ⋯ da barra lateral).
+  /// Gaveta "Opções de estudo" aberta (botão ⋯ da barra lateral).
   bool _optionsOpen = false;
 
   /// On-screen zoom and pan of the drawn page.
@@ -297,9 +297,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   /// Gaveta da trilha aberta (J06).
   bool _trailDrawerOpen = false;
-
-  /// Program Change (M03) — configuração geral.
-  bool get _useScoreInstruments => _settings.useScoreInstruments;
 
   /// Entrada MIDI (M01): lista/conecta dispositivos e reconecta sozinho ao
   /// último escolhido; converte mensagens em [PlayedNote] para o monitor.
@@ -355,7 +352,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       settings: _settings,
       stored: _stored,
       name: _scoreName,
-      phone: _isPhone,
+      kind: _kind,
+      pixelRatio: currentPixelRatio,
       debugMode: widget.debugMode,
       onDocument: _onDocument,
     )..addListener(_onSessionChanged);
@@ -421,14 +419,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 blockCount: blockCount,
                 reviewCount: _runner.wrongMarks.length,
                 reviewHasSides: _runner.wrongMarks.any((m) => m.side != 0),
-                sidePanel: _phoneLayout,
+                sidePanel: true,
               );
               if (action == StageSummaryAction.review && mounted) {
                 _startReview();
               }
               return action;
             },
-        conclusion: () => showTrailConclusion(context, sidePanel: _phoneLayout),
+        conclusion: () => showTrailConclusion(context, sidePanel: true),
         backToLibrary: _backToLibrary,
         practiceReport: _onPracticeReport,
         pieceNChanged: (n) => widget.opened.onPieceSettingsChanged(
@@ -440,13 +438,18 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _settings.addListener(_onSettingsChanged);
     // A partitura é para ler em paisagem no celular (a biblioteca, em
     // retrato, volta a travar a orientação dela quando esta tela fecha); no
-    // desktop isto não vale nada.
-    if (_isPhone) {
+    // tablet ela segue o aparelho, em pé ou deitada; no desktop isto não vale
+    // nada.
+    if (_kind != DeviceKind.desktop) {
       unawaited(
-        SystemChrome.setPreferredOrientations(const [
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]),
+        SystemChrome.setPreferredOrientations(
+          _kind == DeviceKind.phone
+              ? const [
+                  DeviceOrientation.landscapeLeft,
+                  DeviceOrientation.landscapeRight,
+                ]
+              : kFollowDeviceOrientations,
+        ),
       );
       // Modo imersivo (U10): a barra de status sai e a página é gravada,
       // desde a primeira vez, para a caixa inteira (pedido aqui para não
@@ -514,7 +517,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   @override
   void dispose() {
-    if (_isPhone) {
+    if (_kind != DeviceKind.desktop) {
       unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     }
     _session
@@ -626,20 +629,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
-  /// Desktop: o mesmo item num diálogo (o celular o tem na gaveta).
-  Future<void> _openTransposeDialog() async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('Transpor'),
-        content: SizedBox(
-          width: 360,
-          child: _transposeSection(before: () => Navigator.pop(dialog)),
-        ),
-      ),
-    );
-  }
-
   /// O selo da partitura transposta: "Mi♭ → Dó · teclado +3". Mostra o tom da
   /// gravura que está na tela. `null` no tom original.
   Widget? _transposeSeal() {
@@ -730,13 +719,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     await _runTour();
   }
 
-  /// O passeio pela tela da partitura, sozinho ou por "Rever o tutorial". Só
-  /// no layout de celular: a janela larga do desktop é o banco de testes, com
-  /// outros botões.
+  /// O passeio pela tela da partitura, sozinho ou por "Rever o tutorial".
   Future<void> _runTour() async {
     final store = widget.tourStore;
     if (store == null || !mounted) return;
-    if (MediaQuery.sizeOf(context).width >= kPhoneLayoutMaxWidth) return;
     // Um quadro para a gaveta fechar e a barra assentar.
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
@@ -774,19 +760,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _playback.togglePlay();
   }
 
-  /// Stops playback and rewinds to the start.
-  void _stop() {
-    if (_runner.trail?.running == true) {
-      _runner.abandonStage();
-      return;
-    }
-    // `ScoreAudioScheduler.stop` reancora em 0 mas não solta o freio nem o
-    // filtro de pauta do modo treino (T02) — sem isto, o próximo Play
-    // ficaria preso no freio antigo.
-    _runner.endPractice();
-    _playback.stop();
-  }
-
   /// Reiniciar: volta ao começo e segue como estava — tocando, recomeça de
   /// lá; parado, fica parado no começo. "Começo" é o da etapa na trilha, o
   /// do trecho em repetição no modo livre, ou o da música.
@@ -813,14 +786,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _playback.restart();
   }
 
-  /// Arma/desarma o modo treino (T02) — só decide se o Play vira
-  /// "Praticar" ([_canTrain] também exige um teclado MIDI conectado).
-  /// Desarmar com uma sessão em andamento também a para.
-  void _toggleTrainingMode() {
-    if (_trainingMode && _runner.practice != null) _runner.stopPractice();
-    setState(() => _trainingMode = !_trainingMode);
-  }
-
   /// Troca a mão do aluno (T02) — o seletor só aparece armado e sem sessão
   /// em andamento ([_runner.practice] existindo esconde o seletor).
   void _setHand(Hand hand) {
@@ -844,7 +809,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     context,
     report,
     legend: _practiceLegend(),
-    sidePanel: _phoneLayout,
+    sidePanel: true,
     onRepeatWorst: _repeatWorst,
     wrongCount: _runner.wrongMarks.length,
     reviewHasSides: _runner.wrongMarks.any((m) => m.side != 0),
@@ -884,17 +849,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     _savePieceSettings();
   }
 
-  /// Ícone dos botões "som" e "monitor MIDI": giro de carregamento enquanto
-  /// [SoundOutputController.ensureEngine] pede o `.sf2` (motor compartilhado
-  /// pelos dois).
-  Widget _engineButtonIcon(IconData icon) => _sound.loadingSoundFont
-      ? const SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        )
-      : Icon(icon);
-
   Future<void> _openLoopSheet() async {
     final player = _playback.player;
     if (player == null || player.measures.isEmpty) return;
@@ -903,7 +857,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       total: player.measures.length,
       current: player.currentMeasureIndex.value,
       initial: _playback.loop,
-      sidePanel: _phoneLayout,
+      sidePanel: true,
       onClear: _playback.clearLoop,
     );
     if (chosen == null || !mounted || !identical(player, _playback.player)) {
@@ -1266,11 +1220,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     return n == 0 ? null : n;
   }
 
-  /// A tela da partitura está no layout de celular (`build`): resumos e
-  /// seletores entram pela lateral, não como folha inferior (U18).
-  bool get _phoneLayout =>
-      MediaQuery.sizeOf(context).width < kPhoneLayoutMaxWidth;
-
   Future<void> _openMeasureJump() async {
     final player = _playback.player;
     // Na trilha o compasso fala a numeração do caminho (a da gaveta e do
@@ -1283,7 +1232,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (player == null || total == null) return;
     final current = player.currentMeasureIndex.value;
     var target = path != null ? (path.numberOf(current) ?? 1) : current + 1;
-    final sidePanel = _phoneLayout;
+    const sidePanel = true;
     final result = await showSheetOrSidePanel<int>(
       context,
       sidePanel: sidePanel,
@@ -1341,9 +1290,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     return realtime ? 'Tempo real · mão $hand' : 'Espera · mão $hand';
   }
 
-  /// Corpo no celular — `CelularEstudo` / `CelularTreino` / `CelularPainel` /
-  /// `CelularGrande`: a partitura ocupa tudo, com a barra lateral de 84 px à
-  /// direita; o resto (andamento, mão, modo, tamanho, som…) fica na gaveta ⋯.
+  /// Corpo da partitura (desenhado para o celular — `CelularEstudo` /
+  /// `CelularTreino` / `CelularPainel` / `CelularGrande` — e usado em
+  /// qualquer largura): a partitura ocupa tudo, com a barra lateral de 84 px
+  /// à direita; o resto (andamento, mão, modo, tamanho, som…) fica na
+  /// gaveta ⋯.
   /// Faixa do topo no celular: voltar, número e título do hino e, no
   /// treino, os selos de modo/mão e de acertos e erros.
   Widget _buildPhoneTitleBar() {
@@ -1371,6 +1322,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             builder: (context, device, _) => device != null
                 ? const SizedBox.shrink()
                 : PhoneKeyboardNotice(
+                    // Barra estreita (celular em pé): só o ícone.
+                    compact:
+                        MediaQuery.sizeOf(context).width <
+                        kPhoneTitleBarCompactWidth,
                     onTap: () => unawaited(
                       showMidiDevicePicker(context, _midiDeviceManager),
                     ),
@@ -1470,40 +1425,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
-  /// Faixa da trilha sobre a partitura (J05): altura fixa, fora da caixa de
-  /// layout da partitura — não muda a área gravada e não dispara re-render.
-  /// `null` no modo livre, sem partitura ou sem trilha montada; com trilha
-  /// indisponível ou concluída (fase final até o J07), uma linha explicando.
-  Widget? _trailStrip() {
-    if (_playback.player == null) return null;
-    final unavailable = _runner.unavailable;
-    if (unavailable != null && _runner.trail == null) {
-      return _trailMessage(unavailable);
-    }
-    final trail = _runner.trail;
-    if (trail == null || trail.freeMode) return null;
-    final stage = trail.selected;
-    if (stage == null) {
-      return _trailMessage('Fase final em breve');
-    }
-    return TrailStrip(
-      text: stage.isReinforcement
-          ? stage.label
-          : trailStripTextFor(
-              trail.plan.segmentCount,
-              stage.segment,
-              stage.label,
-            ),
-      stateText: stage.isReinforcement
-          ? ''
-          : trailStateText(trail.progress, stage.id),
-      running: trail.running,
-      onStart: () => unawaited(_runner.startStage()),
-      onStop: _runner.abandonStage,
-      onTap: () => setState(() => _trailDrawerOpen = true),
-    );
-  }
-
   /// Legenda das cores do treino, com as do aluno (U08).
   Widget _practiceLegend() => PracticeLegend(
     pending: _settings.practicePendingColor,
@@ -1553,22 +1474,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
-  Widget _trailMessage(String text) => Container(
-    height: kTrailStripHeight,
-    alignment: Alignment.centerLeft,
-    padding: const EdgeInsets.symmetric(horizontal: 12),
-    decoration: const BoxDecoration(
-      color: kPanelSideBg,
-      border: Border(bottom: BorderSide(color: kBorderPanel)),
-    ),
-    child: Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontSize: 12, color: kInkCaption),
-    ),
-  );
-
   Widget _buildPhoneBody() {
     final player = _playback.player;
     return Stack(
@@ -1586,9 +1491,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                       Expanded(
                         child: KeyedSubtree(
                           key: _tourKeys.score,
-                          child: _buildScoreArea(phone: true),
+                          child: _buildScoreArea(),
                         ),
                       ),
+                      if (widget.debugMode) const SoundEngineDebugPanel(),
                     ],
                   ),
                 ),
@@ -1687,10 +1593,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   final ValueNotifier<int> _noMeasure = ValueNotifier(0);
 
-  /// Celular de verdade (não só janela estreita): começa com [kPhoneUnit].
-  static final bool _isPhone =
-      defaultTargetPlatform == TargetPlatform.android ||
-      defaultTargetPlatform == TargetPlatform.iOS;
+  /// Celular, tablet ou desktop (pelo aparelho, não pela largura da janela):
+  /// a orientação da partitura e o `unit` de partida dependem dele.
+  final DeviceKind _kind = currentDeviceKind;
 
   Widget _buildOptionsDrawer() {
     final trailActive = _runner.trailMode;
@@ -1835,26 +1740,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     );
   }
 
-  /// Um cartão flutuante da partitura (layout, configurações gerais, monitor
-  /// MIDI). No celular ele entra pela direita, na mesma casca das gavetas —
-  /// o monitor também, que antes abria à esquerda (U18); no layout largo,
-  /// como sempre: um cartão solto, à esquerda ([left]) ou à direita.
+  /// Um painel da partitura (layout, configurações gerais, monitor MIDI):
+  /// entra pela direita, na mesma casca das gavetas — o monitor também, que
+  /// antes abria à esquerda (U18).
   Widget _scorePanel({
-    required bool phone,
     required BoxConstraints constraints,
     required Widget child,
-    bool left = false,
   }) {
-    if (!phone) {
-      return Positioned(
-        top: 8,
-        left: left ? 8 : null,
-        right: left ? null : 8,
-        bottom: 8,
-        width: math.min(360, constraints.maxWidth - 16),
-        child: child,
-      );
-    }
     return Positioned(
       top: 0,
       right: 0,
@@ -1871,7 +1763,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// Treino com a música andando (tempo real, livre ou na trilha).
   bool get _timedPractice => _runner.practice?.mode == PracticeMode.realtime;
 
-  Widget _buildScoreArea({bool phone = false}) {
+  /// Zoom na partitura: fora do celular (tablet, desktop, Web), onde a tela
+  /// grande e o mouse o tornam útil. No celular ela é fixa, sem arrastar nem
+  /// ampliar: o tamanho vem do `unit`.
+  static bool get _zoomable =>
+      defaultTargetPlatform != TargetPlatform.android &&
+      defaultTargetPlatform != TargetPlatform.iOS;
+
+  Widget _buildScoreArea() {
     // The page is engraved for this box, so its size has to be known before
     // the first render — hence measuring here rather than off the window.
     // Everything drawn over the score (zoom, panel) is a Stack child, so it
@@ -1943,10 +1842,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   ),
                 ),
               )
-            : phone
             // Enquanto o hino é gravado (a barra de progresso corre em
             // cima); se a gravação falhar, o motivo fica à vista.
-            ? Center(
+            : Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 64),
                   child: Text(
@@ -1959,16 +1857,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     style: const TextStyle(fontSize: 15, color: kInkCaption),
                   ),
                 ),
-              )
-            : const Center(
-                child: Icon(Icons.music_note, size: 64, color: Colors.grey),
               );
         return Stack(
           children: [
             Positioned.fill(
-              // No celular a partitura é fixa: sem arrastar nem ampliar (o
-              // tamanho vem do `unit`). O zoom só existe no banco de testes.
-              child: phone
+              child: !_zoomable
                   ? content
                   : InteractiveViewer(
                       transformationController: _view,
@@ -1983,7 +1876,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             ),
             Positioned.fill(
               child: CountInOverlay(
-                phone: phone,
+                phone: true,
                 active: _playback.playing,
                 read: _playback.countIn,
               ),
@@ -1995,8 +1888,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                 right: 0,
                 child: LinearProgressIndicator(),
               ),
-            // No layout largo a barra de baixo já tem os botões de página.
-            if (phone && _pagerVisible)
+            if (_pagerVisible)
               Positioned(
                 left: 0,
                 right: 0,
@@ -2014,9 +1906,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             ),
             if (_midiPanelOpen)
               _scorePanel(
-                phone: phone,
                 constraints: constraints,
-                left: true,
                 child: MidiMonitorPanel(
                   deviceManager: _midiDeviceManager,
                   input: _midiInput,
@@ -2024,20 +1914,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   wrong: _runner.practice?.wrongPitches,
                   heldPitchOf: (r) => _pitchFrame.writtenFromReceived(r),
                 ),
-              )
-            else if (!phone)
-              Positioned(
-                top: 8,
-                left: 8,
-                child: IconButton.filledTonal(
-                  tooltip: 'Ver as teclas que chegam',
-                  onPressed: () => setState(() => _midiPanelOpen = true),
-                  icon: const Icon(Icons.piano),
-                ),
               ),
             if (_panelOpen)
               _scorePanel(
-                phone: phone,
                 constraints: constraints,
                 child: LayoutPanel(
                   subtitle: _scoreName,
@@ -2053,14 +1932,11 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   onReset: _resetLayout,
                   onCopy: _copyOptions,
                   onClose: () => setState(() => _panelOpen = false),
-                  // No celular a partitura não tem zoom (o tamanho é o
-                  // `unit`).
-                  zoomSection: phone ? null : _zoomControls(),
+                  zoomSection: _zoomable ? _zoomControls() : null,
                 ),
               )
             else if (_generalOpen)
               _scorePanel(
-                phone: phone,
                 constraints: constraints,
                 child: GeneralSettingsPanel(
                   settings: _settings,
@@ -2069,12 +1945,10 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                   onChooseSoundFont: () => unawaited(_sound.chooseSoundFont()),
                   onResetSoundFont: () => unawaited(_sound.resetSoundFont()),
                   onClose: () => setState(() => _generalOpen = false),
-                  onTutorial: phone
-                      ? () {
-                          setState(() => _generalOpen = false);
-                          unawaited(_runTour());
-                        }
-                      : null,
+                  onTutorial: () {
+                    setState(() => _generalOpen = false);
+                    unawaited(_runTour());
+                  },
                   live: LiveSettingsActions(
                     busy: _sound.loadingSoundFont,
                     monitorOn: _sound.midiMonitorOn,
@@ -2091,27 +1965,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
                     }),
                   ),
                 ),
-              )
-            else if (!phone)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton.filledTonal(
-                      tooltip: 'Configurações gerais',
-                      onPressed: () => setState(() => _generalOpen = true),
-                      icon: const Icon(Icons.settings_outlined),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
-                      tooltip: 'Ajustes da partitura',
-                      onPressed: () => setState(() => _panelOpen = true),
-                      icon: const Icon(Icons.tune),
-                    ),
-                  ],
-                ),
               ),
           ],
         );
@@ -2121,377 +1974,28 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.sizeOf(context).width < kPhoneLayoutMaxWidth) {
-      // O "voltar" do aparelho fecha primeiro a gaveta de opções; só com
-      // ela fechada é que sai da partitura para a biblioteca.
-      return PopScope(
-        canPop:
-            !_optionsOpen &&
-            !_panelOpen &&
-            !_generalOpen &&
-            !_midiPanelOpen &&
-            !_trailDrawerOpen,
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
-          setState(() {
-            _optionsOpen = false;
-            _panelOpen = false;
-            _generalOpen = false;
-            _midiPanelOpen = false;
-            _trailDrawerOpen = false;
-          });
-        },
-        child: Scaffold(backgroundColor: kSurface, body: _buildPhoneBody()),
-      );
-    }
-    return Scaffold(
-      // A barra de `Main.dc.html`: "‹ Biblioteca" à esquerda, o título do
-      // hino no centro (com o número e o compositor por baixo) e o teclado
-      // MIDI à direita.
-      appBar: AppBar(
-        backgroundColor: kPanelSideBg,
-        surfaceTintColor: Colors.transparent,
-        shape: const Border(bottom: BorderSide(color: kBorderPanel)),
-        automaticallyImplyLeading: false,
-        leadingWidth: 150,
-        leading: Align(
-          alignment: Alignment.centerLeft,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: TextButton.icon(
-              onPressed: _backToLibrary,
-              style: TextButton.styleFrom(foregroundColor: kInk),
-              icon: const Icon(Icons.chevron_left, size: 22),
-              label: const Text(
-                'Biblioteca',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-              ),
-            ),
-          ),
-        ),
-        centerTitle: true,
-        title: ScoreTitle(
-          title: _piece.title,
-          caption: _piece.number == null
-              ? _piece.composer
-              : '${_term.singularCapitalized} ${_piece.number} · ${_piece.composer}',
-        ),
-        actions: [
-          ?_transposeSeal(),
-          if (_piece.fifths != null)
-            IconButton(
-              tooltip: 'Transpor',
-              onPressed: _openTransposeDialog,
-              icon: const Icon(Icons.swap_vert),
-            ),
-          MidiDevicePickerButton(
-            deviceManager: _midiDeviceManager,
-            onCalibrate: () => unawaited(_openCalibration()),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: .stretch,
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.deepPurple.shade100),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: _buildScoreArea(),
-                      ),
-                      if (_trailStrip() case final strip?)
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(16),
-                            ),
-                            child: strip,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // `maxLines: 1` matters beyond truncating long text: this Text is
-                // a Column sibling of the (Expanded) score area, not wrapped in
-                // one itself, so its height comes out of the score area's share
-                // of the fixed Column height. Left unbounded, a status message
-                // long enough to wrap on a narrow (phone) width shrinks the
-                // score box just past `ScoreRenderSession.setBox`'s 2% threshold, which
-                // schedules a re-render — whose *own* status text then differs
-                // in length from this one, flipping the wrap back and forth
-                // forever. Desktop windows are wide enough that no status
-                // string wraps, so this never showed up before a real phone.
-                Text(
-                  'status: ${_session.status}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (_runner.trail != null)
-                      IconButton.filledTonal(
-                        tooltip: _runner.trailMode
-                            ? 'Treino livre'
-                            : 'Voltar à trilha',
-                        onPressed: () {
-                          final trail = _runner.trail;
-                          if (trail != null) {
-                            setState(() => trail.setFreeMode(!trail.freeMode));
-                          }
-                        },
-                        icon: Icon(
-                          _runner.trailMode
-                              ? Icons.school_outlined
-                              : Icons.route,
-                        ),
-                      ),
-                    IconButton.filled(
-                      tooltip: _runner.trailMode
-                          ? ((_runner.trail?.running ?? false)
-                                ? 'Parar etapa'
-                                : 'Começar etapa')
-                          : (_canTrain
-                                ? (_runner.practice != null
-                                      ? 'Parar prática'
-                                      : 'Praticar (modo espera)')
-                                : (_playback.playing
-                                      ? 'Pausar'
-                                      : 'Tocar (destacar notas)')),
-                      onPressed: _runner.trailMode
-                          ? () => unawaited(_runner.startStage())
-                          : (_canTrain
-                                ? () => unawaited(
-                                    _runner.togglePractice(
-                                      hand: _hand,
-                                      mode: _practiceMode,
-                                    ),
-                                  )
-                                : (_canPlay ? _togglePlay : null)),
-                      icon: Icon(
-                        _runner.trailMode
-                            ? ((_runner.trail?.running ?? false)
-                                  ? Icons.pause
-                                  : Icons.school)
-                            : (_canTrain
-                                  ? (_runner.practice != null
-                                        ? Icons.pause
-                                        : Icons.school)
-                                  : (_playback.playing
-                                        ? Icons.pause
-                                        : Icons.play_arrow)),
-                      ),
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: 'Reiniciar',
-                      onPressed: _canPlay ? () => unawaited(_restart()) : null,
-                      icon: const Icon(Icons.skip_previous),
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: 'Parar',
-                      onPressed:
-                          _canPlay &&
-                              (_playback.playing ||
-                                  (_playback.player?.position ??
-                                          Duration.zero) >
-                                      Duration.zero)
-                          ? _stop
-                          : null,
-                      icon: const Icon(Icons.stop),
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: _trainingMode
-                          ? 'Desarmar modo treino (T02)'
-                          : 'Armar modo treino (T02): Play vira Praticar com '
-                                'teclado MIDI conectado',
-                      onPressed: _toggleTrainingMode,
-                      icon: Icon(
-                        _trainingMode ? Icons.school : Icons.school_outlined,
-                      ),
-                    ),
-                    if (_trainingMode && _runner.practice == null)
-                      IconButton.filledTonal(
-                        tooltip: switch (_practiceMode) {
-                          PracticeMode.wait =>
-                            'Modo espera — trocar para tempo real',
-                          PracticeMode.realtime =>
-                            'Tempo real — trocar para modo espera',
-                        },
-                        onPressed: () => setState(
-                          () => _practiceMode = switch (_practiceMode) {
-                            PracticeMode.wait => PracticeMode.realtime,
-                            PracticeMode.realtime => PracticeMode.wait,
-                          },
-                        ),
-                        icon: Icon(switch (_practiceMode) {
-                          PracticeMode.wait => Icons.hourglass_bottom,
-                          PracticeMode.realtime => Icons.speed,
-                        }),
-                      ),
-                    if (_trainingMode && _runner.practice == null)
-                      PopupMenuButton<Hand>(
-                        tooltip: 'Mão do aluno',
-                        initialValue: _hand,
-                        onSelected: _setHand,
-                        icon: const Icon(Icons.back_hand),
-                        itemBuilder: (context) => [
-                          for (final h in Hand.values)
-                            PopupMenuItem(value: h, child: Text(h.label)),
-                        ],
-                      ),
-                    IconButton.filledTonal(
-                      tooltip: _settings.metronomeOn
-                          ? 'Desligar metrônomo'
-                          : 'Ligar metrônomo (com som do app)',
-                      onPressed: _playback.toggleMetronome,
-                      icon: Icon(
-                        _settings.metronomeOn
-                            ? Icons.av_timer
-                            : Icons.timer_outlined,
-                      ),
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: _playback.loop == null
-                          ? 'Repetir um trecho (loop A-B)'
-                          : 'Loop: compassos ${_playback.loop!.a + 1}–${_playback.loop!.b + 1}',
-                      onPressed: _playback.player == null
-                          ? null
-                          : () => unawaited(_openLoopSheet()),
-                      icon: Icon(
-                        _playback.loop == null ? Icons.repeat : Icons.repeat_on,
-                      ),
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: _sound.soundOn
-                          ? 'Desligar som'
-                          : _sound.output == SoundOutput.midiKeyboard
-                          ? 'Ligar som (teclado MIDI conectado)'
-                          : 'Ligar som (escolhe um .sf2)',
-                      onPressed: _sound.loadingSoundFont
-                          ? null
-                          : _sound.userToggleSound,
-                      icon: _engineButtonIcon(
-                        _sound.soundOn ? Icons.volume_up : Icons.volume_off,
-                      ),
-                    ),
-                    PopupMenuButton<SoundOutput>(
-                      tooltip: 'Saída de som',
-                      initialValue: _sound.output,
-                      onSelected: (value) => _settings.output = value,
-                      icon: Icon(
-                        _sound.output == SoundOutput.midiKeyboard
-                            ? Icons.piano
-                            : Icons.graphic_eq,
-                      ),
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: SoundOutput.appSynth,
-                          child: Text('Sintetizador do app'),
-                        ),
-                        PopupMenuItem(
-                          value: SoundOutput.midiKeyboard,
-                          child: Text('Teclado MIDI'),
-                        ),
-                      ],
-                    ),
-                    if (_sound.output == SoundOutput.midiKeyboard)
-                      IconButton.filledTonal(
-                        tooltip: _useScoreInstruments
-                            ? 'Voltar ao timbre do teclado'
-                            : 'Trocar o timbre do teclado (usa o instrumento '
-                                  'da partitura)',
-                        onPressed: () => _sound.setUseScoreInstruments(
-                          !_useScoreInstruments,
-                        ),
-                        icon: Icon(
-                          _useScoreInstruments
-                              ? Icons.music_note
-                              : Icons.music_off,
-                        ),
-                      ),
-                    IconButton.filledTonal(
-                      tooltip: _sound.midiMonitorOn
-                          ? 'Desligar monitor MIDI'
-                          : 'Ligar monitor MIDI (teclado sem som próprio)',
-                      onPressed: _sound.loadingSoundFont
-                          ? null
-                          : _sound.toggleMidiMonitor,
-                      icon: _engineButtonIcon(
-                        _sound.midiMonitorOn
-                            ? Icons.piano
-                            : Icons.piano_outlined,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 160,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.speed, size: 18),
-                          Expanded(
-                            child: Slider(
-                              min: 0.5,
-                              max: 1.5,
-                              divisions: 10,
-                              label: '${_playback.speed.toStringAsFixed(2)}×',
-                              value: _playback.speed,
-                              onChanged: _canPlay ? _setSpeed : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: 'Página anterior',
-                      onPressed: _session.pageIndex > 0 && !_session.busy
-                          ? _previousPage
-                          : null,
-                      icon: const Icon(Icons.chevron_left),
-                    ),
-                    Text(
-                      _session.pageCount == 0
-                          ? '—'
-                          : '${_session.pageIndex + 1} / ${_session.pageCount}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: 'Próxima página',
-                      onPressed:
-                          _session.pageIndex < _session.pageCount - 1 &&
-                              !_session.busy
-                          ? _nextPage
-                          : null,
-                      icon: const Icon(Icons.chevron_right),
-                    ),
-                  ],
-                ),
-                if (widget.debugMode) ...[
-                  const SizedBox(height: 8),
-                  const SoundEngineDebugPanel(),
-                ],
-              ],
-            ),
-          ),
-          if (_trailDrawerOpen) _buildTrailDrawer(),
-        ],
-      ),
+    // Um layout só, o do celular, em qualquer largura (tablet, desktop, Web):
+    // a partitura ocupa tudo, com a barra lateral à direita e as gavetas.
+    // O "voltar" do aparelho fecha primeiro a gaveta aberta; só com todas
+    // fechadas é que sai da partitura para a biblioteca.
+    return PopScope(
+      canPop:
+          !_optionsOpen &&
+          !_panelOpen &&
+          !_generalOpen &&
+          !_midiPanelOpen &&
+          !_trailDrawerOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        setState(() {
+          _optionsOpen = false;
+          _panelOpen = false;
+          _generalOpen = false;
+          _midiPanelOpen = false;
+          _trailDrawerOpen = false;
+        });
+      },
+      child: Scaffold(backgroundColor: kSurface, body: _buildPhoneBody()),
     );
   }
 }

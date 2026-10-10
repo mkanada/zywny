@@ -18,6 +18,7 @@ import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_music/transposition.dart';
 
 import '../render/layout_options.dart';
+import '../ui/device_kind.dart';
 import '../render/score_renderer.dart';
 import '../settings/app_settings.dart';
 import '../settings/effective_transposition.dart';
@@ -29,6 +30,10 @@ typedef ScoreDocumentCallback = void Function(
   VsbDocument document,
   PerformanceTrack track,
 );
+
+/// Quanto o celular espera a caixa deitada antes de gravar a partitura na
+/// caixa em pé (ver `ScoreRenderSession.setBox`).
+const kRotationGrace = Duration(milliseconds: 1200);
 
 /// A gravura da partitura aberta e o que muda nela: o tamanho da caixa
 /// ([setBox]), o layout deste hino e o tom (fase Q).
@@ -44,16 +49,24 @@ class ScoreRenderSession extends ChangeNotifier {
     required AppSettings settings,
     required PieceSettings stored,
     required this.name,
-    this.phone = false,
+    this.kind = DeviceKind.desktop,
+    this.pixelRatio = 1,
     this.debugMode = false,
     this.onDocument,
     this.resizeDebounce = const Duration(milliseconds: 400),
+    this.rotationGrace = kRotationGrace,
   }) : _renderer = renderer, // ignore: prefer_initializing_formals
        _scoreXml = scoreXml, // ignore: prefer_initializing_formals
        _piece = piece, // ignore: prefer_initializing_formals
        _settings = settings, // ignore: prefer_initializing_formals
        _transposeChoice = stored.transpose,
-       _layout = stored.layoutOver(initialLayoutValues(phone: phone)),
+       _layout = stored.layoutOver(
+         initialLayoutValues(
+           phone: kind == DeviceKind.phone,
+           tablet: kind == DeviceKind.tablet,
+           pixelRatio: pixelRatio,
+         ),
+       ),
        _pageFitsBox = stored.pageFitsBox {
     _settings.addListener(_onSettingsChanged);
   }
@@ -66,9 +79,14 @@ class ScoreRenderSession extends ChangeNotifier {
   /// Como a partitura é chamada no status ("13 · Hino").
   final String name;
 
-  /// Celular de verdade: o layout começa com [kPhoneUnit], e uma caixa em
-  /// retrato é só o aparelho girando (ver [setBox]).
-  final bool phone;
+  /// O aparelho: no celular o layout começa com [kPhoneUnit] e uma caixa em
+  /// pé é, de início, o aparelho ainda girando (ver [setBox]); no tablet,
+  /// com [tabletUnit].
+  final DeviceKind kind;
+
+  /// Densidade da tela: no tablet e no desktop o `unit` padrão a acompanha
+  /// ([tabletUnit], [screenUnit]).
+  final double pixelRatio;
 
   /// `--debug`: pede ao Verovio o `.vsb` com as opções e a fonte embutidas.
   final bool debugMode;
@@ -78,6 +96,9 @@ class ScoreRenderSession extends ChangeNotifier {
 
   /// O respiro entre a caixa mudar e a partitura ser gravada de novo.
   final Duration resizeDebounce;
+
+  /// Quanto o celular espera a caixa deitada ([kRotationGrace]).
+  final Duration rotationGrace;
 
   bool _disposed = false;
 
@@ -130,7 +151,11 @@ class ScoreRenderSession extends ChangeNotifier {
   Map<String, Object> get layout => _layout;
 
   /// O layout de um hino em que nada foi mexido.
-  Map<String, Object> get layoutDefaults => initialLayoutValues(phone: phone);
+  Map<String, Object> get layoutDefaults => initialLayoutValues(
+    phone: kind == DeviceKind.phone,
+    tablet: kind == DeviceKind.tablet,
+    pixelRatio: pixelRatio,
+  );
 
   /// Se a página sai da caixa da partitura ou de `pageWidth`/`pageHeight`.
   bool get pageFitsBox => _pageFitsBox;
@@ -211,10 +236,21 @@ class ScoreRenderSession extends ChangeNotifier {
     if (previous == devicePx) return false;
     _box = devicePx;
     // No celular a tela é travada em paisagem, mas abre a partir da
-    // biblioteca em retrato: uma caixa mais alta que larga é só o aparelho
-    // ainda girando, e gravar a partitura para ela seria trabalho jogado
-    // fora (a caixa em paisagem chega logo depois).
-    if (phone && devicePx.height > devicePx.width) return previous == null;
+    // biblioteca em retrato: uma caixa mais alta que larga é, de início, só
+    // o aparelho ainda girando, e gravar a partitura para ela seria trabalho
+    // jogado fora (a caixa em paisagem chega logo depois). Se ela não vier —
+    // o sistema pode ignorar a trava, como o Android 16 em tela grande —, a
+    // caixa em pé é gravada assim mesmo, depois de [rotationGrace]: nunca
+    // uma tela em branco.
+    // Com a partitura já gravada deitada, uma caixa em pé é o aparelho
+    // voltando à biblioteca: nada a gravar, como sempre.
+    if (kind == DeviceKind.phone && devicePx.height > devicePx.width) {
+      if (_document == null && !_busy) {
+        _resizeTimer?.cancel();
+        _resizeTimer = Timer(rotationGrace, render);
+      }
+      return previous == null;
+    }
     if (_document == null && !_busy) {
       // Nada gravado ainda: a primeira gravura sai assim que há caixa.
       _resizeTimer?.cancel();

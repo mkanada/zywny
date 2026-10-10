@@ -9,6 +9,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:zywny/ui/device_kind.dart';
 import 'package:zywny/course/score/lesson_score.dart';
 import 'package:zywny/course/ui/course_chrome.dart' show kPhoneLessonScoreZoom;
 import 'package:zywny/render/layout_options.dart';
@@ -70,7 +71,7 @@ void main() {
       final layout = lessonScoreLayout(
         bw / kPhoneLessonScoreZoom,
         heightPx: bh / kPhoneLessonScoreZoom,
-        phone: true,
+        kind: DeviceKind.phone,
       );
       final doc = await renderBytes(
         ode,

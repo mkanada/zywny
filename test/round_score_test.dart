@@ -6,6 +6,7 @@ import 'package:zywny_course_format/course_model.dart';
 import 'package:zywny_course_format/figure_rules.dart';
 import 'package:zywny_music/note_name.dart';
 import 'package:zywny_course_format/vocabulary.dart';
+import 'package:zywny/ui/device_kind.dart';
 import 'package:zywny/course/score/lesson_score.dart';
 import 'package:zywny/course/score/round_score.dart';
 
@@ -289,7 +290,11 @@ void main() {
           'assets/cursos/iniciacao/media/ode-a-alegria.musicxml',
         ).readAsBytesSync();
         // Caixa de ~780×270 pt a 2,75 de densidade, com o zoom 1,3 do curso.
-        final layout = lessonScoreLayout(1650, heightPx: 571, phone: true);
+        final layout = lessonScoreLayout(
+          1650,
+          heightPx: 571,
+          kind: DeviceKind.phone,
+        );
         final doc = await renderBytes(
           bytes,
           'ode.musicxml',
