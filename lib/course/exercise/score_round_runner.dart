@@ -271,6 +271,14 @@ class ScoreRoundRunner {
     );
   }
 
+  /// Fim da rodada: as notas erradas ficam fixas na partitura, como na
+  /// revisão do treino. Sem notas erradas, não mostra nada.
+  void showReview() {
+    final practice = _practice;
+    if (practice == null || practice.wrongMarks.isEmpty) return;
+    ghosts.setReview([for (final m in practice.wrongMarks) m.ghostRequest]);
+  }
+
   /// Abandona a rodada: nenhum resultado (o [start] termina com `null`).
   void cancel() {
     final done = _done;

@@ -95,7 +95,6 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   /// guardado antes dela, para o painel comparar.
   int? _errors;
   int? _previousBest;
-  Set<String> _badMeasureIds = const {};
   double? _loadWidthPx;
 
   /// Altura da caixa da partitura, na medida de [_loadWidthPx]: a página
@@ -234,7 +233,6 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       _error = null;
       _result = null;
       _verdict = null;
-      _badMeasureIds = const {};
       _questionRound = null;
     });
     try {
@@ -394,6 +392,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     _followTimer?.cancel();
     _followTimer = null;
     _player?.pause();
+    _player?.cancelTurn();
     final verdict = PassCheck.evaluate(widget.spec, [..._history, result]);
     final previousBest = widget
         .deps
@@ -410,8 +409,6 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       result,
     );
     if (!mounted) return;
-    final badMeasures = _runner?.practice.stageResult?.badMeasures ?? const {};
-    final measures = _runner?.timeline.measures ?? const [];
     setState(() {
       _history.add(result);
       _result = result;
@@ -419,11 +416,19 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       _errors = errors;
       _previousBest = previousBest;
       _running = false;
-      _badMeasureIds = {
-        for (final i in badMeasures)
-          if (i >= 0 && i < measures.length) measures[i].id,
-      };
     });
+    _showErrorsAtEnd();
+  }
+
+  /// Fim da rodada: as notas erradas ficam fixas na partitura, como na
+  /// revisão do treino, e a primeira página com erro abre por baixo do painel.
+  void _showErrorsAtEnd() {
+    final runner = _runner;
+    if (runner == null) return;
+    runner.showReview();
+    final pages = {for (final g in runner.ghosts.review) g.page.index}.toList()
+      ..sort();
+    if (pages.isNotEmpty) _viewController?.goToPage(pages.first);
   }
 
   void _exit() {
@@ -635,9 +640,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             runner: _runner,
             player: _player,
             viewController: _viewController,
-            badMeasureIds: _badMeasureIds,
             scheduler: _runner?.scheduler,
             phone: _isPhone,
+            sidePanel: courseCompactHeader(context),
             label: widget.spec.id,
             onPaper: (widthPx, heightPx) {
               if ((_loadWidthPx == widthPx && _loadHeightPx == heightPx) ||
@@ -660,6 +665,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                         ? null
                         : () => unawaited(_newRound(_loadWidthPx!)),
                     onBack: _exit,
+                    side: courseCompactHeader(context),
                   )
                 : null,
           ),
@@ -790,12 +796,12 @@ class _RoundBody extends StatelessWidget {
     required this.runner,
     required this.player,
     required this.viewController,
-    required this.badMeasureIds,
     required this.onPaper,
     required this.resultPanel,
     this.label = '',
     this.scheduler,
     this.phone = false,
+    this.sidePanel = false,
   });
 
   final bool loading;
@@ -803,13 +809,17 @@ class _RoundBody extends StatelessWidget {
   final ScoreRoundRunner? runner;
   final ScorePlayer? player;
   final ScoreViewController? viewController;
-  final Set<String> badMeasureIds;
 
   /// Largura e altura da caixa em medida de papel (`lessonScorePaperPx`).
   final void Function(double widthPx, double heightPx) onPaper;
   final Widget? resultPanel;
   final ScoreAudioScheduler? scheduler;
   final bool phone;
+
+  /// Celular deitado: o [resultPanel] entra pela direita e a partitura
+  /// encolhe para caber ao lado dele, sem nada por cima das notas erradas
+  /// (embaixo, o painel cobriria a pauta quase toda).
+  final bool sidePanel;
 
   /// Id do exercício, para o log de tamanho (`ScoreSizeLog`).
   final String label;
@@ -852,21 +862,11 @@ class _RoundBody extends StatelessWidget {
               viewController: viewController,
               curtain: player?.curtain,
               ghosts: runner!.ghosts,
-              overlayIds: badMeasureIds.isEmpty
-                  ? const []
-                  : [for (final m in player!.measures) m.id],
-              overlayBuilder: (context, id, rect) => badMeasureIds.contains(id)
-                  ? IgnorePointer(
-                      child: ColoredBox(
-                        color: kBadColor.withValues(alpha: 0.12),
-                      ),
-                    )
-                  : null,
-              overlayUniformHeight: true,
             ),
           );
         }
-        return Stack(
+        final side = sidePanel && resultPanel != null;
+        final stack = Stack(
           children: [
             Positioned.fill(child: score),
             // Contagem inicial (I08, U09): número grande na metade direita.
@@ -895,14 +895,27 @@ class _RoundBody extends StatelessWidget {
                   ),
                 ),
               ),
-            if (resultPanel case final panel?)
+            if (resultPanel case final panel? when !side)
               Positioned(left: 0, right: 0, bottom: 0, child: panel),
+          ],
+        );
+        if (!side) return stack;
+        return Row(
+          children: [
+            Expanded(child: stack),
+            SizedBox(
+              width: min(constraints.maxWidth * 0.4, _kResultPanelWidth),
+              child: Center(child: SingleChildScrollView(child: resultPanel)),
+            ),
           ],
         );
       },
     );
   }
 }
+
+/// Largura do painel de resultado na lateral (celular deitado).
+const double _kResultPanelWidth = 320;
 
 /// "2 erros" no canto da partitura durante a rodada.
 class _ErrorChip extends StatelessWidget {
@@ -942,10 +955,15 @@ class _ResultPanel extends StatelessWidget {
     required this.onBack,
     this.errors,
     this.previousBest,
+    this.side = false,
   });
 
   final RoundResult result;
   final PassVerdict verdict;
+
+  /// Celular deitado: o painel fica na lateral, ao lado da partitura, e não
+  /// embaixo dela.
+  final bool side;
 
   /// Teclas erradas na rodada (exercícios no teclado; `null` nas perguntas).
   final int? errors;
@@ -977,10 +995,14 @@ class _ResultPanel extends StatelessWidget {
     final approved = verdict.exercisePassed;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: kSurface,
-        border: Border(top: BorderSide(color: kBorderPanel)),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        border: side
+            ? const Border(left: BorderSide(color: kBorderPanel))
+            : const Border(top: BorderSide(color: kBorderPanel)),
+        borderRadius: side
+            ? null
+            : const BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

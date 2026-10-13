@@ -793,6 +793,7 @@ class TrailRunner extends ChangeNotifier {
     _playback.scheduler?.setSpeed(_playback.speed);
     _playback.scheduler?.metronomeOn = _settings.metronomeOn;
     _playback.player?.pause();
+    _playback.player?.cancelTurn();
     _trail?.setRunning(false);
     _changed();
     if (!_disposed) _playback.setPlaying(false);
@@ -906,6 +907,7 @@ class TrailRunner extends ChangeNotifier {
     if (practice == null) return;
     PracticeReport? report;
     _releasePlayer();
+    _playback.player?.cancelTurn();
     if (practice.mode != PracticeMode.wait && practice.hasVerdicts) {
       practice.finish();
       report = practice.report;

@@ -5,10 +5,13 @@
 // (`_CachedRenderer`), como o `course_screens_test.dart` — o render FFI não
 // termina no relógio falso do widget test.
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_midi_command_platform_interface/flutter_midi_command_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -183,6 +186,10 @@ void main() {
   late VsbDocument rhythmDoc;
   late LoadedCourse findKeyLoaded;
 
+  // Duas notas no modo espera: a rodada pré-renderizada, a mesma do `Random(7)`.
+  late LoadedCourse playNotesLoaded;
+  late VsbDocument playNotesDoc;
+
   setUpAll(() async {
     await loadScoreFonts();
     if (!verovioAvailable) return;
@@ -218,6 +225,19 @@ void main() {
       Random(7),
     ) as ScoreRound;
     rhythmDoc = await _renderBytes(rhythmRound.bytes, rhythmRound.fileName);
+
+    playNotesLoaded = await _loadedWith(
+      'id: p\ntype: play-notes\ntitle: P\nnotes: [C4, D4]\n',
+    );
+    final playNotesRound = await generateRound(
+      playNotesLoaded.course.lessons.single.exercises.single,
+      playNotesLoaded.files,
+      Random(7),
+    ) as ScoreRound;
+    playNotesDoc = await _renderBytes(
+      playNotesRound.bytes,
+      playNotesRound.fileName,
+    );
   });
 
   setUp(() {
@@ -459,6 +479,55 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   }, skip: !verovioAvailable);
 
+  testWidgets('play-notes: a tecla errada fica na partitura ao terminar', (
+    tester,
+  ) async {
+    final lesson = playNotesLoaded.course.lessons.single;
+    final devices = await _makeDevices(connected: true);
+    final midi = FakeMidiInput();
+    final deps = _makeDeps(
+      devices: devices,
+      midi: midi,
+      engine: FakeSoundEngine(),
+      progress: MemoryCourseProgressStore(),
+      rendererFactory: () => _CachedRenderer(playNotesDoc),
+    );
+    addTearDown(() {
+      midi.dispose();
+      deps.settings.dispose();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExerciseScreen(
+          loaded: playNotesLoaded,
+          lesson: lesson,
+          spec: lesson.exercises.single,
+          deps: deps,
+          rng: Random(7),
+        ),
+      ),
+    );
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    // 64 no lugar do C4 (60); depois as duas certas.
+    midi.press(64);
+    await tester.pump(const Duration(milliseconds: 10));
+    midi.release(64);
+    await tester.pump(const Duration(milliseconds: 10));
+    midi.press(60);
+    await tester.pump(const Duration(milliseconds: 10));
+    midi.press(62);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.textContaining('de primeira'), findsOneWidget);
+    // Sem tocar em "Rever": a nota errada já está fixa na partitura.
+    final ghosts = tester.widget<ScoreView>(find.byType(ScoreView)).ghosts!;
+    expect(ghosts.review.map((g) => g.key), [64]);
+    await tester.pumpWidget(const SizedBox());
+  }, skip: !verovioAvailable);
+
   testWidgets('count-beats sem teclado abre e roda', (tester) async {
     final loaded = await _loadedWith(
       'id: c\ntype: count-beats\ntitle: Tempos\ntime: 4/4\n'
@@ -652,4 +721,128 @@ void main() {
     expect(nameNoteRound.questions, hasLength(2));
     expect(countBeatsLoaded.course.id, 't');
   });
+
+  // Imagem de conferência (manual): o fim de um exercício com duas notas
+  // erradas, em celular deitado. Só roda com ERROS_PNG=/caminho.png. Fica no
+  // fim do arquivo porque carrega fontes que mudam o texto dos outros testes.
+  testWidgets('imagem: erros na partitura ao terminar o exercício', (
+    tester,
+  ) async {
+    final out = Platform.environment['ERROS_PNG']!;
+    await tester.runAsync(() async {
+      // Fontes parecidas com as do app (que usa Google Fonts, sem rede aqui).
+      await _loadFont(
+        'Roboto',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+      );
+      await _loadFont(
+        'MaterialIcons',
+        '/home/mauricio/development_tools/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+      );
+    });
+    final loaded = await _loadedWith(
+      'id: e\ntype: play-notes\ntitle: Escala de dó\n'
+      'notes: [C4, D4, E4, F4, G4, A4]\n',
+    );
+    final lesson = loaded.course.lessons.single;
+    final spec = lesson.exercises.single;
+    final doc = await tester.runAsync(() async {
+      final round =
+          await generateRound(spec, loaded.files, Random(7)) as ScoreRound;
+      return _renderBytes(round.bytes, round.fileName);
+    });
+    final devices = await _makeDevices(connected: true);
+    final midi = FakeMidiInput();
+    final deps = _makeDeps(
+      devices: devices,
+      midi: midi,
+      engine: FakeSoundEngine(),
+      progress: MemoryCourseProgressStore(),
+      rendererFactory: () => _CachedRenderer(doc!),
+    );
+    addTearDown(() {
+      midi.dispose();
+      deps.settings.dispose();
+    });
+    // Celular deitado, 844×390 dp a 2,5× (ERROS_RETRATO=1: em pé, 390×844).
+    final standing = Platform.environment['ERROS_RETRATO'] != null;
+    tester.view.physicalSize = standing
+        ? const Size(390 * 2.5, 844 * 2.5)
+        : const Size(844 * 2.5, 390 * 2.5);
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: RepaintBoundary(
+          key: key,
+          child: ExerciseScreen(
+            key: UniqueKey(),
+            loaded: loaded,
+            lesson: lesson,
+            spec: spec,
+            deps: deps,
+            rng: Random(7),
+          ),
+        ),
+      ),
+    );
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    // Toca 63 no lugar do D4 (62) e 66 no lugar do F4 (65); o resto certo.
+    Future<void> play(int pitch) async {
+      midi.press(pitch);
+      await tester.pump(const Duration(milliseconds: 10));
+      midi.release(pitch);
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+
+    await play(60);
+    await play(63);
+    await play(62);
+    await play(64);
+    await play(66);
+    await play(65);
+    await play(67);
+    await play(69);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.textContaining('de primeira'), findsOneWidget);
+    final ghosts = tester.widget<ScoreView>(find.byType(ScoreView)).ghosts!;
+    expect(ghosts.review.map((g) => g.key), [63, 66]);
+    // A página sai em trabalho assíncrono: deixa correr de verdade antes da
+    // foto.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 800)),
+    );
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    // ignore: avoid_print
+    print('fantasmas visíveis: ${ghosts.visible.length}');
+
+    final boundary =
+        key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final png = await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: 2.5);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      return data!.buffer.asUint8List();
+    });
+    File(out).writeAsBytesSync(png!);
+    // ignore: avoid_print
+    print('imagem -> $out');
+    await tester.pumpWidget(const SizedBox());
+  }, skip: Platform.environment['ERROS_PNG'] == null || !verovioAvailable);
+}
+
+Future<void> _loadFont(String family, String path) async {
+  final file = File(path);
+  if (!file.existsSync()) return;
+  final loader = FontLoader(family)
+    ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
+  await loader.load();
 }

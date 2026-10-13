@@ -410,6 +410,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               required isLast,
               blockCount,
             }) async {
+              _showErrorsAtEnd();
               final action = await showStageSummary(
                 context,
                 stageRef: stageRef,
@@ -801,7 +802,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
       _session.renderedTransposition,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_showSummary(report));
+      if (!mounted) return;
+      _showErrorsAtEnd();
+      unawaited(_showSummary(report));
     });
   }
 
@@ -815,6 +818,13 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     reviewHasSides: _runner.wrongMarks.any((m) => m.side != 0),
     onReview: _runner.wrongMarks.isEmpty ? null : _startReview,
   );
+
+  /// Fim de uma etapa ou de um treino com notas erradas: a partitura já as
+  /// mostra (na primeira página com erro), sem esperar o "Rever". O resumo só
+  /// fica na frente, e "Rever na partitura" volta a essa página.
+  void _showErrorsAtEnd() {
+    if (_runner.wrongMarks.isNotEmpty) _startReview();
+  }
 
   /// "Revisar" (fim do treino): as notas erradas ficam fixas na partitura e
   /// a primeira página com erro abre.

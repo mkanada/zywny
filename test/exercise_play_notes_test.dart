@@ -165,6 +165,29 @@ void main() {
       runner.cancel();
     }, skip: verovioAvailable ? false : _noLib);
 
+    test('fim da rodada: as notas erradas ficam fixas na partitura', () async {
+      final spec = await minimoExercise();
+      final played = await _playRound(spec, files, wrongEvery: 4);
+      final runner = played.runner;
+      // O `ScoreView` faz isto ao desenhar a página.
+      runner.ghosts.attachDocument(runner.document);
+      runner.showReview();
+      expect(
+        runner.ghosts.review.map((g) => g.key).toSet(),
+        runner.practice.wrongMarks.map((m) => m.pitch).toSet(),
+      );
+      expect(runner.ghosts.review, hasLength(3));
+    }, skip: verovioAvailable ? false : _noLib);
+
+    test('sem notas erradas, nada fica na partitura', () async {
+      final spec = await minimoExercise();
+      final played = await _playRound(spec, files);
+      final runner = played.runner;
+      runner.ghosts.attachDocument(runner.document);
+      runner.showReview();
+      expect(runner.ghosts.review, isEmpty);
+    }, skip: verovioAvailable ? false : _noLib);
+
     test('uma errada a cada 5 de 12: 83% ainda reprova (limiar 90)', () async {
       final spec = await minimoExercise();
       final played = await _playRound(spec, files, wrongEvery: 5);
