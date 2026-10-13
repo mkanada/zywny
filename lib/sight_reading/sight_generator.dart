@@ -221,7 +221,13 @@ List<List<SightNote>> _melody(
     final notes = <SightNote>[];
     var pos = 0;
     while (pos < step.unitsPerMeasure) {
-      final units = _figure(step.durations, pos, step.unitsPerMeasure, rng);
+      final units = _figure(
+        step.durations,
+        pos,
+        step.unitsPerMeasure,
+        rng,
+        syncopated: step.syncopated,
+      );
       final start = pos;
       pos += units;
       if (notes.isNotEmpty && rng.nextDouble() < step.restChance) {
@@ -325,6 +331,7 @@ List<List<SightNote>> _accompaniment(SightStep step, Random rng) {
         durations,
         pos,
         step.unitsPerMeasure,
+        syncopated: step.syncopated,
       ).reduce((a, b) => max(a, b));
       pos += units;
       if (notes.isNotEmpty && rng.nextDouble() < step.restChance * 0.5) {
@@ -341,18 +348,30 @@ List<List<SightNote>> _accompaniment(SightStep step, Random rng) {
 }
 
 /// Uma figura sorteada entre as que [_figures] liberou a partir de [pos].
-int _figure(List<int> durations, int pos, int measure, Random rng) {
-  final options = _figures(durations, pos, measure);
+int _figure(
+  List<int> durations,
+  int pos,
+  int measure,
+  Random rng, {
+  bool syncopated = false,
+}) {
+  final options = _figures(durations, pos, measure, syncopated: syncopated);
   return options[rng.nextInt(options.length)];
 }
 
 /// As figuras de [durations] que cabem a partir de [pos] e não atrapalham o
-/// tempo ([_onTime]). Se nenhuma serve, valem todas as que cabem.
-List<int> _figures(List<int> durations, int pos, int measure) {
+/// tempo ([_onTime]). Se nenhuma serve, valem todas as que cabem. No passo de
+/// síncopas ([syncopated]), o tempo não entra: vale qualquer figura que caiba.
+List<int> _figures(
+  List<int> durations,
+  int pos,
+  int measure, {
+  bool syncopated = false,
+}) {
   final left = measure - pos;
   final ok = [
     for (final d in durations)
-      if (d <= left && _onTime(pos, d, measure)) d,
+      if (d <= left && (syncopated || _onTime(pos, d, measure))) d,
   ];
   if (ok.isNotEmpty) return ok;
   final fits = [

@@ -25,6 +25,7 @@ class SightStep {
     required this.high,
     this.restChance = 0,
     this.threeFour = false,
+    this.syncopated = false,
     this.tonic = 'C',
   });
 
@@ -55,6 +56,10 @@ class SightStep {
   final double restChance;
 
   final bool threeFour;
+
+  /// O passo de síncopas: a figura pode começar fora do tempo e atravessar o
+  /// seguinte. Nos outros passos, a síncope não sai (ver `generateSight`).
+  final bool syncopated;
 
   /// Tonalidade, como em `kKeyNames`: `C`, `G`, `Bb`…
   final String tonic;
@@ -458,7 +463,7 @@ final List<SightStep> sightSteps = List.unmodifiable([
     9,
     0,
     SightHands.right,
-    [3, 2, 4],
+    [1, 2, 3, 4],
     stepwisePatterns,
     50,
     'Colcheia pontuada · mão direita',
@@ -468,7 +473,7 @@ final List<SightStep> sightSteps = List.unmodifiable([
     9,
     1,
     SightHands.left,
-    [3, 2, 4],
+    [1, 2, 3, 4],
     stepwisePatterns,
     50,
     'Colcheia pontuada · mão esquerda',
@@ -478,17 +483,18 @@ final List<SightStep> sightSteps = List.unmodifiable([
     9,
     2,
     SightHands.right,
-    [3, 2, 4, 8],
+    [1, 2, 3, 4, 8],
     [...folkPatterns, ...triadicPatterns],
     50,
     'Síncopas · mão direita',
     high: 8,
+    syncopated: true,
   ),
   _s(
     9,
     3,
     SightHands.both,
-    [3, 2, 4],
+    [1, 2, 3, 4],
     [...folkPatterns, ...classicalPatterns.sublist(0, 5)],
     50,
     'Colcheia pontuada · as duas mãos',
@@ -625,6 +631,7 @@ SightStep _s(
   required int high,
   double restChance = 0,
   bool threeFour = false,
+  bool syncopated = false,
   String tonic = 'C',
 }) => SightStep(
   level: level,
@@ -637,6 +644,7 @@ SightStep _s(
   high: high,
   restChance: restChance,
   threeFour: threeFour,
+  syncopated: syncopated,
   tonic: tonic,
 );
 

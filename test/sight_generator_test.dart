@@ -81,10 +81,8 @@ void main() {
 
   test('sem síncope: nenhuma figura cruza um tempo que ela não começa', () {
     for (final step in sightSteps) {
-      // Pendência, não bug do gerador: a colcheia pontuada do nível 9 vem sem
-      // a semicolcheia que fecha o tempo (ela só entra no nível 10), e sem ela
-      // não há como escrever o tempo certo. Ver a nota no fim da rodada.
-      if (_colcheiaPontuadaSemFecho.contains(step.name)) continue;
+      // O passo de síncopas é o único que pode sincopar (ver o teste dele).
+      if (step.syncopated) continue;
       final strong = step.unitsPerMeasure == 16 ? [0, 8] : [0];
       for (var seed = 0; seed < 12; seed++) {
         final ex = generateSight(step, Random(seed));
@@ -109,6 +107,31 @@ void main() {
           }
         }
       }
+    }
+  });
+
+  test(
+    'o passo de síncopas sincopa: alguma figura atravessa o tempo seguinte',
+    () {
+      final step = sightStep(9, 2);
+      expect(step.syncopated, isTrue);
+      var found = false;
+      for (var seed = 0; seed < 40 && !found; seed++) {
+        for (final measure in generateSight(step, Random(seed)).right) {
+          var pos = 0;
+          for (final n in measure) {
+            if (pos % 4 != 0 && pos % 4 + n.units > 4) found = true;
+            pos += n.units;
+          }
+        }
+      }
+      expect(found, isTrue);
+    },
+  );
+
+  test('o nível 9 tem a semicolcheia que fecha a colcheia pontuada', () {
+    for (final sub in [0, 1, 3]) {
+      expect(sightStep(9, sub).durations, containsAll([1, 3]));
     }
   });
 
@@ -212,6 +235,3 @@ bool _inChord(int degree, int bass) =>
 
 /// Se o compasso inteiro é pausa.
 bool _silent(List<SightNote> measure) => measure.every((n) => n.isRest);
-
-/// Os passos de colcheia pontuada sem semicolcheia (ver o teste de síncope).
-const _colcheiaPontuadaSemFecho = {'9a', '9b', '9c', '9d'};
