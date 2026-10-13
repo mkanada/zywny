@@ -3,6 +3,8 @@
 // (a ordem da lista recebida); nesta etapa, o embutido (I10) e cursos de
 // fixture nos testes.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../ui/theme.dart';
@@ -24,11 +26,16 @@ class CoursesScreen extends StatelessWidget {
     required this.progress,
     required this.onOpen,
     this.onInstall,
+    this.onSightReading,
   });
 
   final List<LoadedCourse> courses;
   final CourseProgressStore progress;
   final OpenCourse onOpen;
+
+  /// O treino de leitura à primeira vista, sempre no topo da lista (é uma
+  /// opção a mais, como os cursos); `null` esconde o cartão.
+  final Future<void> Function(BuildContext context)? onSightReading;
 
   /// I04: instalar outro curso de um `.zywny` (aceita biblioteca também: é o
   /// mesmo instalador); `null` esconde o cartão.
@@ -37,6 +44,8 @@ class CoursesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onInstall = this.onInstall;
+    final onSightReading = this.onSightReading;
+    final top = onSightReading == null ? 0 : 1;
     return Scaffold(
       backgroundColor: kLibraryBg,
       appBar: AppBar(
@@ -55,12 +64,18 @@ class CoursesScreen extends StatelessWidget {
               16,
               24 + MediaQuery.viewPaddingOf(context).bottom,
             ),
-            itemCount: courses.length + (onInstall == null ? 0 : 1),
+            itemCount: top + courses.length + (onInstall == null ? 0 : 1),
             itemBuilder: (context, i) {
-              if (i >= courses.length) {
+              if (onSightReading != null && i == 0) {
+                return _SightReadingCard(
+                  onTap: () => unawaited(onSightReading(context)),
+                );
+              }
+              final j = i - top;
+              if (j >= courses.length) {
                 return _InstallCard(onTap: onInstall!);
               }
-              final loaded = courses[i];
+              final loaded = courses[j];
               return _CourseCard(
                 loaded: loaded,
                 progress: progress[loaded.id],
@@ -75,6 +90,56 @@ class CoursesScreen extends StatelessWidget {
 }
 
 /// Cartão "Instalar curso…" no fim da lista (I04).
+class _SightReadingCard extends StatelessWidget {
+  const _SightReadingCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: kSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: kBorderSoft),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.fromLTRB(18, 14, 18, 14),
+          child: Row(
+            children: [
+              Icon(Icons.piano, color: kAccentDark),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Leitura à primeira vista',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'partituras novas, do 1a ao 20d, tocadas no andamento',
+                      style: TextStyle(fontSize: 13, color: kInkCaption),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _InstallCard extends StatelessWidget {
   const _InstallCard({required this.onTap});
 

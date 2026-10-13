@@ -18,6 +18,7 @@ import 'package:zywny_course_format/course_files.dart';
 import '../course/loaded_course.dart';
 import '../course/ui/course_flow.dart';
 import '../course/ui/courses_screen.dart';
+import '../sight_reading/sight_reading_source.dart';
 import '../course/ui/course_screen.dart' show openLessonScreen;
 import '../incoming/incoming_packages.dart';
 
@@ -1594,6 +1595,7 @@ class _LiveCoursesScreenState extends State<_LiveCoursesScreen> {
         builder: (context, snapshot) => CoursesScreen(
           courses: snapshot.data ?? widget.initial,
           progress: widget.progress,
+          onSightReading: (context) => openSightReading(context, widget.deps),
           onOpen: (context, course) => openCourseScreen(
             context,
             course,

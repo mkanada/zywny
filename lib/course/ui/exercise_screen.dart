@@ -22,9 +22,7 @@ import 'package:zywny_audio/score_audio_scheduler.dart';
 import '../../practice/count_in_overlay.dart';
 import '../../practice/input_latency.dart';
 import '../../render/score_size_log.dart';
-import '../exercise/exercise_kind.dart';
 import '../exercise/exercise_round.dart';
-import '../exercise/pass_check.dart';
 import '../exercise/score_round_runner.dart';
 import '../score/lesson_score.dart' show kLessonPageHeight;
 
@@ -34,13 +32,14 @@ import '../../midi/midi_device_picker.dart';
 import '../../practice/app_hand.dart';
 import '../../practice/practice_colors.dart' show kPracticeAppHandColor;
 import '../../ui/theme.dart';
-import 'exercise_card.dart' show exerciseGoal, exerciseNeedsMidi;
 
 import 'package:zywny_course_format/course_model.dart';
 
-import '../loaded_course.dart';
 import 'course_chrome.dart';
+import '../exercise/pass_check.dart' show PassVerdict;
+import '../loaded_course.dart';
 import 'course_flow.dart';
+import 'exercise_source.dart';
 import '../../ui/orientation.dart';
 import 'question_body.dart';
 
@@ -52,19 +51,37 @@ typedef ExerciseRoundHook = void Function(
 );
 
 class ExerciseScreen extends StatefulWidget {
-  const ExerciseScreen({
+  const ExerciseScreen.source({
     super.key,
-    required this.loaded,
-    required this.lesson,
-    required this.spec,
+    required this.source,
     required this.deps,
     this.rng,
     this.onRound,
   });
 
-  final LoadedCourse loaded;
-  final Lesson lesson;
-  final ExerciseSpec spec;
+  /// Um exercício da lição do curso (`CourseExerciseSource`).
+  factory ExerciseScreen.course({
+    Key? key,
+    required LoadedCourse loaded,
+    required ExerciseSpec spec,
+    required CourseScreenDeps deps,
+    Random? rng,
+    ExerciseRoundHook? onRound,
+  }) => ExerciseScreen.source(
+    key: key,
+    source: CourseExerciseSource(
+      loaded: loaded,
+      spec: spec,
+      progress: deps.progress,
+    ),
+    deps: deps,
+    rng: rng,
+    onRound: onRound,
+  );
+
+  /// De onde vêm as rodadas, o título e a passagem (ver `ExerciseSource`).
+  final ExerciseSource source;
+
   final CourseScreenDeps deps;
 
   /// Semente das rodadas (o app sorteia de verdade).
@@ -123,19 +140,12 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
 
-  bool get _needsMidi => exerciseNeedsMidi(widget.spec);
+  bool get _needsMidi => widget.source.needsMidi;
 
-  bool get _isQuestion =>
-      widget.spec.type == ExerciseType.findKey ||
-      widget.spec.type == ExerciseType.nameNote ||
-      widget.spec.type == ExerciseType.countBeats ||
-      widget.spec.type == ExerciseType.choice;
+  bool get _isQuestion => widget.source.isQuestion;
 
   bool get _isRealtimeScore =>
-      _runner?.round.mode == PlayMode.realtime ||
-      (widget.spec is RhythmSpec) ||
-      (widget.spec is PlayScoreSpec &&
-          (widget.spec as PlayScoreSpec).mode == PlayMode.realtime);
+      _runner?.round.mode == PlayMode.realtime || widget.source.isRealtime;
 
   /// Tela acesa enquanto o exercício está aberto: as mãos ficam no teclado,
   /// não na tela, e o celular escurecia no meio da rodada. (O hino segura
@@ -218,8 +228,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     if (_listening) setState(() => _listening = false);
   }
 
-  /// Renderiza e começa uma rodada nova ([widthPx] da caixa da partitura).
-  Future<void> _newRound(double widthPx) async {
+  /// Renderiza e começa uma rodada nova ([widthPx] da caixa da partitura). Com
+  /// [repeat], refaz a última, igual (ver `ExerciseSource.repeatRound`).
+  Future<void> _newRound(double widthPx, {bool repeat = false}) async {
     // Uma rodada pedida por cima de outra que ainda carrega (a caixa mudou
     // de tamanho ao esconder as barras do sistema, ao girar) deixa a antiga
     // velha: ela desiste a cada espera e descarta o que já montou — senão
@@ -236,7 +247,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       _questionRound = null;
     });
     try {
-      final round = await generateRound(widget.spec, widget.loaded.files, _rng);
+      final round = repeat
+          ? await widget.source.repeatRound()
+          : await widget.source.nextRound(_rng);
       if (stale()) return;
       if (round is QuestionRound) {
         setState(() {
@@ -258,7 +271,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       // I08: o andamento escolhido vale na rodada com tempo (começa no
       // `pass.speed`). No modo espera não vale.
       if (scoreRound.mode == PlayMode.realtime) {
-        _chosenSpeed ??= widget.spec.pass.speed / 100.0;
+        _chosenSpeed ??= widget.source.startSpeed;
         final chosen = _chosenSpeed!.clamp(0.25, 2.0);
         if ((chosen - scoreRound.speed).abs() > 1e-9) {
           scoreRound = scoreRound.copyWith(speed: chosen);
@@ -276,7 +289,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       final settings = widget.deps.settings;
       // I08: `rhythm` sempre com metrônomo; `play-score` em tempo real, o
       // das configurações; espera, sem.
-      final bool metronomeOn = widget.spec is RhythmSpec
+      final bool metronomeOn = widget.source.alwaysMetronome
           ? true
           : (scoreRound.mode == PlayMode.realtime
                 ? settings.metronomeOn
@@ -393,21 +406,13 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     _followTimer = null;
     _player?.pause();
     _player?.cancelTurn();
-    final verdict = PassCheck.evaluate(widget.spec, [..._history, result]);
-    final previousBest = widget
-        .deps
-        .progress[widget.loaded.id]
-        .records[widget.spec.id]
-        ?.bestPercent;
+    final verdict = widget.source.verdict([..._history, result]);
+    final previousBest = widget.source.bestPercent;
     final runner = _runner;
     final errors = runner != null && runner.isLoaded
         ? runner.practice.wrongCount.value
         : null;
-    await widget.deps.progress.recordAttempt(
-      widget.loaded.id,
-      widget.spec,
-      result,
-    );
+    await widget.source.recordRound(result);
     if (!mounted) return;
     setState(() {
       _history.add(result);
@@ -522,7 +527,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
           icon: const Icon(Icons.close),
         ),
         title: Text(
-          widget.spec.title,
+          widget.source.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: serifDisplay(fontSize: 19),
@@ -541,7 +546,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             padding: const EdgeInsets.only(right: 12),
             child: Center(
               child: Text(
-                exerciseGoal(widget.spec),
+                widget.source.goal,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 12, color: kInkCaption),
@@ -562,6 +567,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   }
 
   Widget _questionFlow() {
+    // Perguntas só existem no curso (a fonte do treino de leitura não as tem).
+    final source = widget.source;
+    if (source is! CourseExerciseSource) return const SizedBox.shrink();
     if (_loading && _questionRound == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -587,6 +595,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             errors: _errors,
             previousBest: _previousBest,
             onRetry: () => unawaited(_newRound(1800)),
+            onRepeat: widget.source.canRepeatRound
+                ? () => unawaited(_newRound(1800, repeat: true))
+                : null,
             onBack: _exit,
           ),
         ),
@@ -598,9 +609,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     }
     return QuestionBody(
       key: ValueKey('q$_roundNumber'),
-      spec: widget.spec,
+      spec: source.spec,
       round: round,
-      files: widget.loaded.files,
+      files: source.loaded.files,
       settings: widget.deps.settings,
       midiInput: widget.deps.midiInput,
       rendererFactory: widget.deps.rendererFactory,
@@ -620,7 +631,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         if (showControls)
           _ScoreControls(
             realtime: realtime,
-            speed: _chosenSpeed ?? widget.spec.pass.speed / 100.0,
+            speed: _chosenSpeed ?? widget.source.startSpeed,
             listening: _listening,
             running: _running,
             onSpeed: ready
@@ -643,7 +654,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             scheduler: _runner?.scheduler,
             phone: _isPhone,
             sidePanel: courseCompactHeader(context),
-            label: widget.spec.id,
+            label: widget.source.id,
             onPaper: (widthPx, heightPx) {
               if ((_loadWidthPx == widthPx && _loadHeightPx == heightPx) ||
                   _running ||
@@ -664,6 +675,11 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                     onRetry: _loadWidthPx == null
                         ? null
                         : () => unawaited(_newRound(_loadWidthPx!)),
+                    onRepeat:
+                        _loadWidthPx == null || !widget.source.canRepeatRound
+                        ? null
+                        : () =>
+                              unawaited(_newRound(_loadWidthPx!, repeat: true)),
                     onBack: _exit,
                     side: courseCompactHeader(context),
                   )
@@ -953,6 +969,7 @@ class _ResultPanel extends StatelessWidget {
     required this.verdict,
     required this.onRetry,
     required this.onBack,
+    this.onRepeat,
     this.errors,
     this.previousBest,
     this.side = false,
@@ -971,6 +988,9 @@ class _ResultPanel extends StatelessWidget {
   /// O melhor % antes desta rodada (`null`: primeira vez).
   final int? previousBest;
   final VoidCallback? onRetry;
+
+  /// Refaz a mesma rodada ("Tocar de novo"); `null` quando a fonte não repete.
+  final VoidCallback? onRepeat;
   final VoidCallback onBack;
 
   /// "2 erros · seu melhor: 83%" — ou "novo recorde" quando passou dele.
@@ -1036,6 +1056,11 @@ class _ResultPanel extends StatelessWidget {
             TextButton(onPressed: onRetry, child: const Text('Outra rodada')),
           ] else ...[
             FilledButton(onPressed: onRetry, child: const Text('Outra rodada')),
+            if (onRepeat != null)
+              TextButton(
+                onPressed: onRepeat,
+                child: const Text('Tocar de novo'),
+              ),
             TextButton(onPressed: onBack, child: const Text('Voltar à lição')),
           ],
         ],

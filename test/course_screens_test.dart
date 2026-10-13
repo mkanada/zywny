@@ -344,9 +344,8 @@ void main() {
     });
     await tester.pumpWidget(
       MaterialApp(
-        home: ExerciseScreen(
+        home: ExerciseScreen.course(
           loaded: loaded,
-          lesson: loaded.course.lessons.first,
           spec: loaded.course.lessons.first.exercises.single,
           deps: deps,
         ),
@@ -377,9 +376,8 @@ void main() {
     Future<RoundResult?>? resultFuture;
     await tester.pumpWidget(
       MaterialApp(
-        home: ExerciseScreen(
+        home: ExerciseScreen.course(
           loaded: loaded,
-          lesson: loaded.course.lessons.first,
           spec: loaded.course.lessons.first.exercises.single,
           deps: deps,
           rng: Random(7),

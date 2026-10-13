@@ -273,9 +273,8 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: ExerciseScreen(
+        home: ExerciseScreen.course(
           loaded: loaded,
-          lesson: lesson,
           spec: spec,
           deps: deps,
           rng: Random(7),
@@ -328,9 +327,8 @@ void main() {
       });
       await tester.pumpWidget(
         MaterialApp(
-          home: ExerciseScreen(
+          home: ExerciseScreen.course(
             loaded: loaded,
-            lesson: lesson,
             spec: lesson.exercises.single,
             deps: deps,
             rng: Random(7),
@@ -391,9 +389,8 @@ void main() {
     });
     await tester.pumpWidget(
       MaterialApp(
-        home: ExerciseScreen(
+        home: ExerciseScreen.course(
           loaded: rhythmLoaded,
-          lesson: lesson,
           spec: lesson.exercises.single,
           deps: deps,
           rng: Random(7),
@@ -445,9 +442,8 @@ void main() {
     var rounds = 0;
     await tester.pumpWidget(
       MaterialApp(
-        home: ExerciseScreen(
+        home: ExerciseScreen.course(
           loaded: rhythmLoaded,
-          lesson: lesson,
           spec: lesson.exercises.single,
           deps: deps,
           rng: Random(7),
@@ -498,9 +494,8 @@ void main() {
     });
     await tester.pumpWidget(
       MaterialApp(
-        home: ExerciseScreen(
+        home: ExerciseScreen.course(
           loaded: playNotesLoaded,
-          lesson: lesson,
           spec: lesson.exercises.single,
           deps: deps,
           rng: Random(7),
@@ -556,9 +551,8 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: ExerciseScreen(
+        home: ExerciseScreen.course(
           loaded: loaded,
-          lesson: lesson,
           spec: spec,
           deps: deps,
           rng: Random(7),
@@ -599,9 +593,8 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: ExerciseScreen(
+        home: ExerciseScreen.course(
           loaded: choiceLoaded,
-          lesson: lesson,
           spec: spec,
           deps: deps,
           rng: Random(1),
@@ -645,9 +638,8 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: ExerciseScreen(
+        home: ExerciseScreen.course(
           loaded: findKeyLoaded,
-          lesson: lesson,
           spec: spec,
           deps: deps,
           rng: Random(1),
@@ -677,10 +669,9 @@ void main() {
       });
       await tester.pumpWidget(
         MaterialApp(
-          home: ExerciseScreen(
+          home: ExerciseScreen.course(
             key: UniqueKey(),
             loaded: loaded,
-            lesson: lesson,
             spec: lesson.exercises.single,
             deps: deps,
             rng: Random(1),
@@ -778,10 +769,9 @@ void main() {
         debugShowCheckedModeBanner: false,
         home: RepaintBoundary(
           key: key,
-          child: ExerciseScreen(
+          child: ExerciseScreen.course(
             key: UniqueKey(),
             loaded: loaded,
-            lesson: lesson,
             spec: spec,
             deps: deps,
             rng: Random(7),

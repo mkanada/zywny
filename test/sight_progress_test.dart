@@ -1,0 +1,70 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:zywny/sight_reading/sight_progress.dart';
+
+void main() {
+  setUp(() {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
+
+  test('três rodadas limpas sobem o subnível; rodada com erro não conta', () {
+    var p = const SightProgress();
+    p = p.afterRound(wasClean: false);
+    expect(p.step.name, '1a');
+    expect(p.clean, 0);
+    for (var i = 0; i < 2; i++) {
+      p = p.afterRound(wasClean: true);
+    }
+    expect(p.step.name, '1a');
+    expect(p.remaining, 1);
+    p = p.afterRound(wasClean: true);
+    expect(p.step.name, '1b');
+    expect(p.clean, 0);
+  });
+
+  test('quatro subníveis sobem o nível; 20d é o fim do treino', () {
+    var p = const SightProgress();
+    for (var i = 0; i < 4 * 3; i++) {
+      p = p.afterRound(wasClean: true);
+    }
+    expect(p.level, 2);
+    expect(p.sub, 0);
+    var last = const SightProgress(level: 20, sub: 3, clean: 2);
+    last = last.afterRound(wasClean: true);
+    expect(last.step.name, '20d');
+    expect(last.clean, 0);
+  });
+
+  test('o progresso guardado volta igual e valores estranhos são cortados', () {
+    const p = SightProgress(level: 7, sub: 2, clean: 1);
+    final back = SightProgress.fromJson(p.toJson());
+    expect(back.step.name, '7c');
+    expect(back.clean, 1);
+
+    final cut = SightProgress.fromJson({'level': 99, 'sub': -4, 'clean': 9});
+    expect(cut.step.name, '20a');
+    expect(cut.clean, 2);
+
+    final junk = SightProgress.fromJson({'level': 'x'});
+    expect(junk.step.name, '1a');
+  });
+
+  test('o store lê e grava; sem nada guardado, começa no 1a', () async {
+    final store = SightReadingStore(prefs: SharedPreferencesAsync());
+    expect((await store.load()).step.name, '1a');
+    await store.save(const SightProgress(level: 4, sub: 1, clean: 2));
+    final loaded = await store.load();
+    expect(loaded.step.name, '4b');
+    expect(loaded.clean, 2);
+  });
+
+  test('JSON corrompido não derruba o treino: começa no 1a', () async {
+    final prefs = SharedPreferencesAsync();
+    await prefs.setString(SightReadingStore.key, '{não é json');
+    final store = SightReadingStore(prefs: prefs);
+    expect((await store.load()).step.name, '1a');
+  });
+}

@@ -148,7 +148,6 @@ class _LessonScreenState extends State<LessonScreen> {
               onExerciseStart: (spec) => openExerciseScreen(
                 context,
                 widget.loaded,
-                lesson,
                 spec,
                 deps: widget.deps,
               ),
@@ -232,18 +231,13 @@ class _LessonScreenState extends State<LessonScreen> {
 void openExerciseScreen(
   BuildContext context,
   LoadedCourse loaded,
-  Lesson lesson,
   ExerciseSpec spec, {
   required CourseScreenDeps deps,
 }) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (context) => ExerciseScreen(
-        loaded: loaded,
-        lesson: lesson,
-        spec: spec,
-        deps: deps,
-      ),
+      builder: (context) =>
+          ExerciseScreen.course(loaded: loaded, spec: spec, deps: deps),
     ),
   );
 }
