@@ -138,25 +138,43 @@ try {
   // Abre o hino 1 pelo título (as coordenadas fixas quebraram com os
   // cartões novos da biblioteca: "Cursos" e "Comece por aqui").
   await tapBig(/Santo, Santo, Santo!/, 9000);
-  await tap(/Treino livre/, 1500);
-  await tap(/Tocar \(destacar/, 100);
+  // Primeiro uso: o passeio pela partitura abre sozinho; "Pular" o fecha.
+  const scoreTouring = async () => (await semantics(b)).some((n) => /É aqui que o hino aparece/.test(n.label));
+  await find(/É aqui que o hino aparece/);
+  check(true, 'tutorial: o passeio da partitura abre sozinho no primeiro uso');
+  await tap(/^Pular$/, 1200);
+  check(!(await scoreTouring()), 'tutorial: "Pular" fecha o passeio da partitura');
+  // Sai da trilha: "Treino livre" fica no painel de opções do hino.
+  await tap(/^Mais opções$/, 800);
+  await tap(/^Treino livre$/, 1500);
+  await tap(/^Tocar$/, 100);
   const playing = await peak(2000); // pega o ataque de alguma nota, não o decaimento
   check(playing > 0.003, 'som: Play toca', `(pico ${playing.toFixed(4)})`);
-  await tap(/^Parar$/, 100);
+  await tap(/^Pausar$/, 100);
   await sleep(1500);
   const after = await peak(500);
   check(after < 0.0005, 'som: Parar silencia, sem nota presa', `(pico ${after.toFixed(5)})`);
 
-  await tap(/Ligar monitor MIDI/);
+  // Monitor e saída de som ficam nas configurações gerais.
+  const general = async (...taps) => {
+    await tap(/^Mais opções$/, 800);
+    // "Configurações gerais" fica no fim do painel de opções, fora da tela
+    // desta janela (1000×640): rola o painel até ele.
+    await b.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 800, y: 400, deltaX: 0, deltaY: 3000 });
+    await sleep(800);
+    await tap(/Configurações gerais/, 1000);
+    for (const re of taps) await tap(re, 800);
+    await tap(/^Fechar$/, 800);
+  };
+  await general(/Ouvir o que eu toco/);
   await b.evalJs('window.__fire(0x90, 60, 100)');
   const monitor = await peak(400);
   check(monitor > 0.003, 'monitor: nota do teclado soa no app', `(pico ${monitor.toFixed(4)})`);
   await b.evalJs('window.__fire(0x80, 60, 0)');
   await sleep(1500);
 
-  await tap(/Saída de som/);
-  await tap(/^Teclado MIDI$/);
-  await tap(/Tocar \(destacar/, 2000);
+  await general(/^Teclado$/);
+  await tap(/^Tocar$/, 2000);
   const sent = (await log()).filter((l) => l.startsWith('send [144,')).length;
   check(sent > 0, 'saída MIDI: o Play chega ao teclado', `(${sent} notas)`);
   await b.shot('smoke-final');
