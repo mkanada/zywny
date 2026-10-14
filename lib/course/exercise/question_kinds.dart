@@ -280,6 +280,7 @@ SightChange _changeOf(ScoreChange change) => switch (change) {
 SightAnswer _answerOf(ScoreAnswer answer) => switch (answer) {
   ScoreAnswer.measure => SightAnswer.measure,
   ScoreAnswer.sameDifferent => SightAnswer.sameDifferent,
+  ScoreAnswer.note => SightAnswer.note,
   ScoreAnswer.dictation => throw ArgumentError.value(
     answer,
     'answer',

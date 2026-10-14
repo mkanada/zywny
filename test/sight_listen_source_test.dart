@@ -39,6 +39,31 @@ void main() {
     expect(spec.answer, ScoreAnswer.measure);
   });
 
+  test('até o nível 6, a resposta é o compasso, com botões (E10)', () async {
+    final s = source(progress: const SightProgress(level: 6));
+    final round = await s.nextRound(Random(1)) as QuestionRound;
+    for (final q in round.questions) {
+      expect(q.answers, hasLength(4));
+      expect(q.correct, isNotNull);
+    }
+    expect((s.questionSpec as ListenScoreSpec).answer, ScoreAnswer.measure);
+  });
+
+  test('do nível 7, a resposta é a nota tocada: sem botões, com os '
+      'changedIds (E10)', () async {
+    final s = source(progress: const SightProgress(level: 7));
+    final round = await s.nextRound(Random(1)) as QuestionRound;
+    expect(round.questions, hasLength(kSightListenCount));
+    for (final q in round.questions) {
+      expect(q.answers, isEmpty);
+      expect(q.correct, isNull);
+      expect(q.compare!.changedIds, isNotEmpty);
+    }
+    final spec = s.questionSpec as ListenScoreSpec;
+    expect(spec.answer, ScoreAnswer.note);
+    expect(spec.count, kSightListenCount);
+  });
+
   test('4 de 5 de primeira contam como limpa; 3 não', () {
     final limpa = source().verdict([const RoundResult(hits: 4, total: 5)]);
     expect(limpa.roundPassed, isTrue);

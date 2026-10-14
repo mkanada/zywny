@@ -78,6 +78,9 @@ void _advanceTo(
   }
 }
 
+/// Um id de nota que a partitura de nenhuma pergunta muda (o erro de toque).
+const _noteOutside = 'fora-da-partitura';
+
 /// O aluno simulado das perguntas (I07): responde tudo certo, erra a cada
 /// n ([wrongEvery]) ou deixa estourar o `time-limit` ([late]).
 ///
@@ -85,6 +88,8 @@ void _advanceTo(
 ///   exceto a cada n-ésima (uma errada antes da certa).
 /// - Teclado (`find-key`): a altura esperada (exata, que vale nos dois
 ///   `octave`), exceto a cada n-ésima (um semitom acima antes da certa).
+/// - Nota (`listen-score` com `answer: note`, E10): uma das notas que
+///   mudaram, exceto a cada n-ésima (um toque fora da partitura antes).
 /// - [late]: em cada pergunta, avança o relógio simulado além do
 ///   `time-limit` (tempos grandes, sem depender do relógio de parede) e
 ///   espera o 1,5 s de revelação — conta como erro e avança.
@@ -116,6 +121,8 @@ Future<RoundResult> answerQuestions(
         expect(session.answerChoice(question.correct!), isNull);
       } else if (question.expectedPitch != null) {
         expect(session.answerPitch(question.expectedPitch!), isNull);
+      } else if (question.compare != null) {
+        expect(session.answerNote(_noteOutside), isNull);
       }
       t += kAnswerRevealSeconds + 0.1;
       expect(session.tick(t), isTrue, reason: 'a revelação não avançou');
@@ -133,6 +140,17 @@ Future<RoundResult> answerQuestions(
         session.answerPitch(question.expectedPitch!),
         isTrue,
         reason: 'a certa não avançou (pergunta $n)',
+      );
+    } else if (question.compare != null && question.correct == null) {
+      // `listen-score` com `answer: note` (E10): antes, uma nota que a
+      // partitura não muda; depois, uma das que mudaram.
+      if (isWrongTurn) {
+        expect(session.answerNote(_noteOutside), isFalse);
+      }
+      expect(
+        session.answerNote(question.compare!.changedIds.first),
+        isTrue,
+        reason: 'a nota certa não avançou (pergunta $n)',
       );
     } else {
       final correct = question.correct!;

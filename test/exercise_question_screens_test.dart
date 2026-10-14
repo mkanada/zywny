@@ -1258,6 +1258,160 @@ void main() {
     });
   });
 
+  // E10: `listen-score` com `answer: note`. O aluno toca a nota na partitura:
+  // o toque chega com o id da cena (`ScoreView.onElementTap`), e a resposta
+  // certa é uma das `changedIds`.
+  group('listen-score nota (E10)', skip: !verovioAvailable, () {
+    /// Toca no centro da nota [id] da partitura mostrada, pela geometria do
+    /// documento (a posição que o dedo de verdade daria).
+    Future<void> tapNote(WidgetTester tester, String id) async {
+      final view = tester.widget<ScoreView>(find.byType(ScoreView));
+      final geometry = view.document.geometryOf(null);
+      final ref = geometry.elementOf(id)!;
+      final page = find.byWidgetPredicate(
+        (w) => w is ScorePageView && w.pageIndex == ref.page,
+      );
+      final size = tester.getSize(page);
+      final at = geometry.rectOf(ref, pageWidth: size.width).center;
+      await tester.tapAt(tester.getTopLeft(page) + at);
+      await tester.pump();
+    }
+
+    testWidgets('sem botões; o toque numa nota de fora pisca e a nota certa '
+        'leva à revelação', (tester) async {
+      final loaded = await _loadedWith(
+        'id: n\ntype: listen-score\ntitle: N\nstep: 1c\ncount: 2\n'
+        'answer: note\n',
+      );
+      final round = await generateRound(
+        loaded.course.lessons.single.exercises.single,
+        loaded.files,
+        Random(7),
+      ) as QuestionRound;
+      final engine = FakeSoundEngine();
+      final settings = AppSettings();
+      addTearDown(settings.dispose);
+      await _pumpListen(
+        tester,
+        loaded: loaded,
+        round: round,
+        engine: engine,
+        settings: settings,
+        onDone: (_) {},
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.text('Toque na nota que soou diferente'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '1'), findsNothing);
+      expect(find.text('Ouvir de novo'), findsOneWidget);
+      final view = tester.widget<ScoreView>(find.byType(ScoreView));
+      expect(view.onElementTap, isNotNull);
+
+      final question = round.questions.first;
+      final compare = question.compare!;
+      final geometry = view.document.geometryOf(null);
+      final outside = ['s1-m1-n1', 's1-m1-n2', 's1-m2-n1'].firstWhere(
+        (id) =>
+            !compare.changedIds.contains(id) && geometry.elementOf(id) != null,
+      );
+      final controller = view.controller!;
+      // Sem repetição, o id que chega é o próprio `xml:id` da nota: a
+      // resolução pela cena (`sceneIdOf`) não muda nada.
+      expect(
+        compare.changedIds.every((id) => view.document.sceneIdOf(id) == id),
+        isTrue,
+      );
+
+      // Nota de fora: não avança, pisca em vermelho e some depois de 500 ms.
+      await tapNote(tester, outside);
+      expect(find.text('Era aqui.'), findsNothing);
+      expect(find.text('Próxima'), findsNothing);
+      expect(controller.colorOf(outside), settings.practiceWrongColor);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(controller.colorOf(outside), isNull);
+
+      // A nota que mudou: revelação (não de primeira, por causa do erro).
+      await tapNote(tester, compare.changedIds.first);
+      expect(find.text('Era aqui.'), findsOneWidget);
+      expect(
+        find.text('Compasso ${compare.measure! + 1}: ${compare.description}.'),
+        findsOneWidget,
+      );
+      expect(find.text('Próxima'), findsOneWidget);
+      expect(
+        controller.colorOf(compare.changedIds.first),
+        settings.practiceWrongColor,
+      );
+      // Na revelação o toque não vale: a partitura não tem mais o tratador.
+      expect(
+        tester.widget<ScoreView>(find.byType(ScoreView)).onElementTap,
+        isNull,
+      );
+    });
+
+    testWidgets('"Próxima" leva à pergunta seguinte, tocável; "Terminar" dá o '
+        'resultado (de primeira só a segunda)', (tester) async {
+      final loaded = await _loadedWith(
+        'id: n\ntype: listen-score\ntitle: N\nstep: 1c\ncount: 2\n'
+        'answer: note\n',
+      );
+      final round = await generateRound(
+        loaded.course.lessons.single.exercises.single,
+        loaded.files,
+        Random(7),
+      ) as QuestionRound;
+      final engine = FakeSoundEngine();
+      final settings = AppSettings();
+      addTearDown(settings.dispose);
+      RoundResult? result;
+      final docs = await _pumpListen(
+        tester,
+        loaded: loaded,
+        round: round,
+        engine: engine,
+        settings: settings,
+        onDone: (r) => result = r,
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      // Pergunta 1: acerta, mas depois de um toque errado (fica fora de
+      // primeira). Os ids de fora são os da partitura, não os do compasso.
+      final first = round.questions[0].compare!;
+      final wrongFirst = [
+        's1-m1-n1',
+        's1-m1-n2',
+        's1-m2-n1',
+      ].firstWhere((id) => !first.changedIds.contains(id));
+      await tapNote(tester, wrongFirst);
+      await tapNote(tester, first.changedIds.first);
+      await tester.tap(find.widgetWithText(FilledButton, 'Próxima'));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      // Pergunta 2: a partitura dela, e a nota certa de primeira.
+      final second = round.questions[1].compare!;
+      expect(find.text('Toque na nota que soou diferente'), findsOneWidget);
+      expect(
+        identical(
+          tester.widget<ScoreView>(find.byType(ScoreView)).document,
+          docs[utf8.decode(second.scoreBytes)],
+        ),
+        isTrue,
+      );
+      await tapNote(tester, second.changedIds.first);
+      expect(find.text('Certo!'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Terminar'));
+      await tester.pump();
+      expect(result?.hits, 1);
+      expect(result?.total, 2);
+    });
+  });
+
   group('listen-score ditado', skip: !verovioAvailable, () {
     testWidgets('a frase toca sozinha uma vez; a partitura mostra só o ritmo, '
         'com a figura da vez acesa, e não há botões', (tester) async {

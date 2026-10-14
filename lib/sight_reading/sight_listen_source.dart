@@ -1,5 +1,6 @@
 // E08 — o treino "só ouvido": perguntas "Onde mudou?" sobre partituras do
 // treino de leitura, sem teclado, com progresso próprio.
+// E10 — do nível 7, a resposta é a nota tocada na partitura, não o compasso.
 
 import 'dart:math';
 
@@ -20,6 +21,10 @@ const kSightListenCount = 5;
 
 /// Acertos de primeira para a rodada contar como limpa (D-LEI-SOOUVIDO).
 const kSightListenClean = 4;
+
+/// Do nível 7 em diante, a resposta é a nota tocada na partitura, e não o
+/// compasso (E10, D-LEI-NOTA).
+const kSightListenNoteLevel = 7;
 
 /// O treino "só ouvido": rodadas de [kSightListenCount] perguntas "Onde
 /// mudou?", sem teclado, nos 80 passos, com progresso próprio.
@@ -71,13 +76,18 @@ class SightListenSource implements ExerciseSource {
   @override
   String get nextRoundLabel => 'Outra rodada';
 
+  /// Do nível [kSightListenNoteLevel] em diante, a resposta é a nota tocada
+  /// (E10); antes, o compasso.
+  bool get _byNote => progress.level >= kSightListenNoteLevel;
+
   /// As perguntas saem do passo de agora: cada rodada é um sorteio novo.
   @override
   Future<ExerciseRound> nextRound(Random rng) async {
     final step = progress.step;
+    final answer = _byNote ? SightAnswer.note : SightAnswer.measure;
     return QuestionRound([
       for (var i = 0; i < kSightListenCount; i++)
-        sightListenQuestion(step, rng.nextInt(1 << 31)),
+        sightListenQuestion(step, rng.nextInt(1 << 31), answer: answer),
     ]);
   }
 
@@ -93,7 +103,7 @@ class SightListenSource implements ExerciseSource {
     line: 0,
     step: progress.step.name,
     change: ScoreChange.pitch,
-    answer: ScoreAnswer.measure,
+    answer: _byNote ? ScoreAnswer.note : ScoreAnswer.measure,
     count: kSightListenCount,
     bpm: null,
   );

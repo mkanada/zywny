@@ -6,6 +6,8 @@
 // Teclado do computador também responde no desktop/Web (1–7 e C–B).
 // E07 — `listen-score`: cada pergunta tem a sua partitura, a frase toca
 // sozinha e, depois da resposta, a revelação mostra o que mudou.
+// E10 — `listen-score` com `answer: note`: a resposta é tocar a nota na
+// partitura, sem botões.
 
 import 'dart:async';
 
@@ -111,6 +113,12 @@ class _QuestionBodyState extends State<QuestionBody> {
   bool get _isDictation =>
       widget.spec is ListenScoreSpec &&
       (widget.spec as ListenScoreSpec).answer == ScoreAnswer.dictation;
+
+  /// `listen-score` com `answer: note` (E10): a resposta é tocar a nota na
+  /// partitura, sem botões.
+  bool get _answersByNote =>
+      widget.spec is ListenScoreSpec &&
+      (widget.spec as ListenScoreSpec).answer == ScoreAnswer.note;
 
   /// A pergunta mostrada: a da revelação, se houver; senão a da sessão.
   Question? get _shown => _reviewIndex != null
@@ -259,6 +267,25 @@ class _QuestionBodyState extends State<QuestionBody> {
         if (mounted) setState(() => _wrongPitch = null);
       });
       setState(() {});
+    }
+  }
+
+  /// Toque numa nota da partitura, com `answer: note` (E10). Errou, a nota
+  /// pisca em `practiceWrongColor` por meio segundo e a pergunta segue, como o
+  /// botão errado; acertou, `_afterAnswer` leva à revelação.
+  void _onNoteTap(String id) {
+    // O toque vem com o id da cena; os `changedIds` são os da partitura.
+    final noteId = _document?.sceneIdOf(id) ?? id;
+    final result = _session.answerNote(noteId);
+    if (result == null) return; // ignorado (revelando ou terminou)
+    _flashTimer?.cancel();
+    if (result) {
+      _afterAnswer();
+    } else {
+      _controller?.setColors({noteId: widget.settings.practiceWrongColor});
+      _flashTimer = Timer(const Duration(milliseconds: 500), () {
+        if (mounted) _applyHighlight();
+      });
     }
   }
 
@@ -504,7 +531,7 @@ class _QuestionBodyState extends State<QuestionBody> {
             if (figure != null) children.add(figure);
           }
           children.add(const SizedBox(height: 12));
-          if (!_usesKeyboard && !reviewing) {
+          if (!_usesKeyboard && !reviewing && !_answersByNote) {
             children.add(_buttons(question));
           }
           if (_session.revealing) {
@@ -755,9 +782,11 @@ class _QuestionBodyState extends State<QuestionBody> {
       children: [
         const SizedBox(height: 8),
         Text(
-          spec.answer == ScoreAnswer.sameDifferent
-              ? 'Soou igual ao escrito?'
-              : 'Em que compasso soou diferente?',
+          switch (spec.answer) {
+            ScoreAnswer.sameDifferent => 'Soou igual ao escrito?',
+            ScoreAnswer.note => 'Toque na nota que soou diferente',
+            _ => 'Em que compasso soou diferente?',
+          },
           textAlign: TextAlign.center,
           style: serifDisplay(fontSize: 26),
         ),
@@ -771,7 +800,7 @@ class _QuestionBodyState extends State<QuestionBody> {
         _listenAgainButton(),
         if (_noSound) _noSoundNote(),
         const SizedBox(height: 12),
-        _scoreView(constraints),
+        _scoreView(constraints, onNoteTap: _answersByNote ? _onNoteTap : null),
       ],
     );
   }
@@ -953,7 +982,13 @@ class _QuestionBodyState extends State<QuestionBody> {
     return _scoreView(constraints, small: true);
   }
 
-  Widget _scoreView(BoxConstraints constraints, {bool small = false}) {
+  /// A partitura da pergunta mostrada. [onNoteTap] (E10) recebe o id da nota
+  /// tocada; só a pergunta a passa (na revelação, a partitura não responde).
+  Widget _scoreView(
+    BoxConstraints constraints, {
+    bool small = false,
+    void Function(String id)? onNoteTap,
+  }) {
     final widthPx = constraints.maxWidth.isFinite
         ? lessonScorePaperPx(context, constraints.maxWidth)
         : 1800.0;
@@ -1011,6 +1046,7 @@ class _QuestionBodyState extends State<QuestionBody> {
           controller: controller,
           viewController: viewController,
           mode: ScorePageMode.continuousScroll,
+          onElementTap: onNoteTap,
         ),
       ),
     );

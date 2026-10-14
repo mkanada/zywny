@@ -1,12 +1,26 @@
 // I07, critério 1 — `test/question_session_test.dart`: de primeira ×
 // depois do erro; `time-limit` estourado conta como erro e avança; relógio
 // simulado.
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny/course/exercise/exercise_round.dart';
 import 'package:zywny/course/exercise/question_session.dart';
 
 Question _button(String prompt, List<String> answers, int correct) =>
     Question(prompt: prompt, answers: answers, correct: correct);
+
+/// Pergunta de "nota" (E10): sem botões, a resposta é tocar um dos [changed].
+Question _note(Set<String> changed) => Question(
+  compare: ScoreComparison(
+    scoreBytes: Uint8List(0),
+    fileName: 'ouvido.musicxml',
+    played: const [],
+    written: const [],
+    changedIds: changed,
+    measure: 0,
+  ),
+);
 
 void main() {
   group('QuestionSession', () {
@@ -90,6 +104,50 @@ void main() {
       final exact = QuestionSession([const Question(expectedPitch: 60)]);
       expect(exact.answerPitch(72), isFalse);
       expect(exact.answerPitch(60), isTrue);
+    });
+
+    test(
+      'note (E10): a nota certa avança; a errada conta como erro e fica',
+      () {
+        final session = QuestionSession([
+          _note({'s1-m2-n3'}),
+          _note({'s2-m1-n1', 's2-m1-n2'}),
+        ]);
+        expect(session.answerNote('s1-m1-n1'), isFalse);
+        expect(session.index, 0);
+        expect(session.answerNote('s1-m2-n3'), isTrue);
+        // Juntar: qualquer uma das duas notas vale.
+        expect(session.answerNote('s2-m1-n2'), isTrue);
+        expect(session.done, isTrue);
+        expect(session.result().hits, 1);
+      },
+    );
+
+    test('note: uma pergunta sem compare, ou sem notas, não aceita toque', () {
+      final session = QuestionSession([
+        const Question(expectedPitch: 60),
+        _note(const {}),
+      ]);
+      expect(session.answerNote('s1-m1-n1'), isNull);
+      expect(session.index, 0);
+      expect(session.answerPitch(60), isTrue);
+      expect(session.answerNote('s1-m1-n1'), isNull);
+      expect(session.index, 1);
+    });
+
+    test('note: o toque na revelação é ignorado', () {
+      var t = 0.0;
+      final session = QuestionSession(
+        [
+          _note({'s1-m1-n1'}),
+        ],
+        timeLimit: 5,
+        now: () => t,
+      );
+      t = 5.1;
+      expect(session.tick(), isTrue);
+      expect(session.revealing, isTrue);
+      expect(session.answerNote('s1-m1-n1'), isNull);
     });
 
     test('find-key errou a tecla: não é de primeira', () {

@@ -102,8 +102,8 @@ pass: {accuracy: 70}
 ## Ouça as duas mãos
 
 Agora uma partitura nas duas pautas, como a Ode. Uma nota, numa das mãos,
-soa diferente do escrito. Leia as duas pautas enquanto ouve: em que
-compasso?
+soa diferente do escrito. Leia as duas pautas enquanto ouve. Depois, toque
+na nota que soou diferente.
 
 ```zywny-exercise
 id: l10-onde-mudou
@@ -111,7 +111,7 @@ type: listen-score
 title: Onde mudou, nas duas mãos
 step: 5d
 change: pitch
-answer: measure
+answer: note
 count: 5
 bpm: 80
 pass: {accuracy: 80}

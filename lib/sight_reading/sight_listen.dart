@@ -12,8 +12,9 @@ import 'sight_score.dart';
 import 'sight_steps.dart';
 
 /// Como o aluno responde a pergunta de ouvido: o compasso da mudança, ou
-/// "igual" ou "diferente".
-enum SightAnswer { measure, sameDifferent }
+/// "igual" ou "diferente", ou a nota que soou diferente, tocada na partitura
+/// (E10: sem botões; a resposta são os `changedIds`).
+enum SightAnswer { measure, sameDifferent, note }
 
 /// A pergunta de ouvido sobre a partitura de [step] sorteada com [seed]. A
 /// partitura é a mesma que o treino de leitura monta com essa semente. [change]
@@ -70,6 +71,8 @@ Question sightListenQuestion(
         correct: changed == null ? 0 : 1,
         compare: compare,
       ),
+      // Sem botões: a resposta é a nota tocada (`QuestionSession.answerNote`).
+      SightAnswer.note => Question(compare: compare),
     };
   }
   throw StateError('nenhuma mudança cabe no passo ${step.name}');

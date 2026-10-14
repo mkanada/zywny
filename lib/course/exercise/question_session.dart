@@ -106,6 +106,24 @@ class QuestionSession {
     return false;
   }
 
+  /// Resposta tocando uma nota da partitura (`listen-score` com `answer:
+  /// note`, E10): [id] é o `xml:id` da nota (ou o da cena). Vale qualquer das
+  /// `changedIds` (no "juntar", são duas). Mesma convenção de retorno de
+  /// [answerChoice]; numa pergunta sem `compare`, devolve `null`.
+  bool? answerNote(String id) {
+    if (done || revealing) return null;
+    final ids = questions[index].compare?.changedIds;
+    if (ids == null || ids.isEmpty) return null;
+    if (ids.contains(id)) {
+      index++;
+      revealing = false;
+      if (!done) _startAt = _lastTick ?? _now();
+      return true;
+    }
+    _markWrong();
+    return false;
+  }
+
   /// Recomeça a contar o tempo da pergunta atual (a tela ficou parada numa
   /// revelação que não é da sessão, E07).
   void restartClock([double? now]) => _startAt = now ?? _lastTick ?? _now();

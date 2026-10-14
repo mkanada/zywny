@@ -127,4 +127,69 @@ na nota que soou diferente". O `measure` continua no curso (lições 6, 7 e
 
 ## Notas de execução
 
-(Preencha ao executar.)
+Feito em 2026-10-13, sem commit.
+
+**Resultado:**
+
+- `packages/zywny_course_format`: `dart test` +30, verde (1 novo: `answer: note`
+  lido). `dart analyze`: sem avisos.
+- `flutter analyze`: "No issues found!".
+- `flutter test` inteiro: `+1106 ~11`, saída 0. São 8 testes do app a mais que
+  os +1098 do E09.
+- `dart run tool/zywny_course.dart validate --render assets/cursos/iniciacao`:
+  saída 0, sem erros.
+- Aceite manual (itens 3 e 4) **não feito**: daqui não há celular nem som.
+  Fica com o usuário.
+
+**Testes novos:**
+
+- `course_reader_test.dart`: `answer: note` lido.
+- `question_session_test.dart` (3 e 1): a nota certa avança; a errada conta
+  como erro e fica; "juntar" aceita as duas notas; pergunta sem `compare` ou
+  sem notas devolve `null`; o toque na revelação é ignorado.
+- `exercise_question_screens_test.dart`, grupo `listen-score nota (E10)`: sem
+  botões; o toque numa nota de fora pisca em `practiceWrongColor` por 500 ms;
+  a nota certa leva à revelação, e `onElementTap` some nela. O toque é o
+  centro da nota pela geometria do documento (`tapAt`), não a chamada do
+  callback. Segundo teste: "Próxima" leva à pergunta seguinte, que aceita o
+  toque, e "Terminar" dá 1 de 2.
+- `sight_listen_test.dart`: `SightAnswer.note` não tem botões, sempre muda, e
+  os `changedIds` existem no MusicXML da pergunta.
+- `sight_listen_source_test.dart`: nível 6 com quatro botões e `measure`; nível
+  7 sem botões, com `changedIds` e `note`.
+- `course_simulated_student_test.dart`: `juntando-tudo/l10-onde-mudou` aprova
+  com o aluno certo e reprova com o errado (o aluno toca as notas).
+
+**Desvios do plano:**
+
+1. **Qual id chega no toque.** Escrevi antes o teste de geometria, como o passo
+   pede. O toque chega com o `xml:id` da nota (`s1-m2-n3`), igual ao de
+   `changedIds`. Nas partituras do treino `sceneIdOf` devolve o próprio id (não
+   há repetição). O teste fixa isso. Mantive a tradução pela cena no
+   `_onNoteTap` por segurança.
+2. **Erro sem texto.** Só o pisca de 500 ms, sem "Tente de novo". O botão
+   errado também não diz nada, então segui o padrão.
+3. **Sem teclado do computador.** Com `answer: note` as teclas de número e de
+   letra não respondem, porque não há botões. A resposta é clique ou toque.
+   "Ouvir de novo" (espaço e R) continua. Se for preciso responder pelo
+   teclado, é uma decisão nova.
+4. **Aluno simulado.** Em turno errado toca `fora-da-partitura`, um id que
+   nenhuma pergunta muda.
+5. **Nível.** `kSightListenNoteLevel = 7` em `sight_listen_source.dart`, para a
+   regra do D-LEI-NOTA ficar num lugar só.
+6. **Lição 10.** Além de `answer: note`, a frase "em que compasso?" virou "Depois,
+   toque na nota que soou diferente.". O prompt da tela é "Toque na nota que
+   soou diferente".
+7. **Revelação igual à do E07.** Título "Certo!" ou "Era aqui.", e "Compasso N:
+   …". O compasso segue na revelação porque a partitura ainda sabe onde mudou.
+
+**Pendente (manual, com o usuário):**
+
+- Item 3, celular: lição 10, dá para tocar cada nota das duas pautas sem errar o
+  alvo? Não medi o alvo. Em celular, na vertical, a partitura de quatro
+  compassos pode deixar as semínimas pequenas. Se não der, o caminho é mais
+  largura por compasso (`lessonScorePaperPx`).
+- Item 4, celular, só ouvido, nível 7: a pergunta pede a nota.
+
+Continua aberto o achado do E09 (o andamento da revelação não bate com o da
+frase abaixo de 72 bpm). Não mexi nele.

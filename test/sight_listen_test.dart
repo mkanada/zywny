@@ -1,4 +1,5 @@
 // E05 — a frase que soa, a mudança sorteada e a pergunta pronta.
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -206,6 +207,22 @@ void main() {
         );
       }
       expect(corrects, {0, 1, 2, 3});
+    });
+
+    test('note (E10): sem botões e sempre muda; os ids de changedIds são '
+        'notas da partitura desta pergunta', () {
+      final step = sightStep(5, 2);
+      for (var seed = 1; seed <= 40; seed++) {
+        final q = sightListenQuestion(step, seed, answer: SightAnswer.note);
+        expect(q.answers, isEmpty, reason: 'semente $seed');
+        expect(q.correct, isNull, reason: 'semente $seed');
+        final ids = q.compare!.changedIds;
+        expect(ids, isNotEmpty, reason: 'semente $seed');
+        final score = utf8.decode(q.compare!.scoreBytes);
+        for (final id in ids) {
+          expect(score, contains('id="$id"'), reason: 'semente $seed');
+        }
+      }
     });
 
     test(
