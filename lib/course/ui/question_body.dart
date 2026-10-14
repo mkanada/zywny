@@ -776,7 +776,7 @@ class _QuestionBodyState extends State<QuestionBody> {
   /// O `listen-score` (E07): ouve a frase (o acorde e depois a partitura) e
   /// diz em que compasso mudou, ou se soou igual ao escrito.
   Widget _scorePrompt(Question question, BoxConstraints constraints) {
-    if (_isDictation) return _dictationPrompt(constraints);
+    if (_isDictation) return _dictationPrompt(question, constraints);
     final spec = widget.spec as ListenScoreSpec;
     return Column(
       children: [
@@ -790,6 +790,8 @@ class _QuestionBodyState extends State<QuestionBody> {
           textAlign: TextAlign.center,
           style: serifDisplay(fontSize: 26),
         ),
+        const SizedBox(height: 4),
+        _referenceLine(question.compare),
         const SizedBox(height: 4),
         const Text(
           'Primeiro o acorde, depois a partitura.',
@@ -807,7 +809,7 @@ class _QuestionBodyState extends State<QuestionBody> {
 
   /// O ditado (E09): a frase toca e o aluno toca as notas que ouviu, uma de
   /// cada vez. A partitura mostra só o ritmo, com a primeira nota escrita.
-  Widget _dictationPrompt(BoxConstraints constraints) {
+  Widget _dictationPrompt(Question question, BoxConstraints constraints) {
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -816,6 +818,8 @@ class _QuestionBodyState extends State<QuestionBody> {
           textAlign: TextAlign.center,
           style: serifDisplay(fontSize: 26),
         ),
+        const SizedBox(height: 4),
+        _referenceLine(question.compare),
         const SizedBox(height: 4),
         const Text(
           'A primeira já está escrita. Vale qualquer oitava.',
@@ -850,6 +854,8 @@ class _QuestionBodyState extends State<QuestionBody> {
           textAlign: TextAlign.center,
           style: serifDisplay(fontSize: 26),
         ),
+        const SizedBox(height: 4),
+        _referenceLine(compare),
         const SizedBox(height: 12),
         _scoreView(constraints),
         const SizedBox(height: 12),
@@ -903,6 +909,8 @@ class _QuestionBodyState extends State<QuestionBody> {
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 15),
         ),
+        const SizedBox(height: 4),
+        _referenceLine(compare),
         const SizedBox(height: 12),
         _scoreView(constraints),
         const SizedBox(height: 12),
@@ -954,6 +962,22 @@ class _QuestionBodyState extends State<QuestionBody> {
           color: kBadColor,
         ),
       ),
+    );
+  }
+
+  /// O acorde de referência (o que soa antes da frase), escrito pelo nome das
+  /// notas, na pergunta e na revelação. Vazio quando a pergunta não tem um.
+  Widget _referenceLine(ScoreComparison? compare) {
+    final chord = compare?.reference;
+    if (chord == null || chord.isEmpty) return const SizedBox.shrink();
+    final naming = widget.settings.noteNaming;
+    final names = {for (final midi in chord) midiLabel(midi, naming)}.toList();
+    final last = names.removeLast();
+    final list = names.isEmpty ? last : '${names.join(', ')} e $last';
+    return Text(
+      'Acorde de referência: $list.',
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
     );
   }
 

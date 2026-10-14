@@ -170,6 +170,7 @@ class ScoreComparison {
     this.measure,
     this.description,
     this.promptBytes,
+    this.reference,
   });
 
   /// A partitura completa, mostrada na revelação.
@@ -195,6 +196,11 @@ class ScoreComparison {
 
   /// O que mudou, em português, para a revelação; `null` quando nada mudou.
   final String? description;
+
+  /// O acorde de referência que soa antes da frase, em alturas MIDI (o da
+  /// tônica, no "onde mudou?" e no ditado). `null` quando não há. A tela o
+  /// escreve na pergunta e na revelação.
+  final List<int>? reference;
 }
 
 /// O resultado de uma rodada: [hits] de [total] e o andamento em que foi

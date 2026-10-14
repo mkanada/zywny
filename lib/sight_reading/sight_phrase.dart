@@ -95,6 +95,13 @@ int sightListenBpm(SightStep step) => max(step.bpm, 72);
 const kSightChordSeconds = 1.2;
 const kSightChordGap = 0.6;
 
+/// As alturas do acorde da tônica, que soa antes da frase: os graus 1, 3 e 5
+/// na pauta de sol e o grau 1 na de fá.
+List<int> sightChordMidis(SightStep step) => [
+  for (final (staff, degree) in const [(1, 1), (1, 3), (1, 5), (2, 1)])
+    sightMidi(step, degree, staff: staff),
+];
+
 /// [events] como notas com hora marcada, em [bpm] semínimas por minuto. Com
 /// [withTonic], o acorde da tônica (graus 1, 3 e 5 na pauta de sol e o grau 1
 /// na de fá) soa antes, por [kSightChordSeconds]. Cada nota soa por 95% do seu
@@ -109,8 +116,8 @@ List<TimedNote> sightTimedNotes(
   final offset = withTonic ? kSightChordSeconds + kSightChordGap : 0.0;
   return [
     if (withTonic)
-      for (final (staff, degree) in const [(1, 1), (1, 3), (1, 5), (2, 1)])
-        TimedNote(sightMidi(step, degree, staff: staff), 0, kSightChordSeconds),
+      for (final midi in sightChordMidis(step))
+        TimedNote(midi, 0, kSightChordSeconds),
     for (final e in events)
       TimedNote(
         e.midi,

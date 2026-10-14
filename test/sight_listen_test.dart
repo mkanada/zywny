@@ -275,6 +275,23 @@ void main() {
     });
   });
 
+  // O acorde de referência é o da tônica, o mesmo que toca antes da frase, e
+  // vai junto da pergunta (na pergunta de ouvido e no ditado).
+  group('acorde de referência', () {
+    test('1c: o acorde de Dó (60, 64, 67 e 48), igual ao que toca', () {
+      final step = sightStep(1, 2);
+      const chord = [60, 64, 67, 48];
+      expect(sightChordMidis(step), chord);
+      expect(sightListenQuestion(step, 7).compare!.reference, chord);
+      expect(
+        sightListenQuestion(step, 7, answer: SightAnswer.note).compare!
+            .reference,
+        chord,
+      );
+      expect(sightDictationQuestions(step, 7).first.compare!.reference, chord);
+    });
+  });
+
   // E09 — o ditado: uma pergunta por nota da pauta ditada, menos a primeira.
   group('ditado', () {
     test('1c: três perguntas (quatro semibreves, menos a primeira), todas '

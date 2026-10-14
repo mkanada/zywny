@@ -1027,6 +1027,7 @@ void main() {
         find.text('Primeiro o acorde, depois a partitura.'),
         findsOneWidget,
       );
+      expect(find.text('Acorde de referência: Dó, Mi e Sol.'), findsOneWidget);
       for (final label in ['1', '2', '3', '4']) {
         expect(find.widgetWithText(FilledButton, label), findsOneWidget);
       }
@@ -1087,6 +1088,7 @@ void main() {
       expect(find.text('Ouvir o que soou'), findsOneWidget);
       expect(find.text('Ouvir o escrito'), findsOneWidget);
       expect(find.text('Próxima'), findsOneWidget);
+      expect(find.text('Acorde de referência: Dó, Mi e Sol.'), findsOneWidget);
       // A nota que mudou fica destacada na partitura desta pergunta.
       final controller = tester
           .widget<ScoreView>(find.byType(ScoreView))
@@ -1444,6 +1446,7 @@ void main() {
         find.text('A primeira já está escrita. Vale qualquer oitava.'),
         findsOneWidget,
       );
+      expect(find.text('Acorde de referência: Dó, Mi e Sol.'), findsOneWidget);
       expect(find.widgetWithText(FilledButton, '1'), findsNothing);
       // O acorde e a frase, uma vez.
       final played = [

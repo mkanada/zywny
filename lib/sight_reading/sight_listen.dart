@@ -59,6 +59,7 @@ Question sightListenQuestion(
       changedIds: changed?.changedIds ?? const <String>{},
       measure: changed?.measure,
       description: changed?.description,
+      reference: sightChordMidis(step),
     );
     return switch (answer) {
       SightAnswer.measure => Question(
@@ -95,6 +96,7 @@ List<Question> sightDictationQuestions(SightStep step, int seed, {int? bpm}) {
     played: notes,
     written: notes,
     changedIds: const {},
+    reference: sightChordMidis(step),
   );
   return [
     // `sightEvents` está em ordem de começo, então a primeira da pauta é a
