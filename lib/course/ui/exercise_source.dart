@@ -35,9 +35,6 @@ abstract class ExerciseSource {
   /// A rodada de partitura é em tempo real: o andamento e o metrônomo valem.
   bool get isRealtime;
 
-  /// O metrônomo toca mesmo sem ser tempo real (exercício de ritmo).
-  bool get alwaysMetronome;
-
   /// Sorteia ou monta a próxima rodada.
   Future<ExerciseRound> nextRound(Random rng);
 
@@ -115,9 +112,6 @@ class CourseExerciseSource implements ExerciseSource {
     return s is RhythmSpec ||
         (s is PlayScoreSpec && s.mode == PlayMode.realtime);
   }
-
-  @override
-  bool get alwaysMetronome => spec is RhythmSpec;
 
   @override
   Future<ExerciseRound> nextRound(Random rng) =>

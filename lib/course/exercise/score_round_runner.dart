@@ -105,8 +105,8 @@ class ScoreRoundRunner {
   /// `false` nos testes: quem anda o relógio chama `scheduler.pump()`.
   final bool autoTick;
 
-  /// Metrônomo da rodada com tempo (`rhythm` sempre ligado; `play-score`
-  /// em tempo real, o das configurações). `null`: ligado só com tempo real.
+  /// Metrônomo da rodada com tempo (a barra do exercício). `null`: ligado só
+  /// com tempo real.
   final bool? metronomeOn;
 
   /// Modo espera: instante (ms musicais) da nota pendente, ou `null` — a
@@ -178,8 +178,8 @@ class ScoreRoundRunner {
     );
     final realtime = round.mode == PlayMode.realtime;
     if (realtime) {
-      // Contagem e metrônomo precisam das batidas (T04); o `play-score` em
-      // tempo real usa o das configurações, o `rhythm` sempre ligado.
+      // Contagem e metrônomo precisam das batidas (T04); o metrônomo é o da
+      // barra do exercício.
       scheduler.beats = metronomeBeats(timeline);
       scheduler.metronomeOn = metronomeOn ?? true;
       // `bpm` do `play-score`: a velocidade 1,0 passa a ser esse `bpm` —

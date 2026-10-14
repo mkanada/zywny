@@ -75,9 +75,6 @@ class SightReadingSource implements ExerciseSource {
   @override
   bool get isRealtime => true;
 
-  @override
-  bool get alwaysMetronome => false;
-
   /// Não há melhor % guardado: o progresso é por passo, não por rodada.
   @override
   int? get bestPercent => null;

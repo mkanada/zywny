@@ -62,9 +62,6 @@ class SightListenSource implements ExerciseSource {
   bool get isRealtime => false;
 
   @override
-  bool get alwaysMetronome => false;
-
-  @override
   int? get bestPercent => null;
 
   @override

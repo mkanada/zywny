@@ -129,6 +129,10 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   /// `pass.speed` (ou 100%).
   double? _chosenSpeed;
 
+  /// Metrônomo da rodada com tempo: ligado por padrão, na rodada inteira (não
+  /// só na contagem). O aluno desliga na barra.
+  bool _metronomeOn = true;
+
   /// Ouvindo antes (I08): o trecho sem avaliar.
   bool _listening = false;
   ScoreAudioScheduler? _listenScheduler;
@@ -288,13 +292,10 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         return;
       }
       final settings = widget.deps.settings;
-      // I08: `rhythm` sempre com metrônomo; `play-score` em tempo real, o
-      // das configurações; espera, sem.
-      final bool metronomeOn = widget.source.alwaysMetronome
-          ? true
-          : (scoreRound.mode == PlayMode.realtime
-                ? settings.metronomeOn
-                : false);
+      // Com tempo real, o metrônomo é o da barra (ligado por padrão); espera,
+      // sem.
+      final bool metronomeOn =
+          scoreRound.mode == PlayMode.realtime && _metronomeOn;
       final runner = ScoreRoundRunner(
         midiInput: widget.deps.midiInput,
         engine: engine,
@@ -458,6 +459,14 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     _runner?.cancel();
     _stopListening();
     unawaited(_newRound(widthPx));
+  }
+
+  /// Liga ou desliga o metrônomo na hora: a rodada e o "ouvir antes" que
+  /// estiverem soando mudam junto, sem recomeçar.
+  void _toggleMetronome() {
+    setState(() => _metronomeOn = !_metronomeOn);
+    _runner?.scheduler.metronomeOn = _metronomeOn;
+    _listenScheduler?.metronomeOn = _metronomeOn;
   }
 
   /// Ouve o trecho sem avaliar (I08, o mesmo "ouvir o trecho" do U03):
@@ -644,6 +653,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
           _ScoreControls(
             realtime: realtime,
             speed: _chosenSpeed ?? widget.source.startSpeed,
+            metronome: _metronomeOn,
             listening: _listening,
             running: _running,
             onSpeed: ready
@@ -653,6 +663,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                     if (widthPx != null) unawaited(_newRound(widthPx));
                   }
                 : null,
+            onMetronome: ready ? _toggleMetronome : null,
             onRestart: _loadWidthPx == null ? null : _restart,
             onListen: ready ? _toggleListen : null,
           ),
@@ -749,18 +760,22 @@ class _ScoreControls extends StatelessWidget {
   const _ScoreControls({
     required this.realtime,
     required this.speed,
+    required this.metronome,
     required this.listening,
     required this.running,
     required this.onSpeed,
+    required this.onMetronome,
     required this.onRestart,
     required this.onListen,
   });
 
   final bool realtime;
   final double speed;
+  final bool metronome;
   final bool listening;
   final bool running;
   final ValueChanged<double>? onSpeed;
+  final VoidCallback? onMetronome;
   final VoidCallback? onRestart;
   final VoidCallback? onListen;
 
@@ -801,6 +816,12 @@ class _ScoreControls extends StatelessWidget {
                 'Toque no seu tempo.',
                 style: TextStyle(fontSize: 13, color: kInkCaption),
               ),
+            ),
+          if (realtime)
+            IconButton(
+              tooltip: metronome ? 'Desligar metrônomo' : 'Ligar metrônomo',
+              onPressed: onMetronome,
+              icon: Icon(metronome ? Icons.av_timer : Icons.timer_off_outlined),
             ),
           IconButton(
             tooltip: listening ? 'Parar de ouvir' : 'Ouvir antes (sem avaliar)',
