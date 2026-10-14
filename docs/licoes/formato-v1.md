@@ -237,7 +237,7 @@ chaves dependem do `type`.
 | `choice` | responde uma pergunta de múltipla escolha | só a tela |
 | `listen-note` | ouve uma nota e toca a tecla (ou escolhe o nome) | teclado MIDI, ou só a tela com `input: buttons` |
 | `listen-interval` | ouve duas notas e escolhe o nome do intervalo | só a tela |
-| `listen-score` | vê uma partitura gerada, ouve uma versão com uma diferença e diz onde | só a tela |
+| `listen-score` | vê uma partitura gerada, ouve uma versão com uma diferença e diz onde; com `answer: dictation`, toca as notas que ouviu | só a tela; com `answer: dictation`, teclado MIDI |
 
 O zywny **não tem teclado na tela**. Os tipos que pedem teclado MIDI mostram
 "Conecte o teclado" quando não há um; os de botões funcionam sem MIDI.
@@ -501,7 +501,8 @@ e **Ouvir de novo** repete quantas vezes o aluno quiser, como no
 O zywny mostra uma partitura gerada por um passo do treino de leitura à
 primeira vista, toca uma versão dela com uma diferença e o aluno diz em que
 compasso a diferença caiu. Com `answer: same-different`, ele diz se a frase
-soou igual ou diferente. Não usa teclado MIDI.
+soou igual ou diferente. Com `answer: dictation`, o aluno toca as notas que
+ouviu (ver [Ditado](#ditado-answer-dictation)). Só o ditado usa teclado MIDI.
 
 Antes da frase soa o acorde da tônica. A primeira nota nunca muda.
 
@@ -522,12 +523,26 @@ pass: {accuracy: 60}
 | --- | --- | --- |
 | `step` | um passo do treino de leitura, de `1a` a `20d` (tabela abaixo) | — (obrigatória) |
 | `change` | `pitch` (uma nota em outra altura), `rhythm` (uma nota dividida ou duas juntas) ou `accidental` (o acidente da armadura esquecido) | `pitch` |
-| `answer` | `measure` (botões com o número do compasso) ou `same-different` (Igual / Diferente) | `measure` |
-| `count` | quantas perguntas, de 1 a 10; cada uma é uma partitura nova | `5` |
+| `answer` | `measure` (botões com o número do compasso), `same-different` (Igual / Diferente) ou `dictation` (o aluno toca as notas, no teclado MIDI) | `measure` |
+| `count` | quantas perguntas, de 1 a 10; cada uma é uma partitura nova (com `dictation`, quantas frases: cada frase tem uma pergunta por nota) | `5` |
 | `bpm` | andamento da frase, de 40 a 200 | o do passo, nunca abaixo de 72 |
 
 `change: accidental` só vale com um passo que tenha armadura, do `11a` em
 diante.
+
+#### Ditado (`answer: dictation`)
+
+A partitura mostra só o **ritmo** da frase (as figuras numa linha só, sem
+altura), com a primeira nota escrita na altura de verdade. Antes da frase soa
+o acorde da tônica, e depois a frase. O aluno toca no teclado MIDI, uma nota
+de cada vez, as que ouviu, e a figura da vez fica acesa. Vale qualquer
+oitava. Uma nota tocada errada conta como erro, e a pergunta continua. No fim
+da frase, a partitura de verdade aparece, com as notas erradas pintadas.
+
+`count` conta **frases**: cada frase tem uma pergunta por nota da pauta
+ditada, menos a primeira. A pauta ditada é a de sol, ou a de fá num passo de
+mão esquerda; num passo de duas mãos, a de fá soa junto. `change` não vale
+com `answer: dictation` (a frase soa como está escrita): o leitor recusa.
 
 O `step` é um passo do treino de leitura à primeira vista. Cada nível tem
 quatro subníveis, `a` a `d`; dentro do nível, eles vão do mais simples ao

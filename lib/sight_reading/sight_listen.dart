@@ -38,6 +38,16 @@ Question sightListenQuestion(
     if (!same) {
       final kind = change ?? kinds[rng.nextInt(kinds.length)];
       changed = changeSight(step, written, kind, rng);
+      // Sem lugar para o sorteado (um ritmo sem figura para dividir ou juntar),
+      // outro dos sorteáveis na mesma partitura: a leitura e a pergunta têm de
+      // tocar a mesma. Só com [change] fixa a semente passa à próxima.
+      if (changed == null && change == null) {
+        for (final other in kinds) {
+          if (other == kind) continue;
+          changed = changeSight(step, written, other, rng);
+          if (changed != null) break;
+        }
+      }
       if (changed == null) continue;
     }
     final compare = ScoreComparison(
@@ -63,4 +73,35 @@ Question sightListenQuestion(
     };
   }
   throw StateError('nenhuma mudança cabe no passo ${step.name}');
+}
+
+/// As perguntas de um ditado de [step] com [seed] (E09, `answer: dictation`):
+/// uma por nota da pauta ditada, menos a primeira, que vem escrita. A pauta é
+/// a de sol, ou a de fá num passo `left`; num passo de duas mãos, a de fá
+/// soa junto. Todas levam a mesma [ScoreComparison]: a frase toca uma vez e a
+/// revelação mostra a partitura de verdade. [bpm] `null` usa `sightListenBpm`.
+List<Question> sightDictationQuestions(SightStep step, int seed, {int? bpm}) {
+  final ex = generateSight(step, Random(seed));
+  final staff = step.hands == SightHands.left ? 2 : 1;
+  final events = sightEvents(ex);
+  final notes = sightTimedNotes(step, events, bpm: bpm ?? sightListenBpm(step));
+  final compare = ScoreComparison(
+    scoreBytes: utf8Bytes(sightScoreXml(ex)),
+    fileName: 'ditado-${step.name}.musicxml',
+    promptBytes: utf8Bytes(sightRhythmXml(ex, staff: staff)),
+    played: notes,
+    written: notes,
+    changedIds: const {},
+  );
+  return [
+    // `sightEvents` está em ordem de começo, então a primeira da pauta é a
+    // primeira que sai dela: essa vem escrita e não é perguntada.
+    for (final e in events.where((e) => e.staff == staff).skip(1))
+      Question(
+        expectedPitch: e.midi,
+        anyOctave: true,
+        highlightId: e.ids.single,
+        compare: compare,
+      ),
+  ];
 }

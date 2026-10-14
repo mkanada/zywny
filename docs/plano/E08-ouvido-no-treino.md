@@ -237,4 +237,65 @@ const kSightListenClean = 4;
 
 ## Notas de execução
 
-(Preencha ao executar.)
+**Resultado (13/10, sem commit):**
+
+- `flutter analyze`: sem avisos.
+- `flutter test` inteiro: `+1084 ~11`, verde (saída 0). `camadas_test` passa.
+- Aceites manuais (2 e 3) **não feitos**: aqui não há teclado MIDI nem
+  celular. Ficam com o usuário.
+
+**Arquivos:** `lib/course/ui/exercise_source.dart` (os quatro membros novos),
+`lib/course/ui/exercise_screen.dart` (`_isQuestion`, `_questionFlow`,
+`_finishRound` com a emenda, `retryLabel`),
+`lib/course/ui/courses_screen.dart` (`_SightReadingCard` com estado: os
+dois botões e a chave), `lib/sight_reading/sight_progress.dart`
+(`earHits`/`earTotal`, `withEar`, `loadEarOn`/`saveEarOn`,
+`loadListen`/`saveListen`), `lib/sight_reading/sight_reading_source.dart`
+(`earOn`, `_earNext`, `_lastWasEar`), `lib/sight_reading/sight_listen_source.dart`
+(novo: `SightListenSource`, `openSightListening`),
+`lib/sight_reading/sight_listen.dart` (ver desvio 1),
+`lib/app/library_screen.dart` (liga `onSightListening`).
+
+**Testes:** `sight_progress_test` (+4), `sight_reading_source_test` (+7, entre
+eles a partitura igual em todos os 80 passos), `sight_listen_source_test.dart`
+(novo, 4), `sight_reading_entry_test.dart` (reescrito: os botões, a chave, o
+toque no título que não abre, e "Só ouvido" abrindo sem `_KeyboardGate`),
+`sight_reading_ear_screen_test.dart` (novo: leitura certa, "Agora, de ouvido",
+resposta certa, e a próxima leitura direto). Os auxiliares de MIDI e de rodada
+saíram de `sight_reading_screen_test.dart` para
+`test/support/sight_reading_screen_support.dart`.
+
+**Desvios do plano:**
+
+1. **E05 corrigido: a pergunta de ouvido podia tocar outra partitura.** Quando
+   o sorteio da mudança não cabia na partitura (por exemplo, um ritmo sem
+   figura para dividir ou juntar), `sightListenQuestion` passava à semente
+   seguinte, e a pergunta mostrava outra partitura que a leitura. Medido: 753
+   de 24000 pares (passo, semente). Agora, sem `change` fixa, tenta as outras
+   mudanças sorteáveis na mesma partitura antes de mudar de semente. Depois:
+   0 de 24000. A primeira tentativa não mudou, então as perguntas que já
+   cabiam saem como antes. O teste novo cobre os 80 passos × 20 sementes.
+2. **A tela de ouvido tem arquivo próprio.** No mesmo arquivo, depois do teste
+   da leitura (que termina com uma rodada completa), o segundo `runner.load`
+   da tela de ouvido ficava esperando a renderização (`renderScoreToVsb`, fila
+   `_renderQueue`) e o teste estourava a espera. Sozinho, o teste passa, e duas
+   renderizações seguidas num script à parte também passam. **Causa não
+   descoberta.** Parece do ambiente de teste (o código do app não mudou nessa
+   parte). Para não depender da ordem, o teste foi para
+   `sight_reading_ear_screen_test.dart`.
+3. `questionFiles` devolve `MemoryCourseFiles(const {})`, um `CourseFiles`
+   vazio em memória. A classe do pacote é "para testes", mas aqui só serve de
+   vazio. Se incomodar, trocar por uma classe vazia própria.
+4. `_ResultPanel.retryLabel` é obrigatório (não tem padrão).
+5. Na pergunta de ouvido, o painel não aparece (a rodada emenda na leitura),
+   então o veredito "ouvido: certo de primeira" existe, mas não é mostrado.
+6. O cartão mostra a chave ligada até a gravação ser lida: por um instante,
+   se a chave estiver desligada, ela aparece ligada.
+7. A meta ganha "· ouvido N de M". Em celular estreito a barra corta com
+   reticências (`maxLines: 1`), e isso precisa ser conferido no aceite 3.
+
+**Aceite:**
+
+1. `flutter analyze` sem avisos; `flutter test` inteiro passa (+1084 ~11).
+2. (Manual, Linux, teclado MIDI) **pendente com o usuário.**
+3. (Manual, celular, sem teclado) **pendente com o usuário.**

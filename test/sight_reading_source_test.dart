@@ -5,9 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/course/exercise/exercise_round.dart';
+import 'package:zywny/course/score/abc_source.dart' show utf8Bytes;
 import 'package:zywny/practice/hand.dart';
+import 'package:zywny/sight_reading/sight_generator.dart';
+import 'package:zywny/sight_reading/sight_listen.dart';
 import 'package:zywny/sight_reading/sight_progress.dart';
 import 'package:zywny/sight_reading/sight_reading_source.dart';
+import 'package:zywny/sight_reading/sight_score.dart';
+import 'package:zywny/sight_reading/sight_steps.dart';
 import 'package:zywny_course_format/course_model.dart';
 
 void main() {
@@ -97,4 +102,124 @@ void main() {
       expect(stillSame.bytes, equals(first.bytes));
     },
   );
+
+  SightReadingSource withEar({
+    SightProgress progress = const SightProgress(),
+    bool earOn = true,
+  }) => SightReadingSource(
+    store: SightReadingStore(),
+    progress: progress,
+    earOn: earOn,
+  );
+
+  test('a pergunta de ouvido toca a partitura que a leitura mostra, em todos '
+      'os passos', () {
+    for (final step in sightSteps) {
+      for (var seed = 1; seed <= 20; seed++) {
+        final reading = utf8Bytes(
+          sightScoreXml(generateSight(step, Random(seed))),
+        );
+        final ear = sightListenQuestion(step, seed);
+        expect(
+          ear.compare!.scoreBytes,
+          equals(reading),
+          reason: '${step.name}, semente $seed',
+        );
+      }
+    }
+  });
+
+  test(
+    'depois de uma leitura, a pergunta de ouvido é a mesma partitura',
+    () async {
+      final s = withEar();
+      final reading = await s.nextRound(Random(3)) as ScoreRound;
+      expect(s.canRepeatRound, isTrue);
+      await s.recordRound(const RoundResult(hits: 4, total: 4));
+      expect(s.nextRoundLabel, 'Agora, de ouvido');
+
+      final ear = await s.nextRound(Random(99)) as QuestionRound;
+      expect(ear.questions, hasLength(1));
+      expect(ear.questions.single.compare!.scoreBytes, equals(reading.bytes));
+      expect(s.chainsNextRound, isTrue);
+      expect(s.canRepeatRound, isFalse);
+      expect(s.questionSpec, isA<ListenScoreSpec>());
+      expect(s.questionFiles, isNotNull);
+    },
+  );
+
+  test(
+    'pedir a pergunta de ouvido de novo, antes de gravar, devolve a mesma',
+    () async {
+      final s = withEar();
+      await s.nextRound(Random(3));
+      await s.recordRound(const RoundResult(hits: 4, total: 4));
+      final a = await s.nextRound(Random(1)) as QuestionRound;
+      final b = await s.nextRound(Random(2)) as QuestionRound;
+      expect(
+        b.questions.single.compare!.scoreBytes,
+        equals(a.questions.single.compare!.scoreBytes),
+      );
+      expect(b.questions.single.correct, a.questions.single.correct);
+    },
+  );
+
+  test(
+    'depois da pergunta de ouvido, a próxima rodada é leitura de novo',
+    () async {
+      final s = withEar();
+      await s.nextRound(Random(3));
+      await s.recordRound(const RoundResult(hits: 4, total: 4));
+      await s.nextRound(Random(3));
+      await s.recordRound(const RoundResult(hits: 1, total: 1));
+      expect(s.nextRoundLabel, 'Outra rodada');
+      expect(await s.nextRound(Random(4)), isA<ScoreRound>());
+      expect(s.chainsNextRound, isFalse);
+    },
+  );
+
+  test('com a chave desligada, leitura segue leitura', () async {
+    final s = withEar(earOn: false);
+    await s.nextRound(Random(3));
+    await s.recordRound(const RoundResult(hits: 4, total: 4));
+    expect(s.nextRoundLabel, 'Outra rodada');
+    expect(await s.nextRound(Random(3)), isA<ScoreRound>());
+  });
+
+  test(
+    'a pergunta de ouvido não muda passo nem limpas; conta à parte',
+    () async {
+      final store = SightReadingStore();
+      final s = SightReadingSource(
+        store: store,
+        progress: const SightProgress(level: 3, sub: 1, clean: 1),
+      );
+      await s.nextRound(Random(5));
+      await s.recordRound(const RoundResult(hits: 4, total: 4));
+      expect(s.progress.clean, 2);
+
+      await s.nextRound(Random(5));
+      await s.recordRound(const RoundResult(hits: 1, total: 1));
+      expect(s.progress.clean, 2);
+      expect(s.progress.step.name, '3b');
+      expect(s.progress.earHits, 1);
+      expect(s.progress.earTotal, 1);
+      expect(s.goal, '1 limpa para subir · ouvido 1 de 1');
+      expect((await store.load()).earTotal, 1);
+    },
+  );
+
+  test('o veredito da pergunta de ouvido diz se foi de primeira', () async {
+    final s = withEar();
+    await s.nextRound(Random(3));
+    await s.recordRound(const RoundResult(hits: 4, total: 4));
+    await s.nextRound(Random(3));
+    final erro = s.verdict([const RoundResult(hits: 0, total: 1)]);
+    expect(erro.roundPassed, isFalse);
+    expect(erro.reason, 'ouvido: não foi de primeira');
+    expect(
+      s.verdict([const RoundResult(hits: 1, total: 1)]).reason,
+      'ouvido: certo de primeira',
+    );
+  });
 }

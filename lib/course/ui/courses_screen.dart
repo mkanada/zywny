@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../sight_reading/sight_progress.dart';
 import '../../ui/theme.dart';
 import '../course_progress.dart';
 
@@ -27,6 +28,8 @@ class CoursesScreen extends StatelessWidget {
     required this.onOpen,
     this.onInstall,
     this.onSightReading,
+    this.onSightListening,
+    this.sightStore,
   });
 
   final List<LoadedCourse> courses;
@@ -37,6 +40,13 @@ class CoursesScreen extends StatelessWidget {
   /// opção a mais, como os cursos); `null` esconde o cartão.
   final Future<void> Function(BuildContext context)? onSightReading;
 
+  /// O "só ouvido" do mesmo cartão (E08); `null` esconde só o botão.
+  final Future<void> Function(BuildContext context)? onSightListening;
+
+  /// Onde o cartão lê e grava a chave do ouvido (para os testes); `null`
+  /// usa o armazenamento do aparelho.
+  final SightReadingStore? sightStore;
+
   /// I04: instalar outro curso de um `.zywny` (aceita biblioteca também: é o
   /// mesmo instalador); `null` esconde o cartão.
   final VoidCallback? onInstall;
@@ -45,6 +55,7 @@ class CoursesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final onInstall = this.onInstall;
     final onSightReading = this.onSightReading;
+    final onSightListening = this.onSightListening;
     final top = onSightReading == null ? 0 : 1;
     return Scaffold(
       backgroundColor: kLibraryBg,
@@ -68,7 +79,11 @@ class CoursesScreen extends StatelessWidget {
             itemBuilder: (context, i) {
               if (onSightReading != null && i == 0) {
                 return _SightReadingCard(
-                  onTap: () => unawaited(onSightReading(context)),
+                  store: sightStore,
+                  onRead: () => unawaited(onSightReading(context)),
+                  onListen: onSightListening == null
+                      ? null
+                      : () => unawaited(onSightListening(context)),
                 );
               }
               final j = i - top;
@@ -89,11 +104,48 @@ class CoursesScreen extends StatelessWidget {
   }
 }
 
-/// Cartão "Instalar curso…" no fim da lista (I04).
-class _SightReadingCard extends StatelessWidget {
-  const _SightReadingCard({required this.onTap});
+/// Cartão do treino de leitura, no topo da lista: "Ler e tocar" e "Só ouvido"
+/// (E08), e a chave do ouvido depois de cada leitura. Os botões abrem o treino;
+/// o toque no cartão não abre nada.
+class _SightReadingCard extends StatefulWidget {
+  const _SightReadingCard({
+    required this.onRead,
+    required this.onListen,
+    this.store,
+  });
 
-  final VoidCallback onTap;
+  final VoidCallback onRead;
+
+  /// `null` esconde o botão "Só ouvido".
+  final VoidCallback? onListen;
+
+  /// `null` usa o armazenamento do aparelho.
+  final SightReadingStore? store;
+
+  @override
+  State<_SightReadingCard> createState() => _SightReadingCardState();
+}
+
+class _SightReadingCardState extends State<_SightReadingCard> {
+  late final SightReadingStore _store = widget.store ?? SightReadingStore();
+
+  /// Ligado por padrão, até a gravação ser lida.
+  bool _earOn = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(
+      _store.loadEarOn().then((on) {
+        if (mounted) setState(() => _earOn = on);
+      }),
+    );
+  }
+
+  void _setEarOn(bool on) {
+    setState(() => _earOn = on);
+    unawaited(_store.saveEarOn(on));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,36 +156,64 @@ class _SightReadingCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         side: const BorderSide(color: kBorderSoft),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: const Padding(
-          padding: EdgeInsets.fromLTRB(18, 14, 18, 14),
-          child: Row(
-            children: [
-              Icon(Icons.piano, color: kAccentDark),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Leitura à primeira vista',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.piano, color: kAccentDark),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Leitura à primeira vista',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'partituras novas, do 1a ao 20d, tocadas no andamento',
-                      style: TextStyle(fontSize: 13, color: kInkCaption),
-                    ),
-                  ],
+                      SizedBox(height: 2),
+                      Text(
+                        'partituras novas, do 1a ao 20d, tocadas no andamento',
+                        style: TextStyle(fontSize: 13, color: kInkCaption),
+                      ),
+                    ],
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                FilledButton(
+                  onPressed: widget.onRead,
+                  child: const Text('Ler e tocar'),
+                ),
+                if (widget.onListen != null) ...[
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: widget.onListen,
+                    child: const Text('Só ouvido'),
+                  ),
+                ],
+              ],
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text(
+                'Ouvido depois de cada leitura',
+                style: TextStyle(fontSize: 14),
               ),
-            ],
-          ),
+              value: _earOn,
+              onChanged: _setEarOn,
+            ),
+          ],
         ),
       ),
     );

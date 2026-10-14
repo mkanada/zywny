@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:zywny_course_format/course_files.dart';
 import 'package:zywny_course_format/course_model.dart';
 
 import '../course_progress.dart';
@@ -55,6 +56,19 @@ abstract class ExerciseSource {
 
   /// Guarda o resultado da rodada.
   Future<void> recordRound(RoundResult result);
+
+  /// O `spec` que o `QuestionBody` usa nas rodadas de perguntas (tipo,
+  /// `time-limit`); `null` se a origem não tem perguntas.
+  ExerciseSpec? get questionSpec;
+
+  /// Os arquivos que o `QuestionBody` lê (figuras da `choice`).
+  CourseFiles? get questionFiles;
+
+  /// A rodada que acabou de terminar emenda na próxima, sem painel.
+  bool get chainsNextRound;
+
+  /// O texto do botão que pede a próxima rodada no painel.
+  String get nextRoundLabel;
 }
 
 /// A lição do curso: a rodada vem do tipo do exercício, o `pass` do autor
@@ -126,4 +140,16 @@ class CourseExerciseSource implements ExerciseSource {
   @override
   Future<void> recordRound(RoundResult result) =>
       progress.recordAttempt(loaded.id, spec, result);
+
+  @override
+  ExerciseSpec get questionSpec => spec;
+
+  @override
+  CourseFiles get questionFiles => loaded.files;
+
+  @override
+  bool get chainsNextRound => false;
+
+  @override
+  String get nextRoundLabel => 'Outra rodada';
 }

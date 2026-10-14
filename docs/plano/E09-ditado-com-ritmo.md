@@ -183,4 +183,81 @@ frases, sem `change`) e "precisa de teclado MIDI" na tabela de tipos.
 
 ## Notas de execução
 
-(Preencha ao executar.)
+Feito em 2026-10-13, sem commit. O usuário pediu a execução agora (a
+pergunta do D-LEI-DITADO foi respondida com "implemente o passo E09").
+
+**Arquivos:** `packages/zywny_course_format/lib/course_model.dart`
+(`ScoreAnswer.dictation`), `.../mark_parser.dart` (o erro de `change` com
+`dictation`), `lib/sight_reading/sight_score.dart` (`sightRhythmXml`, e
+`_writePitch`/`_startsOf` tirados de `_writeStaff`, sem mudar a saída do
+treino), `lib/sight_reading/sight_listen.dart` (`sightDictationQuestions`),
+`lib/course/exercise/exercise_round.dart` (`ScoreComparison.promptBytes`),
+`lib/course/exercise/question_kinds.dart`, `lib/course/ui/question_body.dart`,
+`lib/course/ui/exercise_card.dart` (`exerciseNeedsMidi`, `exerciseSummary`),
+`assets/cursos/iniciacao/lessons/03-clave-de-sol.md` (l3-ditado) e
+`docs/licoes/formato-v1.md` (seção "Ditado").
+
+**Desvios do plano:**
+
+1. **Verovio desenha a cabeça em barra** (`<notehead>slash</notehead>`), na
+   linha do meio. Conferido com o CLI do bridge e um PNG: as notas em barra
+   saem certas e a primeira fica normal. O fallback do passo não foi preciso.
+2. **Sem andamento na partitura do ritmo.** O passo listou clave, armadura e
+   fórmula; por isso `sightRhythmXml` não escreve o metrônomo. Motivo: a
+   frase toca em `sightListenBpm` (o do passo, nunca abaixo de 72), e o
+   metrônomo do passo poderia dizer outro número.
+3. **Tela: o que muda em relação ao "onde mudou".** `_afterAnswer` só revela
+   no fim da frase (`_endsPhrase`), e a frase só toca na primeira nota dela
+   (`_startsPhrase`). Os dois predicados tratam `compare == null` como "começa
+   e termina" (listen-note e listen-interval não têm `compare`). Sem isso o
+   som deles sumia; o teste pegou antes de rodar nada manual.
+4. **Destaque por frase.** As frases compartilham os ids (`s1-m2-n1` aparece
+   em todas). `_applyHighlight` pinta só a frase da vez; a revelação pinta as
+   notas da frase que não foram de primeira, com `practiceWrongColor`
+   (`_missedIdsOf`). O estouro do tempo conta como erro (`_markWrong`), então
+   a nota perdida também aparece pintada.
+5. **Revelação do ditado** tem o título "A frase era esta:", a partitura
+   completa e "Ouvir de novo" + "Próxima"/"Terminar". Sem "Certo!" nem frase
+   de compasso, porque a revelação é da frase inteira.
+6. **Teste de tela**: `_pumpListen` ganhou `midi:` (o teste toca as notas) e
+   pré-renderiza também o `promptBytes`. Os `press` seguidos de `pump` com
+   10 ms e uma espera de 500 ms antes de conferir a partitura da revelação:
+   o desenho chega por stream e um quadro a mais é preciso.
+7. **Sem "Enter" no teste da revelação.** Não há teste automatizado para Enter
+   seguir (mesmo caso do E07). Espaço e R tocam "Ouvir de novo" na revelação
+   (teclas de `_reviewKey`, o mesmo tratamento do "o que soou").
+
+**Achado fora do E09 (não corrigido):** `sightScoreXml` (E05/E07) escreve
+`<per-minute>` com `step.bpm`, mas a frase soa em `sightListenBpm(step)`
+(`max(step.bpm, 72)`). Nos passos abaixo de 72 bpm, a partitura da revelação
+marca um andamento e a frase toca outro. Vale uma decisão: marcar
+`sightListenBpm` na partitura, ou tirar o metrônomo como no ritmo.
+
+**Testes:**
+
+- `packages/zywny_course_format`: `dart test` +29, verde (2 novos: `dictation`
+  lido e `change` com `dictation` dando erro).
+- `sight_listen_test.dart` (grupo `ditado`, 4): 1c tem 3 perguntas com a
+  mesma `compare`, `expectedPitch` igual às notas escritas, `s2-` no passo
+  de fá, e todo passo (80) tem perguntas com ids sem repetição numa frase.
+- `sight_score_test.dart` (3 + 1 de render): uma pauta, sem `<staves>` nem
+  andamento, primeira nota na altura, as outras em barra no Si4 (sol) e no
+  Ré3 (fá); o Verovio lê e toca `[67, 71, 71, 71]`.
+- `exercise_question_screens_test.dart`, grupo `listen-score ditado` (3): frase
+  toca uma vez e não há botões; tocar uma oitava acima conta, a revelação vem
+  no fim da frase, "Próxima" toca a outra frase, e "Terminar" dá 6 de 6; tecla
+  errada diz "tente de novo" e a revelação pinta só a nota errada.
+- `lesson_view_test.dart` (1): o ditado pede teclado e diz "Ditado · 2
+  frases"; "onde mudou" não pede e diz "Ouça a partitura · 5".
+
+**Aceite:**
+
+1. `dart test` do pacote: +29, passa.
+2. `flutter analyze`: "No issues found!". `flutter test` inteiro: `+1098 ~11`,
+   saída 0 (antes: `+1084 ~11`).
+3. `dart run tool/zywny_course.dart validate --render assets/cursos/iniciacao`:
+   saída 0, sem erros.
+4. (Manual, Linux, teclado MIDI) **pendente com o usuário**: lição 3, "Ditado
+   de ouvido". Conferir se o ritmo aparece sem altura, se a primeira nota está
+   escrita, se a figura da vez acende e se a partitura de verdade aparece no
+   fim da frase. Aqui não há teclado MIDI nem som.

@@ -251,6 +251,13 @@ class ListenScoreKind extends ExerciseKind<ListenScoreSpec> {
     Random rng,
   ) async {
     final step = sightStepNamed(spec.step)!; // o leitor já conferiu o nome
+    if (spec.answer == ScoreAnswer.dictation) {
+      // Cada frase do ditado dá uma pergunta por nota (E09).
+      return QuestionRound([
+        for (var i = 0; i < spec.count; i++)
+          ...sightDictationQuestions(step, rng.nextInt(1 << 31), bpm: spec.bpm),
+      ]);
+    }
     return QuestionRound([
       for (var i = 0; i < spec.count; i++)
         sightListenQuestion(
@@ -273,6 +280,11 @@ SightChange _changeOf(ScoreChange change) => switch (change) {
 SightAnswer _answerOf(ScoreAnswer answer) => switch (answer) {
   ScoreAnswer.measure => SightAnswer.measure,
   ScoreAnswer.sameDifferent => SightAnswer.sameDifferent,
+  ScoreAnswer.dictation => throw ArgumentError.value(
+    answer,
+    'answer',
+    'o ditado não passa por sightListenQuestion',
+  ),
 };
 
 Hand handForPlayScore(HandChoice choice) => switch (choice) {

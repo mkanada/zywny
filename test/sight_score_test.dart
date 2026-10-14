@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny/sight_reading/sight_generator.dart';
+import 'package:zywny/sight_reading/sight_phrase.dart';
 import 'package:zywny/sight_reading/sight_score.dart';
 import 'package:zywny/sight_reading/sight_steps.dart';
 
@@ -219,4 +220,107 @@ void main() {
       }
     }
   });
+
+  // E09 — a partitura do ditado: só o ritmo, numa pauta.
+
+  test('sightRhythmXml: uma pauta, sem andamento; a primeira nota na altura e '
+      'as outras na linha do meio, em cabeça de barra', () {
+    final step = sightStep(11, 0); // sol maior
+    final xml = sightRhythmXml(
+      _exercise(
+        step,
+        [
+          [SightNote(16, 1)],
+          [SightNote(16, 4)],
+          [SightNote(16, 7)],
+          [SightNote(16, 8)],
+        ],
+        [for (var m = 0; m < 4; m++) _silent(step)],
+      ),
+      staff: 1,
+    );
+    expect(xml, isNot(contains('<staves>')));
+    expect(xml, isNot(contains('<sound')));
+    expect(xml, contains('<clef><sign>G</sign><line>2</line></clef>'));
+    expect(xml, contains('<fifths>1</fifths>'));
+    expect(RegExp('<note ').allMatches(xml), hasLength(4));
+    // Sol maior: o Si não tem alteração, e o Sol da primeira nota é G4.
+    expect(
+      xml,
+      contains(
+        '<note id="s1-m1-n1">\n        <pitch>\n          <step>G</step>\n'
+        '          <octave>4</octave>',
+      ),
+    );
+    expect(
+      RegExp('<notehead>slash</notehead>').allMatches(xml),
+      hasLength(3),
+      reason: 'só a primeira nota fica de fora da cabeça de barra',
+    );
+    expect(
+      RegExp('<step>B</step>\n          <octave>4</octave>').allMatches(xml),
+      hasLength(3),
+      reason: 'as outras estão no Si4, a linha do meio da clave de sol',
+    );
+  });
+
+  test('sightRhythmXml da pauta de fá: clave de fá, Ré3 na linha do meio e os '
+      'ids s2-', () {
+    final step = sightStep(2, 0); // dó maior, mão esquerda
+    final xml = sightRhythmXml(
+      _exercise(
+        step,
+        [for (var m = 0; m < 4; m++) _silent(step)],
+        [
+          [SightNote(16, 1)],
+          [SightNote(16, 5)],
+          [SightNote(16, 8)],
+          [SightNote(16, 1)],
+        ],
+      ),
+      staff: 2,
+    );
+    expect(xml, contains('<clef><sign>F</sign><line>4</line></clef>'));
+    expect(xml, contains('<note id="s2-m1-n1">'));
+    expect(xml, isNot(contains('id="s1-')));
+    expect(
+      RegExp('<step>D</step>\n          <octave>3</octave>').allMatches(xml),
+      hasLength(3),
+    );
+  });
+
+  test('sightRhythmXml tem o id de cada nota que a pergunta destaca', () {
+    final step = sightStep(1, 2);
+    final ex = generateSight(step, Random(7));
+    final xml = sightRhythmXml(ex, staff: 1);
+    for (final e in sightEvents(ex).where((e) => e.staff == 1)) {
+      expect(xml, contains('<note id="${e.ids.single}">'));
+    }
+  });
+
+  test('o Verovio lê a partitura do ritmo e toca a primeira nota e as outras '
+      '(sol maior, mão direita)', () async {
+    final step = sightStep(11, 0);
+    final xml = sightRhythmXml(
+      _exercise(
+        step,
+        [
+          [SightNote(16, 1)],
+          [SightNote(16, 4)],
+          [SightNote(16, 7)],
+          [SightNote(16, 8)],
+        ],
+        [for (var m = 0; m < 4; m++) _silent(step)],
+      ),
+      staff: 1,
+    );
+    final doc = await renderBytes(
+      Uint8List.fromList(xml.codeUnits),
+      'ditado.musicxml',
+    );
+    expect(
+      doc.midi!.notes.map((n) => n.pitch).toList(),
+      [67, 71, 71, 71], // G4, e o Si4 nas outras
+    );
+  }, skip: verovioAvailable ? false : 'libverovio.so do bridge ausente');
 }

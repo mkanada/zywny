@@ -142,7 +142,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
   bool get _needsMidi => widget.source.needsMidi;
 
-  bool get _isQuestion => widget.source.isQuestion;
+  /// Uma rodada de perguntas (o treino de leitura tem uma, a de ouvido).
+  bool get _isQuestion => widget.source.isQuestion || _questionRound != null;
 
   bool get _isRealtimeScore =>
       _runner?.round.mode == PlayMode.realtime || widget.source.isRealtime;
@@ -412,10 +413,17 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     final errors = runner != null && runner.isLoaded
         ? runner.practice.wrongCount.value
         : null;
+    // Lido antes de gravar, para dizer respeito à rodada que acabou.
+    final chain = widget.source.chainsNextRound;
     await widget.source.recordRound(result);
     if (!mounted) return;
+    _history.add(result);
+    if (chain) {
+      // A pergunta de ouvido emenda na próxima leitura, sem painel.
+      unawaited(_newRound(_loadWidthPx ?? 1800));
+      return;
+    }
     setState(() {
-      _history.add(result);
       _result = result;
       _verdict = verdict;
       _errors = errors;
@@ -567,9 +575,11 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   }
 
   Widget _questionFlow() {
-    // Perguntas só existem no curso (a fonte do treino de leitura não as tem).
+    // Sem spec nem arquivos, a origem não tem perguntas (a caixa fica vazia).
     final source = widget.source;
-    if (source is! CourseExerciseSource) return const SizedBox.shrink();
+    final spec = source.questionSpec;
+    final files = source.questionFiles;
+    if (spec == null || files == null) return const SizedBox.shrink();
     if (_loading && _questionRound == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -594,6 +604,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             verdict: _verdict!,
             errors: _errors,
             previousBest: _previousBest,
+            retryLabel: source.nextRoundLabel,
             onRetry: () => unawaited(_newRound(1800)),
             onRepeat: widget.source.canRepeatRound
                 ? () => unawaited(_newRound(1800, repeat: true))
@@ -609,9 +620,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     }
     return QuestionBody(
       key: ValueKey('q$_roundNumber'),
-      spec: source.spec,
+      spec: spec,
       round: round,
-      files: source.loaded.files,
+      files: files,
       settings: widget.deps.settings,
       midiInput: widget.deps.midiInput,
       rendererFactory: widget.deps.rendererFactory,
@@ -673,6 +684,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                     verdict: _verdict!,
                     errors: _errors,
                     previousBest: _previousBest,
+                    retryLabel: widget.source.nextRoundLabel,
                     onRetry: _loadWidthPx == null
                         ? null
                         : () => unawaited(_newRound(_loadWidthPx!)),
@@ -970,6 +982,7 @@ class _ResultPanel extends StatelessWidget {
     required this.verdict,
     required this.onRetry,
     required this.onBack,
+    required this.retryLabel,
     this.onRepeat,
     this.errors,
     this.previousBest,
@@ -988,6 +1001,9 @@ class _ResultPanel extends StatelessWidget {
 
   /// O melhor % antes desta rodada (`null`: primeira vez).
   final int? previousBest;
+
+  /// O texto do botão que pede a próxima rodada (`nextRoundLabel` da origem).
+  final String retryLabel;
   final VoidCallback? onRetry;
 
   /// Refaz a mesma rodada ("Tocar de novo"); `null` quando a fonte não repete.
@@ -1054,9 +1070,9 @@ class _ResultPanel extends StatelessWidget {
               onPressed: onBack,
               child: const Text('Voltar à lição'),
             ),
-            TextButton(onPressed: onRetry, child: const Text('Outra rodada')),
+            TextButton(onPressed: onRetry, child: Text(retryLabel)),
           ] else ...[
-            FilledButton(onPressed: onRetry, child: const Text('Outra rodada')),
+            FilledButton(onPressed: onRetry, child: Text(retryLabel)),
             if (onRepeat != null)
               TextButton(
                 onPressed: onRepeat,

@@ -78,8 +78,8 @@ pass: {accuracy: 60}
 | [E05](E05-mudanca-e-frase.md) | Ouvido na leitura: a frase que soa e a mudança sorteada (Dart puro) | E04 | feito, sem commit (sem tela; 11a e 11b não têm acidente, ver notas) |
 | [E06](E06-listen-score-formato.md) | `listen-score`: formato, rodada e curso inicial | E05 | pendente |
 | [E07](E07-listen-score-tela.md) | `listen-score`: a tela (partitura por pergunta, som e revelação) | E06 | feito, sem commit (aceite manual pendente: itens 3 e 4, com o usuário) |
-| [E08](E08-ouvido-no-treino.md) | Ouvido no treino de leitura: depois de cada leitura e "só ouvido" | E07 | pendente |
-| [E09](E09-ditado-com-ritmo.md) | Ditado com o ritmo dado (`answer: dictation`) | E07 | pendente |
+| [E08](E08-ouvido-no-treino.md) | Ouvido no treino de leitura: depois de cada leitura e "só ouvido" | E07 | feito, sem commit (aceite manual pendente: itens 2 e 3, com o usuário) |
+| [E09](E09-ditado-com-ritmo.md) | Ditado com o ritmo dado (`answer: dictation`) | E07 | feito, sem commit (aceite manual pendente: lição 3, com o usuário) |
 | [E10](E10-tocar-na-nota.md) | Responder tocando na nota da partitura (`answer: note`) | E07 | pendente |
 
 ## Segunda parte: ouvido junto com a leitura (E05–E10)

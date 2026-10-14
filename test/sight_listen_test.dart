@@ -257,4 +257,59 @@ void main() {
       expect(q.compare!.written.skip(4).first.seconds, closeTo(3.8, 1e-9));
     });
   });
+
+  // E09 — o ditado: uma pergunta por nota da pauta ditada, menos a primeira.
+  group('ditado', () {
+    test('1c: três perguntas (quatro semibreves, menos a primeira), todas '
+        'com a mesma frase e qualquer oitava', () {
+      final questions = sightDictationQuestions(sightStep(1, 2), 7);
+      expect(questions, hasLength(3));
+      final phrase = questions.first.compare!;
+      for (final q in questions) {
+        expect(identical(q.compare, phrase), isTrue);
+        expect(q.anyOctave, isTrue);
+        expect(q.answers, isEmpty);
+      }
+      expect(questions.map((q) => q.highlightId), [
+        's1-m2-n1',
+        's1-m3-n1',
+        's1-m4-n1',
+      ]);
+    });
+
+    test('a resposta de cada pergunta é a altura da nota escrita, e a frase '
+        'soa como está escrita', () {
+      final questions = sightDictationQuestions(sightStep(1, 2), 7);
+      final compare = questions.first.compare!;
+      // O acorde (quatro notas) vem antes; a primeira nota é escrita.
+      expect(
+        questions.map((q) => q.expectedPitch).toList(),
+        compare.written.skip(4 + 1).map((n) => n.pitch).toList(),
+      );
+      expect(compare.changedIds, isEmpty);
+      expect(compare.measure, isNull);
+      expect(
+        compare.played.map((n) => n.pitch).toList(),
+        compare.written.map((n) => n.pitch).toList(),
+      );
+      expect(compare.promptBytes, isNotNull);
+    });
+
+    test('o passo de fá dita a pauta de fá (ids s2-)', () {
+      final questions = sightDictationQuestions(sightStep(2, 0), 7);
+      expect(questions, isNotEmpty);
+      for (final q in questions) {
+        expect(q.highlightId, startsWith('s2-'));
+      }
+    });
+
+    test('todo passo tem perguntas, e os ids não se repetem numa frase', () {
+      for (final step in sightSteps) {
+        final questions = sightDictationQuestions(step, 3);
+        expect(questions, isNotEmpty, reason: step.name);
+        final ids = [for (final q in questions) q.highlightId];
+        expect(ids.toSet(), hasLength(ids.length), reason: step.name);
+      }
+    });
+  });
 }

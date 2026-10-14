@@ -392,7 +392,7 @@ zywny
 | [E05](E05-mudanca-e-frase.md) | Ouvido na leitura: a frase que soa e a mudança sorteada (Dart puro) | E04 | D-LEI | pendente |
 | [E06](E06-listen-score-formato.md) | Ouvido na leitura: `listen-score`, formato, rodada e curso inicial | E05 | D-LEI | pendente |
 | [E07](E07-listen-score-tela.md) | Ouvido na leitura: a tela (partitura por pergunta, som e revelação) | E06 | D-LEI | pendente |
-| [E08](E08-ouvido-no-treino.md) | Ouvido na leitura: no treino de leitura (depois de cada leitura e "só ouvido") | E07 | D-LEI | pendente |
+| [E08](E08-ouvido-no-treino.md) | Ouvido na leitura: no treino de leitura (depois de cada leitura e "só ouvido") | E07 | D-LEI | feito, sem commit (aceite manual pendente: itens 2 e 3, com o usuário) |
 | [E09](E09-ditado-com-ritmo.md) | Ouvido na leitura: ditado com o ritmo dado | E07 | D-LEI-DITADO | pendente (confirmar com o usuário: agora ou depois da 1.0) |
 | [E10](E10-tocar-na-nota.md) | Ouvido na leitura: responder tocando na nota | E07 (E08 no item 5) | D-LEI-NOTA | pendente |
 | [I00](I00-licoes-e-curso-inicial.md) | Lições de terceiros e curso inicial: formato, tipos, testes e índice (passos I01–I13) | — | D-LIC | especificação (decisões tomadas) |

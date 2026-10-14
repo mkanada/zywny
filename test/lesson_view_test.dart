@@ -399,6 +399,33 @@ void main() {
     expect(exerciseNeedsMidi(spec), isTrue);
   });
 
+  test(
+    'listen-score: o ditado pede teclado e diz as frases; "onde mudou" não',
+    () {
+      ListenScoreSpec listen(ScoreAnswer answer, int count) => ListenScoreSpec(
+        id: 'l',
+        title: 'L',
+        pass: const PassCriteria(accuracy: 60),
+        line: 1,
+        step: '1c',
+        change: ScoreChange.pitch,
+        answer: answer,
+        count: count,
+        bpm: null,
+      );
+      final dictation = listen(ScoreAnswer.dictation, 2);
+      expect(exerciseNeedsMidi(dictation), isTrue);
+      expect(exerciseSummary(dictation), 'Ditado · 2 frases');
+      expect(
+        exerciseSummary(listen(ScoreAnswer.dictation, 1)),
+        'Ditado · 1 frase',
+      );
+      final measure = listen(ScoreAnswer.measure, 5);
+      expect(exerciseNeedsMidi(measure), isFalse);
+      expect(exerciseSummary(measure), 'Ouça a partitura · 5');
+    },
+  );
+
   testWidgets(
     'aumentar o texto redesenha a partitura maior (papel mais estreito)',
     (tester) async {

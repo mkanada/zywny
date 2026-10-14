@@ -108,3 +108,19 @@ abc: |
 mode: wait
 pass: {accuracy: 90}
 ```
+
+## Ditado de ouvido
+
+Agora o contrário: o zywny toca e você escreve, tocando. A partitura mostra
+só o ritmo e a primeira nota. Ouça a frase, ponha a mão na posição de Dó e
+toque as notas que ouviu, uma de cada vez. Se precisar, ouça de novo.
+
+```zywny-exercise
+id: l3-ditado
+type: listen-score
+title: Ditado de ouvido
+step: 1c
+answer: dictation
+count: 2
+pass: {accuracy: 60}
+```

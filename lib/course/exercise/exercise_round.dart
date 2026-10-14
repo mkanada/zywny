@@ -157,8 +157,8 @@ class Question {
   final ScoreComparison? compare;
 }
 
-/// Uma pergunta de "onde mudou?": a partitura escrita, o que soa, o que está
-/// escrito e o que mudou (E05).
+/// Uma pergunta de "onde mudou?" ou de ditado: a partitura escrita, o que soa,
+/// o que está escrito e o que mudou (E05; o ditado, E09).
 @immutable
 class ScoreComparison {
   const ScoreComparison({
@@ -169,10 +169,17 @@ class ScoreComparison {
     required this.changedIds,
     this.measure,
     this.description,
+    this.promptBytes,
   });
 
+  /// A partitura completa, mostrada na revelação.
   final Uint8List scoreBytes;
   final String fileName;
+
+  /// A partitura mostrada enquanto o aluno responde, quando é outra: no
+  /// ditado (E09), só o ritmo. `null` nas de "onde mudou?", que mostram
+  /// [scoreBytes] o tempo todo.
+  final Uint8List? promptBytes;
 
   /// O que o zywny toca na pergunta (com a mudança, se houver).
   final List<TimedNote> played;

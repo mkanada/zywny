@@ -139,20 +139,27 @@ Future<Map<String, VsbDocument>> _pumpListen(
   required FakeSoundEngine engine,
   required AppSettings settings,
   required ValueChanged<RoundResult> onDone,
+  FakeMidiInput? midi,
 }) async {
   final docs = <String, VsbDocument>{};
   for (final question in round.questions) {
     final compare = question.compare!;
-    docs[utf8.decode(compare.scoreBytes)] = (await tester.runAsync(
-      () => _renderBytes(compare.scoreBytes, compare.fileName),
-    ))!;
+    // O ditado (E09) mostra o ritmo enquanto o aluno responde.
+    for (final bytes in [compare.scoreBytes, ?compare.promptBytes]) {
+      final key = utf8.decode(bytes);
+      if (docs.containsKey(key)) continue;
+      docs[key] = (await tester.runAsync(
+        () => _renderBytes(bytes, compare.fileName),
+      ))!;
+    }
   }
   // Alto o bastante para a partitura e os botões ficarem visíveis (sem
   // rolagem), como num celular na vertical.
   await tester.binding.setSurfaceSize(const Size(800, 1600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  final midi = FakeMidiInput();
-  addTearDown(midi.dispose);
+  // O teste que toca notas passa o seu `midi` (e o fecha).
+  final input = midi ?? FakeMidiInput();
+  if (midi == null) addTearDown(input.dispose);
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
@@ -161,7 +168,7 @@ Future<Map<String, VsbDocument>> _pumpListen(
           round: round,
           files: loaded.files,
           settings: settings,
-          midiInput: midi,
+          midiInput: input,
           rendererFactory: () => _ByScoreRenderer(docs),
           onDone: onDone,
           ensureEngine: () async => engine,
@@ -1249,6 +1256,184 @@ void main() {
       await _waitReal(tester, 0.5);
       expect(find.text('Em que compasso soou diferente?'), findsOneWidget);
     });
+  });
+
+  group('listen-score ditado', skip: !verovioAvailable, () {
+    testWidgets('a frase toca sozinha uma vez; a partitura mostra só o ritmo, '
+        'com a figura da vez acesa, e não há botões', (tester) async {
+      final loaded = await _loadedWith(
+        'id: d\ntype: listen-score\ntitle: D\nstep: 1c\n'
+        'answer: dictation\ncount: 2\n',
+      );
+      final round = await generateRound(
+        loaded.course.lessons.single.exercises.single,
+        loaded.files,
+        Random(7),
+      ) as QuestionRound;
+      final engine = FakeSoundEngine();
+      final settings = AppSettings();
+      addTearDown(settings.dispose);
+      await _pumpListen(
+        tester,
+        loaded: loaded,
+        round: round,
+        engine: engine,
+        settings: settings,
+        onDone: (_) {},
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.text('Toque as notas que ouviu'), findsOneWidget);
+      expect(
+        find.text('A primeira já está escrita. Vale qualquer oitava.'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(FilledButton, '1'), findsNothing);
+      // O acorde e a frase, uma vez.
+      final played = [
+        for (final note in round.questions.first.compare!.played) note.pitch,
+      ];
+      expect(_ons(engine), played);
+      // A figura da vez (a primeira que se toca) está acesa.
+      final controller = tester
+          .widget<ScoreView>(find.byType(ScoreView))
+          .controller!;
+      expect(
+        controller.colorOf(round.questions.first.highlightId!),
+        settings.practicePendingColor,
+      );
+    });
+
+    testWidgets('tocar a frase em outra oitava conta; a revelação vem no fim '
+        'da frase, e "Próxima" toca a frase seguinte uma vez', (tester) async {
+      final loaded = await _loadedWith(
+        'id: d\ntype: listen-score\ntitle: D\nstep: 1c\n'
+        'answer: dictation\ncount: 2\n',
+      );
+      final round = await generateRound(
+        loaded.course.lessons.single.exercises.single,
+        loaded.files,
+        Random(7),
+      ) as QuestionRound;
+      final engine = FakeSoundEngine();
+      final settings = AppSettings();
+      addTearDown(settings.dispose);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      RoundResult? result;
+      await _pumpListen(
+        tester,
+        loaded: loaded,
+        round: round,
+        engine: engine,
+        settings: settings,
+        midi: midi,
+        onDone: (r) => result = r,
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      // Frase 1: as três notas (a primeira está escrita), uma oitava acima.
+      final firstPhrase = round.questions.take(3).toList();
+      for (final q in firstPhrase) {
+        midi.press(q.expectedPitch! + 12);
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(find.text('A frase era esta:'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Próxima'), findsOneWidget);
+      expect(find.text('Ouvir o escrito'), findsNothing);
+      expect(find.text('Ouvir de novo'), findsOneWidget);
+      // A frase tocou uma vez, na entrada da frase, e não uma vez por nota.
+      expect(_ons(engine), [
+        for (final note in round.questions.first.compare!.played) note.pitch,
+      ]);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Próxima'));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(find.text('Toque as notas que ouviu'), findsOneWidget);
+      final secondPlayed = [
+        for (final note in round.questions[3].compare!.played) note.pitch,
+      ];
+      expect(
+        _ons(engine).skip(_ons(engine).length - secondPlayed.length).toList(),
+        secondPlayed,
+      );
+
+      for (final q in round.questions.skip(3)) {
+        midi.press(q.expectedPitch!);
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await tester.tap(find.widgetWithText(FilledButton, 'Terminar'));
+      await tester.pump();
+      expect(result?.hits, 6);
+      expect(result?.total, 6);
+    });
+
+    testWidgets(
+      'tecla errada diz "tente de novo"; a revelação pinta a nota que '
+      'não foi de primeira',
+      (tester) async {
+        final loaded = await _loadedWith(
+          'id: d\ntype: listen-score\ntitle: D\nstep: 1c\n'
+          'answer: dictation\ncount: 1\n',
+        );
+        final round = await generateRound(
+          loaded.course.lessons.single.exercises.single,
+          loaded.files,
+          Random(7),
+        ) as QuestionRound;
+        final engine = FakeSoundEngine();
+        final settings = AppSettings();
+        addTearDown(settings.dispose);
+        final midi = FakeMidiInput();
+        addTearDown(midi.dispose);
+        await _pumpListen(
+          tester,
+          loaded: loaded,
+          round: round,
+          engine: engine,
+          settings: settings,
+          midi: midi,
+          onDone: (_) {},
+        );
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+
+        final first = round.questions[0];
+        midi.press(first.expectedPitch! + 1);
+        await tester.pump(const Duration(milliseconds: 10));
+        expect(find.textContaining('tente de novo'), findsOneWidget);
+        midi.press(first.expectedPitch!);
+        await tester.pump(const Duration(milliseconds: 10));
+        for (final q in round.questions.skip(1)) {
+          midi.press(q.expectedPitch!);
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+
+        // A partitura da revelação desenha depois do quadro da nota certa.
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        expect(find.text('A frase era esta:'), findsOneWidget);
+        final controller = tester
+            .widget<ScoreView>(find.byType(ScoreView))
+            .controller!;
+        expect(
+          controller.colorOf(first.highlightId!),
+          settings.practiceWrongColor,
+        );
+        expect(
+          controller.colorOf(round.questions[1].highlightId!),
+          isNot(settings.practiceWrongColor),
+        );
+      },
+    );
   });
 
   // Uso das variáveis do `setUpAll` (evita aviso de não usadas quando o

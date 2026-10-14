@@ -107,17 +107,42 @@ class _QuestionBodyState extends State<QuestionBody> {
       widget.spec is ListenIntervalSpec ||
       _isListenScore;
 
+  /// `listen-score` com `answer: dictation` (E09): toca as notas da frase.
+  bool get _isDictation =>
+      widget.spec is ListenScoreSpec &&
+      (widget.spec as ListenScoreSpec).answer == ScoreAnswer.dictation;
+
   /// A pergunta mostrada: a da revelação, se houver; senão a da sessão.
   Question? get _shown => _reviewIndex != null
       ? widget.round.questions[_reviewIndex!]
       : _session.current;
 
-  /// Respostas pelo teclado MIDI: `find-key` e `listen-note` com
+  /// Respostas pelo teclado MIDI: `find-key`, o ditado e `listen-note` com
   /// `input: keyboard`.
   bool get _usesKeyboard =>
       _isFindKey ||
+      _isDictation ||
       (widget.spec is ListenNoteSpec &&
           (widget.spec as ListenNoteSpec).input == AnswerInput.keyboard);
+
+  /// Se a pergunta [index] começa uma frase, ou seja, se é ela que toca a
+  /// frase sozinha. No ditado, só a primeira nota de cada frase toca (as outras
+  /// usam "Ouvir de novo"). Nas outras, toda pergunta tem a sua frase, e as
+  /// que não têm `compare` (`listen-note`) tocam como sempre.
+  bool _startsPhrase(int index) {
+    final questions = widget.round.questions;
+    if (index == 0 || questions[index].compare == null) return true;
+    return !identical(questions[index].compare, questions[index - 1].compare);
+  }
+
+  /// Se a pergunta [index] é a última da sua frase: a revelação espera por ela.
+  bool _endsPhrase(int index) {
+    final questions = widget.round.questions;
+    if (index + 1 >= questions.length || questions[index].compare == null) {
+      return true;
+    }
+    return !identical(questions[index].compare, questions[index + 1].compare);
+  }
 
   @override
   void initState() {
@@ -259,7 +284,10 @@ class _QuestionBodyState extends State<QuestionBody> {
     // `listen-score`: a pergunta que acabou (certa ou estourada) é revelada
     // antes da próxima. A sessão já avançou o índice, então a revelada é a
     // anterior à atual (ou a última, quando acabou).
-    if (_isListenScore && _session.index - 1 > _reviewedUpTo) {
+    // No ditado (E09), a revelação vem só no fim da frase.
+    if (_isListenScore &&
+        _session.index - 1 > _reviewedUpTo &&
+        _endsPhrase(_session.index - 1)) {
       _cueTimer?.cancel();
       _engine?.allNotesOff();
       setState(() => _reviewIndex = _session.index - 1);
@@ -271,7 +299,9 @@ class _QuestionBodyState extends State<QuestionBody> {
       _cueTimer?.cancel();
       widget.onDone(_session.result());
     } else {
-      if (_isListen && _session.index != _playedIndex) {
+      if (_isListen &&
+          _session.index != _playedIndex &&
+          _startsPhrase(_session.index)) {
         // Espera a tecla do aluno soar antes da próxima pergunta.
         _scheduleCue(const Duration(milliseconds: 700));
       }
@@ -291,7 +321,9 @@ class _QuestionBodyState extends State<QuestionBody> {
     }
     _session.restartClock();
     _applyHighlight();
-    _scheduleCue(const Duration(milliseconds: 400));
+    if (_startsPhrase(_session.index)) {
+      _scheduleCue(const Duration(milliseconds: 400));
+    }
   }
 
   /// Teclas na revelação: Enter segue; espaço ou R toca "o que soou"; E toca
@@ -318,10 +350,12 @@ class _QuestionBodyState extends State<QuestionBody> {
     controller.clearAll();
     final review = _reviewIndex;
     if (review != null) {
-      // A revelação pinta só as notas que mudaram (E07).
-      final changed =
-          widget.round.questions[review].compare?.changedIds ??
-          const <String>{};
+      // A revelação pinta só as notas que mudaram (E07), ou as que o aluno
+      // errou na frase do ditado (E09).
+      final changed = _isDictation
+          ? _missedIdsOf(review)
+          : widget.round.questions[review].compare?.changedIds ??
+                const <String>{};
       if (changed.isNotEmpty) {
         controller.setColors({
           for (final id in changed) id: widget.settings.practiceWrongColor,
@@ -330,9 +364,12 @@ class _QuestionBodyState extends State<QuestionBody> {
       return;
     }
     final questions = widget.round.questions;
+    // No ditado, todas as frases usam os mesmos ids: pinta só a frase da vez.
+    final phrase = _session.current?.compare;
     for (var i = 0; i < _session.index && i < questions.length; i++) {
       final id = questions[i].highlightId;
       if (id == null) continue;
+      if (phrase != null && !identical(questions[i].compare, phrase)) continue;
       controller.setColors({
         id: _session.firstTry[i]
             ? widget.settings.highlightColor
@@ -347,12 +384,33 @@ class _QuestionBodyState extends State<QuestionBody> {
     }
   }
 
+  /// As notas da frase de [review] que o aluno não acertou de primeira (E09).
+  /// As frases compartilham os ids, então conta só as notas da mesma frase.
+  Set<String> _missedIdsOf(int review) {
+    final questions = widget.round.questions;
+    final phrase = questions[review].compare;
+    final ids = <String>{};
+    for (var i = 0; i < questions.length; i++) {
+      final id = questions[i].highlightId;
+      if (id != null &&
+          identical(questions[i].compare, phrase) &&
+          !_session.firstTry[i]) {
+        ids.add(id);
+      }
+    }
+    return ids;
+  }
+
   /// A partitura de [question] (`listen-score`: a da pergunta; nos outros
-  /// tipos, a da rodada). `null` quando não há partitura.
+  /// tipos, a da rodada). `null` quando não há partitura. No ditado (E09), a
+  /// pergunta mostra só o ritmo, e a revelação, a partitura toda.
   ({Uint8List bytes, String fileName})? _scoreSourceOf(Question? question) {
     final compare = question?.compare;
     if (compare != null) {
-      return (bytes: compare.scoreBytes, fileName: compare.fileName);
+      final bytes = _reviewIndex == null
+          ? compare.promptBytes ?? compare.scoreBytes
+          : compare.scoreBytes;
+      return (bytes: bytes, fileName: compare.fileName);
     }
     final bytes = widget.round.scoreBytes;
     final fileName = widget.round.fileName;
@@ -691,6 +749,7 @@ class _QuestionBodyState extends State<QuestionBody> {
   /// O `listen-score` (E07): ouve a frase (o acorde e depois a partitura) e
   /// diz em que compasso mudou, ou se soou igual ao escrito.
   Widget _scorePrompt(Question question, BoxConstraints constraints) {
+    if (_isDictation) return _dictationPrompt(constraints);
     final spec = widget.spec as ListenScoreSpec;
     return Column(
       children: [
@@ -717,12 +776,82 @@ class _QuestionBodyState extends State<QuestionBody> {
     );
   }
 
+  /// O ditado (E09): a frase toca e o aluno toca as notas que ouviu, uma de
+  /// cada vez. A partitura mostra só o ritmo, com a primeira nota escrita.
+  Widget _dictationPrompt(BoxConstraints constraints) {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Text(
+          'Toque as notas que ouviu',
+          textAlign: TextAlign.center,
+          style: serifDisplay(fontSize: 26),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'A primeira já está escrita. Vale qualquer oitava.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: kInkCaption),
+        ),
+        const SizedBox(height: 12),
+        _listenAgainButton(),
+        if (_noSound) _noSoundNote(),
+        const SizedBox(height: 12),
+        _scoreView(constraints),
+        const SizedBox(height: 8),
+        const Icon(Icons.piano, size: 28, color: kInkCaption),
+      ],
+    );
+  }
+
+  /// A revelação do ditado (E09), no fim de cada frase: a frase inteira na
+  /// partitura, com as notas erradas pintadas. Não há o que mudou, então só
+  /// "Ouvir de novo" e "Próxima" (ou "Terminar", na última).
+  Widget _dictationReview(
+    int index,
+    ScoreComparison compare,
+    BoxConstraints constraints,
+  ) {
+    final last = index == widget.round.questions.length - 1;
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Text(
+          'A frase era esta:',
+          textAlign: TextAlign.center,
+          style: serifDisplay(fontSize: 26),
+        ),
+        const SizedBox(height: 12),
+        _scoreView(constraints),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => unawaited(_playReview(compare.played)),
+              icon: const Icon(Icons.volume_up),
+              label: const Text('Ouvir de novo'),
+            ),
+            FilledButton(
+              onPressed: _closeReview,
+              child: Text(last ? 'Terminar' : 'Próxima'),
+            ),
+          ],
+        ),
+        if (_noSound) _noSoundNote(),
+      ],
+    );
+  }
+
   /// A revelação do `listen-score` (E07): o título, a frase que diz o que
   /// mudou, a partitura com a nota pintada e os botões para ouvir as duas
   /// versões. "Próxima" segue (ou "Terminar", na última).
   Widget _reviewPanel(Question question, BoxConstraints constraints) {
     final index = _reviewIndex!;
     final compare = question.compare!;
+    if (_isDictation) return _dictationReview(index, compare, constraints);
     final changed = compare.measure != null;
     final first = _session.firstTry[index];
     final last = index == widget.round.questions.length - 1;

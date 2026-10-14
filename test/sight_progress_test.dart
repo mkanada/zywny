@@ -67,4 +67,58 @@ void main() {
     final store = SightReadingStore(prefs: prefs);
     expect((await store.load()).step.name, '1a');
   });
+
+  test('o ouvido conta à parte: não mexe nas limpas e zera ao subir', () {
+    var p = const SightProgress(clean: 1)
+        .withEar(hit: true)
+        .withEar(hit: false);
+    expect(p.earHits, 1);
+    expect(p.earTotal, 2);
+    expect(p.clean, 1);
+    expect(p.step.name, '1a');
+
+    // Rodada com erro não mexe no ouvido; a limpa segue contando.
+    expect(p.afterRound(wasClean: false).earTotal, 2);
+    p = p.afterRound(wasClean: true);
+    expect(p.earTotal, 2);
+
+    final up = p.afterRound(wasClean: true);
+    expect(up.step.name, '1b');
+    expect(up.earHits, 0);
+    expect(up.earTotal, 0);
+  });
+
+  test('progresso sem os campos de ouvido lê zero; valores estranhos são '
+      'cortados', () {
+    final antigo = SightProgress.fromJson({'level': 3, 'sub': 1, 'clean': 2});
+    expect(antigo.earHits, 0);
+    expect(antigo.earTotal, 0);
+
+    final back = SightProgress.fromJson(
+      const SightProgress(level: 4, earHits: 2, earTotal: 3).toJson(),
+    );
+    expect(back.earHits, 2);
+    expect(back.earTotal, 3);
+
+    final cortado = SightProgress.fromJson({'earHits': 9, 'earTotal': 2});
+    expect(cortado.earHits, 2);
+    expect(cortado.earTotal, 2);
+    expect(SightProgress.fromJson({'earTotal': -3}).earTotal, 0);
+  });
+
+  test('a chave do ouvido liga por padrão e guarda a escolha', () async {
+    final store = SightReadingStore(prefs: SharedPreferencesAsync());
+    expect(await store.loadEarOn(), isTrue);
+    await store.saveEarOn(false);
+    expect(await store.loadEarOn(), isFalse);
+  });
+
+  test('o "só ouvido" tem progresso próprio, separado da leitura', () async {
+    final store = SightReadingStore(prefs: SharedPreferencesAsync());
+    await store.save(const SightProgress(level: 4));
+    await store.saveListen(const SightProgress(level: 2, clean: 1));
+    expect((await store.load()).step.name, '4a');
+    expect((await store.loadListen()).step.name, '2a');
+    expect((await store.loadListen()).clean, 1);
+  });
 }
