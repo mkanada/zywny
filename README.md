@@ -38,13 +38,15 @@ sobrevive a fechar o app e a instalar uma versão nova por cima:
   metrônomo, tipo de treino e cores. Valem para todos os hinos; o
   painel abre pela engrenagem da biblioteca ou por "Configurações gerais" na
   partitura. Soundfont, monitor MIDI e latência já eram guardados à parte.
-- **De cada música** (`lib/settings/piece_settings.dart`, painel
-  `LayoutPanel` e a seção "Este hino"/"Esta peça" da gaveta): tamanho da notação e demais
-  opções de layout, andamento e mão, numa chave
-  `piece_settings_<biblioteca>_<id>`. Só o que
-  saiu do padrão é gravado, e a leitura descarta opção desconhecida ou valor
-  fora da faixa — um JSON de outra versão do app nunca chega torto ao
-  Verovio.
+- **Layout da partitura** (também em `AppSettings`, painel `LayoutPanel`):
+  tamanho da notação, página e demais opções do Verovio. Valem para todos os
+  hinos. Guarda-se só o que a pessoa mudou, em `score_layout`; o resto segue o
+  padrão do aparelho (o tamanho do celular não é o do tablet). A leitura
+  descarta opção desconhecida ou valor fora da faixa — um JSON de outra versão
+  do app nunca chega torto ao Verovio.
+- **De cada música** (`lib/settings/piece_settings.dart`, seção "Este
+  hino"/"Esta peça" da gaveta): andamento, mão, trilha e tom, numa chave
+  `piece_settings_<biblioteca>_<id>`. Só o que saiu do padrão é gravado.
 
 ## Sobre o Zywny e o tutorial
 

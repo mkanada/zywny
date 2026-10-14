@@ -69,6 +69,54 @@ bpm: 80
 pass: {accuracy: 85, speed: 75}
 ```
 
+## Duas notas juntas
+
+Com as duas mãos, notas passam a soar juntas. A distância entre elas
+muda o som. Conte as brancas de uma até a outra, contando as duas: de Dó
+a Mi são três (Dó, Ré, Mi), uma **terça**; de Dó a Sol são cinco, uma
+**quinta**; de Dó ao próximo Dó, a **oitava** que você já conhece.
+
+```zywny-keyboard
+from: C4
+to: C5
+mark: [C4, E4, G4, C5]
+names: true
+caption: "A partir do Dó: terça no Mi, quinta no Sol, oitava no Dó"
+```
+
+A terça soa cheia e doce; a quinta, mais vazia; a oitava quase parece uma
+nota só. Ouça as duas notas juntas e diga qual é. Nos botões, a terça
+aparece como **3ª maior** e a quinta como **5ª justa**.
+
+```zywny-exercise
+id: l10-ouvir-juntas
+type: listen-interval
+title: Terça, quinta ou oitava
+notes: {random: C4-C5, count: 10}
+intervals: [M3, P5, P8]
+direction: both
+play: harmonic
+pass: {accuracy: 70}
+```
+
+## Ouça as duas mãos
+
+Agora uma partitura nas duas pautas, como a Ode. Uma nota, numa das mãos,
+soa diferente do escrito. Leia as duas pautas enquanto ouve: em que
+compasso?
+
+```zywny-exercise
+id: l10-onde-mudou
+type: listen-score
+title: Onde mudou, nas duas mãos
+step: 5d
+change: pitch
+answer: measure
+count: 5
+bpm: 80
+pass: {accuracy: 80}
+```
+
 ## As duas mãos
 
 Junte as mãos primeiro sem relógio: quando duas notas caem juntas, o app

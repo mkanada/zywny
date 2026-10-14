@@ -1,6 +1,6 @@
 // Configurações: as gerais (lib/settings/app_settings.dart — som, MIDI,
-// cores) e as de cada hino (lib/settings/piece_settings.dart — layout,
-// andamento, mão), e os dois painéis que as editam. O contrato principal é a
+// cores, layout da partitura) e as de cada hino (lib/settings/piece_settings.dart
+// — andamento, mão, trilha, tom), e os dois painéis que as editam. O contrato principal é a
 // persistência: o que foi mudado volta numa nova instância (= o app aberto
 // de novo, ou atualizado), e o que foi gravado por outra versão não quebra.
 
@@ -15,7 +15,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:zywny/render/layout_options.dart';
 import 'package:zywny_library/piece.dart';
 import 'package:zywny/app/library_screen.dart';
 import 'package:zywny/main.dart';
@@ -185,52 +184,66 @@ void main() {
     });
   });
 
-  group('configurações de um hino', () {
-    final defaults = initialLayoutValues(phone: true);
+  group('layout da partitura: vale para todos os hinos', () {
+    test('o que a pessoa mudou volta ao abrir o app de novo', () async {
+      final first = AppSettings();
+      await first.load();
+      expect(first.scoreLayout, isEmpty);
+      expect(first.scorePageFitsBox, isTrue);
 
-    test('guarda só o que saiu do padrão', () {
-      final values = {...defaults, 'unit': 8.0, 'breaks': 'line'};
-      expect(PieceSettings.layoutOverrides(values, defaults), {
-        'unit': 8.0,
-        'breaks': 'line',
-      });
-      expect(PieceSettings.layoutOverrides(defaults, defaults), isEmpty);
+      first
+        ..setScoreLayout({'unit': 8.0, 'spacingStaff': 20})
+        ..scorePageFitsBox = false;
+      await pumpEventQueue();
+
+      final second = AppSettings();
+      await second.load();
+      expect(second.scoreLayout, {'unit': 8.0, 'spacingStaff': 20});
+      expect(second.scorePageFitsBox, isFalse);
+
+      // Voltar ao padrão apaga a chave.
+      second.setScoreLayout({});
+      await pumpEventQueue();
+      expect(await SharedPreferencesAsync().getString('score_layout'), isNull);
     });
 
+    test('um layout ilegível não derruba as outras configurações', () async {
+      await SharedPreferencesAsync().setString('score_layout', '{quebrado');
+      await SharedPreferencesAsync().setBool('score_page_fits_box', false);
+      final settings = AppSettings();
+      await settings.load();
+      expect(settings.scoreLayout, isEmpty);
+      expect(settings.scorePageFitsBox, isFalse);
+
+      await SharedPreferencesAsync().setString('score_layout', '[1, 2]');
+      final list = AppSettings();
+      await list.load();
+      expect(list.scoreLayout, isEmpty);
+    });
+  });
+
+  group('configurações de um hino', () {
     test('cada hino tem a sua, e ela volta ao abrir o app de novo', () async {
       final first = PieceSettingsStore();
       await first.save(
         'hinos',
         '012',
-        const PieceSettings(
-          layout: {'unit': 8.0, 'spacingStaff': 20},
-          speed: 0.8,
-          hand: Hand.esquerda,
-        ),
+        const PieceSettings(speed: 0.8, hand: Hand.esquerda),
       );
 
       final second = PieceSettingsStore();
       final twelve = await second.load('hinos', '012');
-      expect(twelve.layout, {'unit': 8.0, 'spacingStaff': 20});
-      expect(twelve.pageFitsBox, isTrue);
       expect(twelve.speed, 0.8);
       expect(twelve.hand, Hand.esquerda);
-      expect(twelve.layoutOver(defaults)['unit'], 8.0);
-      expect(twelve.layoutOver(defaults)['footer'], defaults['footer']);
 
       // Outro hino não herda nada.
       final other = await second.load('hinos', '013');
       expect(other.isDefault, isTrue);
-      expect(other.layoutOver(defaults), defaults);
     });
 
     test('voltar ao padrão apaga a chave do hino', () async {
       final store = PieceSettingsStore();
-      await store.save(
-        'hinos',
-        '007',
-        const PieceSettings(layout: {'unit': 6.0}),
-      );
+      await store.save('hinos', '007', const PieceSettings(speed: 0.5));
       await store.save('hinos', '007', const PieceSettings());
       expect(
         await SharedPreferencesAsync().getString('piece_settings_hinos_007'),
@@ -288,22 +301,17 @@ void main() {
         'piece_settings_hinos_003',
         jsonEncode({
           'v': 9,
-          'layout': {
-            'unit': 400, // fora da faixa: vem para o máximo
-            'spacingStaff': 'doze', // tipo errado: descartado
-            'breaks': 'opcao-removida', // escolha que não existe: descartada
-            'opcaoQueSaiuDoApp': 1, // desconhecida: descartada
-            'justifyVertically': true,
-          },
+          // Layout gravado por hino antes: agora é de todos, então é ignorado.
+          'layout': {'unit': 400},
           'speed': 7,
           'hand': 'terceira',
           'campoNovo': {'x': 1},
         }),
       );
       final settings = await PieceSettingsStore().load('hinos', '003');
-      expect(settings.layout, {'unit': 12.0, 'justifyVertically': true});
       expect(settings.speed, kSpeedMax);
       expect(settings.hand, isNull);
+      expect(settings.toJson().containsKey('layout'), isFalse);
 
       await SharedPreferencesAsync().setString(
         'piece_settings_hinos_004',
@@ -612,9 +620,7 @@ void main() {
       // (O som nasce ligado, U04: o toque em "Som" o desligou.)
       expect(opened!.appSettings.soundOn, isFalse);
       expect(opened!.pieceSettings.isDefault, isTrue);
-      opened!.onPieceSettingsChanged(
-        const PieceSettings(layout: {'unit': 7.0}, speed: 0.6),
-      );
+      opened!.onPieceSettingsChanged(const PieceSettings(speed: 0.6));
       await back();
 
       await open('Segundo');
@@ -622,7 +628,6 @@ void main() {
       await back();
 
       await open('Primeiro');
-      expect(opened!.pieceSettings.layout, {'unit': 7.0});
       expect(opened!.pieceSettings.speed, 0.6);
     });
   });

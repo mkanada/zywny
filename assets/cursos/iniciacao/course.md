@@ -3,7 +3,7 @@ format: 1
 id: iniciacao
 title: Primeiros passos ao piano
 author: zywny
-version: "2"
+version: "3"
 lessons: [o-teclado, pauta-e-clave-de-sol, clave-de-sol, clave-de-fa, pauta-dupla, figuras-e-pausas, mais-tempos, acidentes, armadura, juntando-tudo]
 ---
 
@@ -14,6 +14,9 @@ para você tocar. O zywny ouve o teclado e diz se você passou.
 
 Os exercícios de tocar pedem o teclado MIDI ligado ao aparelho. Os de
 responder na tela funcionam sem ele.
+
+Algumas lições também treinam o ouvido: o zywny toca uma nota, ou duas, e
+você descobre qual foi. Deixe o som ligado.
 
 Créditos das peças: "Brilha, brilha, estrelinha" (lição 3) é uma melodia
 francesa do século XVIII, de domínio público. A "Ode à Alegria" (lição 10)

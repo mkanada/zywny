@@ -105,6 +105,22 @@ count: 8
 pass: {accuracy: 90}
 ```
 
+## Ouça as colcheias
+
+Agora com colcheias. Siga a partitura contando "um e, dois e": em que
+compasso o ritmo soa diferente?
+
+```zywny-exercise
+id: l7-onde-mudou-colcheias
+type: listen-score
+title: Colcheias, de ouvido
+step: 8c
+change: rhythm
+answer: measure
+count: 5
+pass: {accuracy: 80}
+```
+
 ## Para revisar
 
 Um vídeo para revisar as figuras. Ele mostra também a semicolcheia, que

@@ -95,6 +95,26 @@ class QuestionRound extends ExerciseRound {
   final String? imagePath;
 }
 
+/// Um som da pergunta: as [pitches] (MIDI) soam juntas por [seconds].
+@immutable
+class SoundCue {
+  const SoundCue(this.pitches, {this.seconds = 1.0});
+
+  final List<int> pitches;
+  final double seconds;
+}
+
+/// Uma nota com hora marcada: a altura MIDI [pitch] soa em [start] segundos
+/// desde o começo, por [seconds] segundos (E05, `listen-score`).
+@immutable
+class TimedNote {
+  const TimedNote(this.pitch, this.start, this.seconds);
+
+  final int pitch;
+  final double start;
+  final double seconds;
+}
+
 /// Uma pergunta da rodada. Os campos que cada tipo usa ficam para o I07.
 @immutable
 class Question {
@@ -105,6 +125,8 @@ class Question {
     this.expectedPitch,
     this.highlightId,
     this.anyOctave = false,
+    this.sound = const [],
+    this.compare,
   });
 
   /// O que a tela mostra (texto), se houver.
@@ -125,6 +147,47 @@ class Question {
   /// `find-key` com `octave: any`: qualquer oitava serve (compara a classe
   /// de altura, `pitch % 12`). Com `false` (`exact`), só a altura exata.
   final bool anyOctave;
+
+  /// O que soa ao mostrar a pergunta, um [SoundCue] depois do outro
+  /// (`listen-note`). Vazio nos outros tipos.
+  final List<SoundCue> sound;
+
+  /// `listen-score` (E05): a partitura desta pergunta e as duas versões da
+  /// frase. `null` nos outros tipos.
+  final ScoreComparison? compare;
+}
+
+/// Uma pergunta de "onde mudou?": a partitura escrita, o que soa, o que está
+/// escrito e o que mudou (E05).
+@immutable
+class ScoreComparison {
+  const ScoreComparison({
+    required this.scoreBytes,
+    required this.fileName,
+    required this.played,
+    required this.written,
+    required this.changedIds,
+    this.measure,
+    this.description,
+  });
+
+  final Uint8List scoreBytes;
+  final String fileName;
+
+  /// O que o zywny toca na pergunta (com a mudança, se houver).
+  final List<TimedNote> played;
+
+  /// A frase como está escrita (o botão "Ouvir o escrito" da revelação).
+  final List<TimedNote> written;
+
+  /// As notas escritas que soam diferente; vazio quando nada mudou.
+  final Set<String> changedIds;
+
+  /// O compasso da mudança (base 0); `null` quando nada mudou.
+  final int? measure;
+
+  /// O que mudou, em português, para a revelação; `null` quando nada mudou.
+  final String? description;
 }
 
 /// O resultado de uma rodada: [hits] de [total] e o andamento em que foi

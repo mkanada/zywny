@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -142,4 +143,80 @@ void main() {
       [48, 55, 60, 48], // C3 G3 C4 C3
     );
   }, skip: verovioAvailable ? false : 'libverovio.so do bridge ausente');
+
+  // E05 — ids e alturas para a pergunta de ouvido.
+
+  test('cada nota tem id (pauta, compasso e posição); a pausa não tem', () {
+    final step = sightStep(11, 0);
+    final xml = sightScoreXml(
+      _exercise(
+        step,
+        [
+          [SightNote(4, 1), SightNote(4), SightNote(8, 3)],
+        ],
+        [_silent(step)],
+      ),
+    );
+    expect(xml, contains('<note id="s1-m1-n1">'));
+    expect(xml, contains('<note>\n        <rest/>'));
+    expect(xml, contains('<note id="s1-m1-n3">'));
+    expect(
+      xml,
+      isNot(contains('id="s2-')),
+      reason: 'a pauta de fá só tem pausas',
+    );
+  });
+
+  test('o XML do 1a tem id s1-m1-n1 e nenhum id da pauta de fá', () {
+    final xml = sightScoreXml(generateSight(sightStep(1, 0), Random(1)));
+    expect(xml, contains('id="s1-m1-n1"'));
+    expect(xml, isNot(contains('id="s2-')));
+  });
+
+  test('sightNoteId conta de 1 em 1 e nomeia a pauta e o compasso', () {
+    expect(sightNoteId(2, 0, 0), 's2-m1-n1');
+    expect(sightNoteId(1, 3, 6), 's1-m4-n7');
+  });
+
+  test('sightMidi confere com a altura que o XML escreve, em C, G e Bb', () {
+    const semitones = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11};
+    for (final tonic in ['C', 'G', 'Bb']) {
+      final step = SightStep(
+        level: 1,
+        sub: 0,
+        hands: SightHands.both,
+        durations: const [2],
+        patterns: const [],
+        bpm: 60,
+        label: 'teste',
+        high: 8,
+        tonic: tonic,
+      );
+      final degrees = [for (var d = 1; d <= 8; d++) SightNote(2, d)];
+      final xml = sightScoreXml(_exercise(step, [degrees], [degrees]));
+      // Um `<note>` com altura: a pauta de sol vem antes da de fá.
+      final written =
+          RegExp(
+            r'<step>([A-G])</step>(?:\s*<alter>(-?1)</alter>)?\s*'
+            r'<octave>(\d)</octave>',
+          ).allMatches(xml).map((m) {
+            final alter = m.group(2) == null ? 0 : int.parse(m.group(2)!);
+            final octave = int.parse(m.group(3)!);
+            return 12 * (octave + 1) + semitones[m.group(1)]! + alter;
+          }).toList();
+      expect(written, hasLength(16), reason: tonic);
+      for (var d = 1; d <= 8; d++) {
+        expect(
+          sightMidi(step, d, staff: 1),
+          written[d - 1],
+          reason: '$tonic, grau $d, sol',
+        );
+        expect(
+          sightMidi(step, d, staff: 2),
+          written[8 + d - 1],
+          reason: '$tonic, grau $d, fá',
+        );
+      }
+    }
+  });
 }

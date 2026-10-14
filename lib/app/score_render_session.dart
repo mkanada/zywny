@@ -60,14 +60,8 @@ class ScoreRenderSession extends ChangeNotifier {
        _piece = piece, // ignore: prefer_initializing_formals
        _settings = settings, // ignore: prefer_initializing_formals
        _transposeChoice = stored.transpose,
-       _layout = stored.layoutOver(
-         initialLayoutValues(
-           phone: kind == DeviceKind.phone,
-           tablet: kind == DeviceKind.tablet,
-           pixelRatio: pixelRatio,
-         ),
-       ),
-       _pageFitsBox = stored.pageFitsBox {
+       _layoutOverrides = layoutOverridesFrom(settings.scoreLayout),
+       _pageFitsBox = settings.scorePageFitsBox {
     _settings.addListener(_onSettingsChanged);
   }
 
@@ -114,7 +108,10 @@ class ScoreRenderSession extends ChangeNotifier {
   Size? _box;
   Timer? _resizeTimer;
   String? _transposeChoice;
-  Map<String, Object> _layout;
+
+  /// Só o que a pessoa mudou: é isto que [saveLayout] guarda para todos os
+  /// hinos. O resto é o padrão do aparelho ([layoutDefaults]).
+  Map<String, Object> _layoutOverrides;
   bool _pageFitsBox;
 
   /// A gravura na tela; `null` até a primeira.
@@ -147,10 +144,11 @@ class ScoreRenderSession extends ChangeNotifier {
   /// (vale a chave geral), [kTransposeNone] = "Não", ou um intervalo.
   String? get transposeChoice => _transposeChoice;
 
-  /// Opções do Verovio deste hino, por nome (ver `layout_options.dart`).
-  Map<String, Object> get layout => _layout;
+  /// Opções do Verovio, por nome (ver `layout_options.dart`): as que a pessoa
+  /// mudou, para todos os hinos, sobre o padrão do aparelho.
+  Map<String, Object> get layout => {...layoutDefaults, ..._layoutOverrides};
 
-  /// O layout de um hino em que nada foi mexido.
+  /// O layout deste aparelho sem nenhuma mudança da pessoa.
   Map<String, Object> get layoutDefaults => initialLayoutValues(
     phone: kind == DeviceKind.phone,
     tablet: kind == DeviceKind.tablet,
@@ -209,17 +207,17 @@ class ScoreRenderSession extends ChangeNotifier {
   }
 
   int get _pageWidth =>
-      _pageFitsBox ? fittedPage!.width.round() : _layout['pageWidth'] as int;
+      _pageFitsBox ? fittedPage!.width.round() : layout['pageWidth'] as int;
 
   int get _pageHeight =>
-      _pageFitsBox ? fittedPage!.height.round() : _layout['pageHeight'] as int;
+      _pageFitsBox ? fittedPage!.height.round() : layout['pageHeight'] as int;
 
   /// Every option that reaches Verovio for the current state: the page size
   /// plus whatever differs from Verovio's defaults.
   Map<String, Object> get effectiveOptions => {
     'pageWidth': _pageWidth,
     'pageHeight': _pageHeight,
-    ...layoutOptionsToSend(_layout),
+    ...layoutOptionsToSend(layout),
     'transpose': ?transposition?.interval,
     if (debugMode) 'vsbDebug': true,
   };
@@ -279,9 +277,10 @@ class ScoreRenderSession extends ChangeNotifier {
   }
 
   /// Uma opção de layout mudou (o slider andando): só o valor; a partitura
-  /// é gravada de novo em [render], quando a mudança assenta.
+  /// é gravada de novo em [render], quando a mudança assenta, e o valor vai
+  /// para todos os hinos em [saveLayout].
   void setLayoutValue(String key, Object value) {
-    _layout = {..._layout, key: value};
+    _layoutOverrides = {..._layoutOverrides, key: value};
     notifyListeners();
   }
 
@@ -290,9 +289,18 @@ class ScoreRenderSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Volta ao layout padrão do app — só neste hino. Não grava de novo.
+  /// Guarda o layout e a página para todos os hinos. Quem chama grava a
+  /// partitura de novo ([render]) logo depois.
+  void saveLayout() {
+    _settings
+      ..setScoreLayout(_layoutOverrides)
+      ..scorePageFitsBox = _pageFitsBox;
+  }
+
+  /// Volta ao layout padrão do app, para todos os hinos. Não guarda nem grava
+  /// de novo: quem chama faz isso ([saveLayout] e [render]).
   void resetLayout() {
-    _layout = layoutDefaults;
+    _layoutOverrides = const {};
     _pageFitsBox = true;
     notifyListeners();
   }

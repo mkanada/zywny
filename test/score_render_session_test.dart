@@ -10,7 +10,7 @@ import 'package:score_bridge/score_bridge.dart' show VsbDocument;
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/app/score_render_session.dart';
-import 'package:zywny/render/layout_options.dart' show kTabletUnit;
+import 'package:zywny/render/layout_options.dart' show kPhoneUnit, kTabletUnit;
 import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/settings/app_settings.dart';
 import 'package:zywny/settings/piece_settings.dart';
@@ -172,6 +172,77 @@ void main() {
       settings: settings,
       stored: const PieceSettings(),
       name: 'x',
+    );
+  });
+
+  group('layout da partitura: vale para todos os hinos', () {
+    ScoreRenderSession sessionOn(DeviceKind kind, {String name = '13 · Hino'}) {
+      final s = ScoreRenderSession(
+        renderer: renderer,
+        scoreXml: Uint8List(1),
+        piece: fakePiece(),
+        settings: settings,
+        stored: const PieceSettings(),
+        name: name,
+        kind: kind,
+        pixelRatio: 2,
+      );
+      addTearDown(s.dispose);
+      return s;
+    }
+
+    test('o que a pessoa mudou vai ao app e a próxima música herda', () async {
+      await firstRender();
+      session.setLayoutValue('unit', 6.5);
+      session.setPageFitsBox(false);
+      session.saveLayout();
+      await pumpEventQueue();
+      expect(settings.scoreLayout, {'unit': 6.5});
+      expect(settings.scorePageFitsBox, isFalse);
+
+      final other = sessionOn(DeviceKind.desktop, name: '14 · Outro');
+      expect(other.layout['unit'], 6.5);
+      expect(other.pageFitsBox, isFalse);
+      expect(other.effectiveOptions['unit'], 6.5, reason: 'vai ao Verovio');
+    });
+
+    test('o que foi guardado é lido com a mesma regra: fora da faixa vai ao '
+        'limite, escolha inválida volta ao padrão', () {
+      settings.setScoreLayout({'unit': 400, 'breaks': 'opcao-removida'});
+      final s = sessionOn(DeviceKind.desktop);
+      expect(s.layout['unit'], 12.0, reason: 'o máximo da faixa');
+      expect(s.layout['breaks'], isNot('opcao-removida'));
+      expect(s.layout['breaks'], s.layoutDefaults['breaks']);
+    });
+
+    test('sem mudança, cada aparelho segue o próprio padrão; a mudança de '
+        'um vale para o outro', () async {
+      final phone = sessionOn(DeviceKind.phone);
+      final tablet = sessionOn(DeviceKind.tablet);
+      expect(phone.layout['unit'], kPhoneUnit);
+      expect(tablet.layout['unit'], kTabletUnit);
+
+      phone.setLayoutValue('unit', 6.5);
+      phone.saveLayout();
+      await pumpEventQueue();
+      expect(sessionOn(DeviceKind.tablet).layout['unit'], 6.5);
+    });
+
+    test(
+      'voltar ao padrão vale para todos e limpa o que foi guardado',
+      () async {
+        session.setLayoutValue('unit', 6.5);
+        session.saveLayout();
+        await pumpEventQueue();
+
+        session.resetLayout();
+        session.saveLayout();
+        await pumpEventQueue();
+        expect(settings.scoreLayout, isEmpty);
+        expect(settings.scorePageFitsBox, isTrue);
+        expect(session.layout, session.layoutDefaults);
+        expect(session.pageFitsBox, isTrue);
+      },
     );
   });
 

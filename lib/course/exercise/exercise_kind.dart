@@ -30,6 +30,9 @@ final Map<ExerciseType, ExerciseKind> exerciseKinds = {
   ExerciseType.nameNote: const NameNoteKind(),
   ExerciseType.countBeats: const CountBeatsKind(),
   ExerciseType.choice: const ChoiceKind(),
+  ExerciseType.listenNote: const ListenNoteKind(),
+  ExerciseType.listenInterval: const ListenIntervalKind(),
+  ExerciseType.listenScore: const ListenScoreKind(),
   ExerciseType.rhythm: const RhythmKind(),
   ExerciseType.playScore: const PlayScoreKind(),
 };

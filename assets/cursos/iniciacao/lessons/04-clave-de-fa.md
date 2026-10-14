@@ -72,6 +72,20 @@ notes: {random: C3-G3, count: 12}
 pass: {accuracy: 90}
 ```
 
+Agora de ouvido, com a mão esquerda na mesma posição. A referência é o
+Dó3, debaixo do dedo 5; a nota que vem depois é de Dó a Sol, no grave.
+
+```zywny-exercise
+id: l4-ouvir-grave
+type: listen-note
+title: Ouça no grave
+notes: {random: C3-G3, count: 8}
+reference: C3
+input: keyboard
+octave: exact
+pass: {accuracy: 60}
+```
+
 ## Toda a clave de fá
 
 Agora a pauta inteira, do Sol da primeira linha até o dó central. A mão

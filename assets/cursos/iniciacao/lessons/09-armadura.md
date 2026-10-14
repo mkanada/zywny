@@ -97,6 +97,41 @@ notes: {random: C4-C5, count: 12}
 pass: {accuracy: 90}
 ```
 
+## Ouvir em Sol
+
+Na lição 2 a referência era o dó central. Agora é o **Sol4**, e as notas
+vêm do tom de Sol, do Sol4 ao Sol5: quando soar o Fá, ele é sustenido.
+Toque a tecla na oitava certa.
+
+```zywny-exercise
+id: l9-ouvir-sol
+type: listen-note
+title: Ouça em Sol maior
+notes: {random: G4-G5, count: 8}
+reference: G4
+input: keyboard
+octave: exact
+key: G
+pass: {accuracy: 60}
+```
+
+## A armadura esquecida
+
+Quem lê em Sol maior às vezes esquece a armadura e toca Fá natural. O zywny
+faz isso de propósito, uma vez em cada partitura. Ouça e diga em que
+compasso o Fá soou sem o sustenido.
+
+```zywny-exercise
+id: l9-armadura-esquecida
+type: listen-score
+title: A armadura esquecida
+step: 11c
+change: accidental
+answer: measure
+count: 5
+pass: {accuracy: 80}
+```
+
 ## Armaduras com mais acidentes
 
 Uma armadura pode ter mais de um acidente, e todos valem a peça inteira.

@@ -549,6 +549,13 @@ final List<SightStep> sightSteps = List.unmodifiable([
 SightStep sightStep(int level, int sub) =>
     sightSteps[(level - 1) * sightSubLevels + sub];
 
+/// O passo de nome [name] (`1a` a `20d`), ou `null` se não existe.
+SightStep? sightStepNamed(String name) {
+  final match = RegExp(r'^([1-9]|1[0-9]|20)([a-d])$').firstMatch(name);
+  if (match == null) return null;
+  return sightStep(int.parse(match.group(1)!), 'abcd'.indexOf(match.group(2)!));
+}
+
 /// Tonalidades dos níveis 11 a 20, na ordem em que aparecem.
 const _newKeys = ['G', 'F', 'D', 'Bb', 'A', 'Eb', 'E', 'Ab', 'B', 'Db'];
 

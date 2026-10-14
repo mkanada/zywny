@@ -8,6 +8,9 @@ O usuário ouve um som (nota, intervalo, acordi) e tem que adivinhar qual foi.
 Respeita a escala e tom configurados. Pode ser integrado como fase nova da
 trilha de estudo (J) ou como um tipo de exercício adicional.
 
+→ Planejado como a fase E (tipo de exercício do curso): ver
+[E00](E00-exercicios-de-ouvido.md).
+
 ## Exercícios de notas em escalas e tons
 
 Foco em uma escala específica (maior, menor, modos) e tom determinado. O usuário

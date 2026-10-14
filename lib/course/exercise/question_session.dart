@@ -106,6 +106,10 @@ class QuestionSession {
     return false;
   }
 
+  /// Recomeça a contar o tempo da pergunta atual (a tela ficou parada numa
+  /// revelação que não é da sessão, E07).
+  void restartClock([double? now]) => _startAt = now ?? _lastTick ?? _now();
+
   /// Avança o relógio: estouro vira revelação de 1,5 s, e o fim da revelação
   /// avança para a próxima. Devolve `true` se algo mudou (entrou ou saiu da
   /// revelação).

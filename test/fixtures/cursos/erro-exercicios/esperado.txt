@@ -9,7 +9,7 @@ lessons/01-a.md:43: erro: `time-limit` precisa estar entre 1 e 120 (recebi 500).
 lessons/01-a.md:50: erro: `figures` só vale no sorteio; com `abc` o ritmo é o que está escrito.
 lessons/01-a.md:60: erro: `key` não é um tom que o formato conhece (`H`); use C, G, D, A, E, B, F#, C#, F, Bb, Eb, Ab, Db, Gb, Cb ou o menor com `m` (Am, Em…).
 lessons/01-a.md:68: erro: `accidentals` só vale com sorteio (`notes: {random: …}`); numa lista fixa escreva a nota com # ou b, como F#4.
-lessons/01-a.md:73: erro: tipo de exercício desconhecido `ritmo` — você quis dizer `rhythm`? (tipos: find-key, play-notes, name-note, rhythm, count-beats, play-score, choice).
+lessons/01-a.md:73: erro: tipo de exercício desconhecido `ritmo` — você quis dizer `rhythm`? (tipos: find-key, play-notes, name-note, rhythm, count-beats, play-score, choice, listen-note, listen-interval, listen-score).
 lessons/01-a.md:84: erro: chave desconhecida `objetivo` (chaves aceitas no exercício `name-note`: id, type, title, pass, clef, key, notes, choices).
 lessons/01-a.md:87: erro: falta a chave obrigatória `id` no exercício `choice`.
 lessons/01-a.md:87: erro: falta a chave obrigatória `title` no exercício `choice`.

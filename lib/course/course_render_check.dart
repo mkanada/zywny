@@ -139,6 +139,9 @@ Future<CourseScoreRef?> _exerciseScore(
     case PlayNotesSpec():
     case NameNoteSpec():
     case CountBeatsSpec():
+    case ListenNoteSpec():
+    case ListenIntervalSpec():
+    case ListenScoreSpec():
       return null;
   }
 }

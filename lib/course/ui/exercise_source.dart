@@ -90,7 +90,10 @@ class CourseExerciseSource implements ExerciseSource {
       spec.type == ExerciseType.findKey ||
       spec.type == ExerciseType.nameNote ||
       spec.type == ExerciseType.countBeats ||
-      spec.type == ExerciseType.choice;
+      spec.type == ExerciseType.choice ||
+      spec.type == ExerciseType.listenNote ||
+      spec.type == ExerciseType.listenInterval ||
+      spec.type == ExerciseType.listenScore;
 
   @override
   bool get isRealtime {

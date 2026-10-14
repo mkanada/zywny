@@ -93,3 +93,39 @@ notes: {random: C4-G4, count: 8}
 choices: [C, D, E, F, G]
 pass: {accuracy: 80}
 ```
+
+## Ouça e toque
+
+Agora sem partitura: deixe a mão na posição de Dó e escute. Primeiro soa
+o dó central, debaixo do polegar; depois, uma nota de Dó a Sol. Toque-a
+com o dedo dela.
+
+Quanto mais aguda a nota, mais para a direita, até o mínimo no Sol.
+
+```zywny-exercise
+id: l2-ouvir-posicao
+type: listen-note
+title: Ouça na posição de Dó
+notes: {random: C4-G4, count: 8}
+reference: C4
+input: keyboard
+octave: exact
+pass: {accuracy: 60}
+```
+
+## Leia e ouça
+
+Agora leia sem tocar. O zywny mostra quatro notas, toca o acorde de Dó e
+depois as quatro. Às vezes uma delas soa diferente do que está escrito.
+Siga a partitura com os olhos enquanto ouve: igual ou diferente?
+
+```zywny-exercise
+id: l2-igual-ou-diferente
+type: listen-score
+title: Igual ou diferente
+step: 1c
+change: pitch
+answer: same-different
+count: 6
+pass: {accuracy: 80}
+```

@@ -94,6 +94,16 @@ para a música voltar a soar no tom original) tem especificação em
 executa um passo Q lê também esse arquivo. As decisões D-TRP-\* foram
 tomadas em 2026-10-04 (progresso **separado por tom**).
 
+A fase **E** (exercícios de ouvido: o zywny toca uma nota ou um intervalo
+e o aluno descobre qual foi, no teclado ou nos botões) tem especificação
+em [E00-exercicios-de-ouvido.md](E00-exercicios-de-ouvido.md) — quem
+executa um passo E lê também esse arquivo. As decisões D-OUV-\* foram
+propostas em 2026-10-13 (tipo de exercício do curso, referência opcional).
+A segunda parte da fase (E05–E10, **ouvido junto com a leitura**: a
+partitura gerada pelo treino de leitura soa com uma diferença e o aluno
+diz onde) tem as decisões D-LEI, tomadas com o usuário em 2026-10-13, na
+seção "Segunda parte" do mesmo E00.
+
 A fase **R** (revisão de código: quebrar os ciclos entre as pastas de
 `lib/`, desmontar `main.dart` em controllers e dividir o app em pacotes de
 um workspace Dart) tem especificação em
@@ -374,6 +384,17 @@ zywny
 | [B09](B09-curadoria-dos-classicos.md) | Bibliotecas: curadoria dos clássicos (musetrainer/library) | — | lista aprovada pelo usuário | proposta pronta (43 peças), **aguardando aprovação** |
 | [B10](B10-pacote-dos-classicos.md) | Bibliotecas: pacote dos clássicos | B02, B09 | D-BIB | pendente (espera a aprovação do B09) |
 | [B11](B11-abrir-pelo-sistema.md) | Bibliotecas: o app abre `.zywny` pelo sistema (associação de arquivos) | B05, I04 | — | Android feito e testado no emulador; Linux parcial; sem commit |
+| [E00](E00-exercicios-de-ouvido.md) | Exercícios de ouvido: `listen-note`, `listen-interval` e ouvido na leitura (passos E01–E10) | I07, I09 | D-OUV, D-LEI | especificação (D-OUV propostas; D-LEI decididas em 2026-10-13) |
+| [E01](E01-formato-e-rodada.md) | Ouvido: `listen-note`, formato, rodada e curso inicial | — | D-OUV | concluído, sem commit |
+| [E02](E02-som-e-tela.md) | Ouvido: tocar o som e a tela da pergunta | E01 | D-OUV | feito, sem commit (`just telas` pendente) |
+| [E03](E03-aceite.md) | Ouvido: especificação do formato e aceite manual | E02 | — | feito, sem commit (aceite manual pendente, ver o passo) |
+| [E04](E04-intervalos.md) | Ouvido: `listen-interval` | E03 | D-OUV | feito, sem commit (aceite manual pendente, ver o passo) |
+| [E05](E05-mudanca-e-frase.md) | Ouvido na leitura: a frase que soa e a mudança sorteada (Dart puro) | E04 | D-LEI | pendente |
+| [E06](E06-listen-score-formato.md) | Ouvido na leitura: `listen-score`, formato, rodada e curso inicial | E05 | D-LEI | pendente |
+| [E07](E07-listen-score-tela.md) | Ouvido na leitura: a tela (partitura por pergunta, som e revelação) | E06 | D-LEI | pendente |
+| [E08](E08-ouvido-no-treino.md) | Ouvido na leitura: no treino de leitura (depois de cada leitura e "só ouvido") | E07 | D-LEI | pendente |
+| [E09](E09-ditado-com-ritmo.md) | Ouvido na leitura: ditado com o ritmo dado | E07 | D-LEI-DITADO | pendente (confirmar com o usuário: agora ou depois da 1.0) |
+| [E10](E10-tocar-na-nota.md) | Ouvido na leitura: responder tocando na nota | E07 (E08 no item 5) | D-LEI-NOTA | pendente |
 | [I00](I00-licoes-e-curso-inicial.md) | Lições de terceiros e curso inicial: formato, tipos, testes e índice (passos I01–I13) | — | D-LIC | especificação (decisões tomadas) |
 | [I01](I01-formato-e-validador.md) | Lições: especificação v1, leitor e validador (Dart puro), `zywny_course validate` | — | D-LIC | **concluído** |
 | [I02](I02-partituras-das-licoes.md) | Lições: ABC no Verovio, cabeçalho ABC, gerador de MusicXML das rodadas, tempo de render | I01 | D-LIC | **concluído** (falta medir no celular) |

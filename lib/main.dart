@@ -238,7 +238,7 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   /// por ela. Ver [_onSettingsChanged].
   late final AppSettings _settings = widget.opened.appSettings;
 
-  /// O que este hino tinha guardado ao abrir (layout, andamento, mão).
+  /// O que este hino tinha guardado ao abrir (andamento, mão, trilha, tom).
   late final PieceSettings _stored = widget.opened.pieceSettings;
 
   /// Painel "Layout deste hino" e painel "Configurações gerais" — um de
@@ -468,8 +468,8 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (mounted) setState(() {});
   }
 
-  /// Guarda o que é deste hino (layout, andamento, mão). Com um respiro: um
-  /// slider arrastado chama isto a cada passo.
+  /// Guarda o que é deste hino (andamento, mão, trilha, tom). Com um respiro:
+  /// um slider arrastado chama isto a cada passo.
   void _savePieceSettings() {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(
@@ -481,11 +481,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
   Timer? _saveDebounce;
 
   PieceSettings _pieceSettingsWith({int? trailMeasures}) => PieceSettings(
-    layout: PieceSettings.layoutOverrides(
-      _session.layout,
-      _session.layoutDefaults,
-    ),
-    pageFitsBox: _session.pageFitsBox,
     speed: _playback.speed == 1.0 ? null : _playback.speed,
     hand: _hand == _kDefaultHand ? null : _hand,
     trailMeasures: trailMeasures,
@@ -1095,14 +1090,14 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
     if (mounted) _session.setPage(target);
   }
 
-  /// A layout option of this piece settled (slider released, toggle
-  /// flipped): keep it for the piece and re-engrave.
+  /// A layout option settled (slider released, toggle flipped): keep it for
+  /// every piece and re-engrave.
   void _commitLayout() {
-    _savePieceSettings();
+    _session.saveLayout();
     unawaited(_session.render());
   }
 
-  /// Back to the app's default layout — for this piece only.
+  /// Back to the app's default layout — for every piece.
   void _resetLayout() {
     _session.resetLayout();
     _commitLayout();
@@ -1673,7 +1668,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
           ),
         ],
         ?_transposeSection(),
-        // O que é só deste hino: cada um guarda o seu tamanho e layout.
         PhoneSectionLabel('${_term.este} ${_term.singular}'.toUpperCase()),
         PhoneToggleRow(
           label: 'Trechos de ${_settings.trailMeasures} compassos (padrão)',
@@ -1692,6 +1686,9 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
             onChanged: (v) =>
                 unawaited(_runner.setPieceN(v, confirm: _confirmNewCut)),
           ),
+        // A partitura é a mesma para todos os hinos: o tamanho, a página e as
+        // páginas ficam juntos, fora da seção deste hino.
+        const PhoneSectionLabel('PARTITURA'),
         PhoneSliderRow(
           label: 'TAMANHO DA NOTAÇÃO',
           value: (_session.layout['unit']! as num).toDouble(),
@@ -1929,7 +1926,6 @@ class _ScoreHomePageState extends State<ScoreHomePage> {
               _scorePanel(
                 constraints: constraints,
                 child: LayoutPanel(
-                  subtitle: _scoreName,
                   values: _session.layout,
                   pageFitsBox: _session.pageFitsBox,
                   fittedPage: _session.fittedPage,

@@ -8,10 +8,35 @@ import 'sight_steps.dart';
 
 const _letters = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
+/// Semitons de cada letra de [_letters] a partir do dó.
+const _semitones = [0, 2, 4, 5, 7, 9, 11];
+
 /// As alturas de cada pauta: a sol começa na oitava 4 e a fá na oitava 3,
 /// como o ftrain.
 const _rightOctave = 4;
 const _leftOctave = 3;
+
+/// O id (`id` do `<note>`) da nota [index] (base 0, contando pausas) do
+/// compasso [measure] (base 0) na pauta [staff] (1 = sol, 2 = fá). O Verovio
+/// o preserva, e a tela destaca a nota por ele.
+String sightNoteId(int staff, int measure, int index) =>
+    's$staff-m${measure + 1}-n${index + 1}';
+
+/// A alteração que a armadura de [step] põe na letra do [degree] (−1, 0 ou 1).
+/// A letra não depende da oitava, então vale para as duas pautas.
+int sightAlter(SightStep step, int degree) {
+  final n = _letters.indexOf(step.tonic[0]) + degree - 1;
+  return KeySignature.parse(step.tonic).alterOf(_letters[n % 7]);
+}
+
+/// A altura MIDI do [degree] na pauta [staff] do [step], com a armadura. É a
+/// mesma conta de [_writeStaff]: a pergunta de ouvido toca o que a partitura
+/// escreve.
+int sightMidi(SightStep step, int degree, {required int staff}) {
+  final n = _letters.indexOf(step.tonic[0]) + degree - 1;
+  final octave = (staff == 1 ? _rightOctave : _leftOctave) + n ~/ 7;
+  return 12 * (octave + 1) + _semitones[n % 7] + sightAlter(step, degree);
+}
 
 /// A partitura de [ex] em MusicXML.
 String sightScoreXml(SightExercise ex) {
@@ -27,11 +52,25 @@ String sightScoreXml(SightExercise ex) {
   for (var m = 0; m < ex.right.length; m++) {
     out.writeln('    <measure number="${m + 1}">');
     if (m == 0) _writeHeader(out, step);
-    _writeStaff(out, ex.right[m], step, staff: 1, octave: _rightOctave);
+    _writeStaff(
+      out,
+      ex.right[m],
+      step,
+      staff: 1,
+      octave: _rightOctave,
+      measure: m,
+    );
     out.writeln(
       '      <backup><duration>${step.unitsPerMeasure}</duration></backup>',
     );
-    _writeStaff(out, ex.left[m], step, staff: 2, octave: _leftOctave);
+    _writeStaff(
+      out,
+      ex.left[m],
+      step,
+      staff: 2,
+      octave: _leftOctave,
+      measure: m,
+    );
     out.writeln('    </measure>');
   }
   out
@@ -63,13 +102,15 @@ void _writeHeader(StringBuffer out, SightStep step) {
     ..writeln('      </direction>');
 }
 
-/// Escreve as figuras de um compasso numa pauta (voz própria por pauta).
+/// Escreve as figuras de um compasso numa pauta (voz própria por pauta). As
+/// notas levam o id de [sightNoteId]; as pausas não.
 void _writeStaff(
   StringBuffer out,
   List<SightNote> notes,
   SightStep step, {
   required int staff,
   required int octave,
+  required int measure,
 }) {
   final key = KeySignature.parse(step.tonic);
   final starts = <int>[];
@@ -82,7 +123,8 @@ void _writeStaff(
   for (var i = 0; i < notes.length; i++) {
     final note = notes[i];
     final (type, dots) = _figure(note.units);
-    out.writeln('      <note>');
+    final id = note.isRest ? '' : ' id="${sightNoteId(staff, measure, i)}"';
+    out.writeln('      <note$id>');
     if (note.isRest) {
       out.writeln('        <rest/>');
     } else {

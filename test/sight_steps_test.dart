@@ -2,6 +2,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny/sight_reading/sight_steps.dart';
 
 void main() {
+  test('sightStepNamed acha o passo pelo nome e recusa o resto', () {
+    for (final name in ['1a', '11c', '20d']) {
+      expect(sightStepNamed(name)?.name, name);
+    }
+    for (final name in ['0a', '21a', '1e', 'abc', '']) {
+      expect(sightStepNamed(name), isNull, reason: name);
+    }
+  });
+
   test('são 80 passos, do 1a ao 20d, na ordem do treino', () {
     expect(sightSteps, hasLength(80));
     expect(sightSteps.first.name, '1a');

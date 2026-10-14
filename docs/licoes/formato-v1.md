@@ -235,6 +235,9 @@ chaves dependem do `type`.
 | `count-beats` | toca o botão com quantos tempos vale a figura destacada | só a tela |
 | `play-score` | toca uma partitura que você escreveu | teclado MIDI |
 | `choice` | responde uma pergunta de múltipla escolha | só a tela |
+| `listen-note` | ouve uma nota e toca a tecla (ou escolhe o nome) | teclado MIDI, ou só a tela com `input: buttons` |
+| `listen-interval` | ouve duas notas e escolhe o nome do intervalo | só a tela |
+| `listen-score` | vê uma partitura gerada, ouve uma versão com uma diferença e diz onde | só a tela |
 
 O zywny **não tem teclado na tela**. Os tipos que pedem teclado MIDI mostram
 "Conecte o teclado" quando não há um; os de botões funcionam sem MIDI.
@@ -252,7 +255,7 @@ notes: {random: C4-G5, count: 12, only: lines}
 | Chave do sorteio | Valor | Padrão |
 | --- | --- | --- |
 | `random` | faixa `grave-aguda`, como `C4-G5` (as duas pontas valem) | — (obrigatória) |
-| `count` | quantas notas, de 1 a 60 | 12 (10 no `find-key`) |
+| `count` | quantas notas, de 1 a 60 | 12 (10 no `find-key`, `listen-note` e `listen-interval`) |
 | `only` | `lines` (só notas em linhas da pauta) ou `spaces` (só espaços) | todas |
 
 Notas se escrevem em notação científica: `C4` é o dó central, `F#4`, `Bb3`
@@ -415,6 +418,150 @@ image: media/minima.png
 Use `image` **ou** `abc`, nunca os dois. Há uma pergunta por exercício;
 a rodada vale 100% ou 0%.
 
+### `listen-note`
+
+O zywny toca a nota (antes, a de referência, se houver) e o aluno descobre
+qual foi. A nota toca sozinha a cada pergunta; **Ouvir de novo** (ou a
+tecla espaço) repete quantas vezes o aluno quiser, sem perder ponto.
+
+````markdown
+```zywny-exercise
+id: ouvir-achar
+type: listen-note
+title: Ouça e ache a tecla
+notes: {random: C4-B4, count: 8}
+reference: C4
+input: keyboard
+octave: any
+```
+````
+
+| Chave | Valor | Padrão |
+| --- | --- | --- |
+| `notes` | lista ou sorteio (seção "Notas") | — (obrigatória) |
+| `reference` | uma nota tocada antes de cada pergunta | nenhuma |
+| `input` | `keyboard` (toca a tecla) ou `buttons` (escolhe o nome) | `keyboard` |
+| `octave` | `any` ou `exact`, como no `find-key`; só com `input: keyboard` | `any` |
+| `key` | tom do sorteio; só com `input: keyboard` | Dó maior |
+| `choices` | letras dos botões, como no `name-note`; só com `input: buttons` | `[C, D, E, F, G, A, B]` |
+
+Sem `reference`, o aluno precisa reconhecer a nota sozinha, o que pouca
+gente consegue. Use uma referência no começo. Com `input: buttons`, as
+notas são naturais e cada uma precisa de um botão, como no `name-note`.
+Como vale o acerto de primeira, tocar teclas para procurar conta como erro:
+uma `accuracy` mais baixa (60) costuma servir.
+
+### `listen-interval`
+
+O zywny toca duas notas, uma depois da outra (`play: melodic`) ou juntas
+(`play: harmonic`), e o aluno escolhe o nome do intervalo num botão. Não
+usa teclado MIDI.
+
+````markdown
+```zywny-exercise
+id: l8-ouvir-tom
+type: listen-interval
+title: Meio tom ou tom?
+notes: {random: C4-G4, count: 10}
+intervals: [m2, M2]
+direction: up
+play: melodic
+pass: {accuracy: 70}
+```
+````
+
+| Chave | Valor | Padrão |
+| --- | --- | --- |
+| `notes` | lista ou sorteio (seção "Notas"); cada nota é a de partida de uma pergunta | — (obrigatória) |
+| `intervals` | 2 ou mais nomes da tabela abaixo; os botões seguem esta ordem | — (obrigatória) |
+| `direction` | `up` (a segunda nota acima), `down` (abaixo) ou `both` (sorteado) | `up` |
+| `play` | `melodic` (uma depois da outra) ou `harmonic` (juntas) | `melodic` |
+
+| Nome no arquivo | Semitons | Botão |
+| --- | --- | --- |
+| `m2` | 1 | 2ª menor |
+| `M2` | 2 | 2ª maior |
+| `m3` | 3 | 3ª menor |
+| `M3` | 4 | 3ª maior |
+| `P4` | 5 | 4ª justa |
+| `TT` | 6 | trítono |
+| `P5` | 7 | 5ª justa |
+| `m6` | 8 | 6ª menor |
+| `M6` | 9 | 6ª maior |
+| `m7` | 10 | 7ª menor |
+| `M7` | 11 | 7ª maior |
+| `P8` | 12 | oitava |
+
+Um intervalo não pode repetir na lista. O som toca sozinho a cada pergunta,
+e **Ouvir de novo** repete quantas vezes o aluno quiser, como no
+`listen-note`.
+
+### `listen-score`
+
+O zywny mostra uma partitura gerada por um passo do treino de leitura à
+primeira vista, toca uma versão dela com uma diferença e o aluno diz em que
+compasso a diferença caiu. Com `answer: same-different`, ele diz se a frase
+soou igual ou diferente. Não usa teclado MIDI.
+
+Antes da frase soa o acorde da tônica. A primeira nota nunca muda.
+
+````markdown
+```zywny-exercise
+id: l6-onde-mudou-ritmo
+type: listen-score
+title: Onde o ritmo mudou
+step: 4c
+change: rhythm
+answer: measure
+count: 5
+pass: {accuracy: 60}
+```
+````
+
+| Chave | Valor | Padrão |
+| --- | --- | --- |
+| `step` | um passo do treino de leitura, de `1a` a `20d` (tabela abaixo) | — (obrigatória) |
+| `change` | `pitch` (uma nota em outra altura), `rhythm` (uma nota dividida ou duas juntas) ou `accidental` (o acidente da armadura esquecido) | `pitch` |
+| `answer` | `measure` (botões com o número do compasso) ou `same-different` (Igual / Diferente) | `measure` |
+| `count` | quantas perguntas, de 1 a 10; cada uma é uma partitura nova | `5` |
+| `bpm` | andamento da frase, de 40 a 200 | o do passo, nunca abaixo de 72 |
+
+`change: accidental` só vale com um passo que tenha armadura, do `11a` em
+diante.
+
+O `step` é um passo do treino de leitura à primeira vista. Cada nível tem
+quatro subníveis, `a` a `d`; dentro do nível, eles vão do mais simples ao
+mais completo, em geral da mão direita às duas mãos (os rótulos exatos estão
+em `sightSteps`, em `lib/sight_reading/sight_steps.dart`).
+
+| Nível | O que traz |
+| --- | --- |
+| 1 | dó e sol, semibreves, mão direita, em dó maior |
+| 2 | as mesmas figuras, na pauta de fá |
+| 3 | semibreves, as duas mãos |
+| 4 | mínimas, depois semibreves e mínimas |
+| 5 | semínimas |
+| 6 | pausas e compasso de 3/4 |
+| 7 | mínima pontuada e intervalos maiores |
+| 8 | colcheias |
+| 9 | colcheia pontuada, com semicolcheia |
+| 10 | semicolcheias |
+| 11 | Sol maior (um sustenido) |
+| 12 | Fá maior (um bemol) |
+| 13 | Ré maior (dois sustenidos) |
+| 14 | Si bemol maior (dois bemóis) |
+| 15 | Lá maior (três sustenidos) |
+| 16 | Mi bemol maior (três bemóis) |
+| 17 | Mi maior (quatro sustenidos) |
+| 18 | Lá bemol maior (quatro bemóis) |
+| 19 | Si maior (cinco sustenidos) |
+| 20 | Ré bemol maior (cinco bemóis) |
+
+Do 11 ao 20, cada nível traz uma tonalidade nova, na ordem da tabela, e
+começa do básico (semibreves) como o 1.
+
+Com `answer: same-different`, metade das partituras soa igual ao escrito.
+
 ### Figuras
 
 `figures` aceita: `whole` (semibreve), `half` (mínima), `quarter`
@@ -435,7 +582,7 @@ pass: {accuracy: 90, rounds: 3}
 | `accuracy` | porcentagem mínima de acertos numa rodada (nas perguntas e no modo espera, só os acertos **de primeira**) | `90` | 1–100 | todos |
 | `rounds` | quantas rodadas aprovadas **seguidas** | `1` | 1–10 | todos |
 | `speed` | andamento mínimo, em % do escrito (ou do `bpm`) | `100` | 25–200 | `rhythm` e `play-score` com `mode: realtime` |
-| `time-limit` | segundos por pergunta; estourou, conta como erro | sem limite | 1–120 | `find-key`, `name-note`, `count-beats`, `choice` |
+| `time-limit` | segundos por pergunta; estourou, conta como erro | sem limite | 1–120 | `find-key`, `name-note`, `count-beats`, `choice`, `listen-note`, `listen-interval`, `listen-score` |
 
 `speed` num `play-score` em modo `wait` é erro: "o modo espera não tem
 andamento".

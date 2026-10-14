@@ -109,3 +109,35 @@ notes: {random: C3-B4, count: 10}
 octave: exact
 pass: {accuracy: 80}
 ```
+
+## Ouvir e achar
+
+Agora o zywny toca e você descobre. Primeiro soa o **dó central**, como
+referência; depois, outra nota: Dó, Ré ou Mi. Compare com a referência:
+igual, um pouco mais aguda ou mais aguda ainda? Se precisar, toque em
+**Ouvir de novo**, quantas vezes quiser.
+
+Comece respondendo pelo nome, nos botões. Depois, a mesma coisa no
+teclado: ache a tecla que soou (vale qualquer oitava).
+
+```zywny-exercise
+id: l1-ouvir-nome
+type: listen-note
+title: Ouça e diga o nome
+notes: {random: C4-E4, count: 8}
+reference: C4
+input: buttons
+choices: [C, D, E]
+pass: {accuracy: 60}
+```
+
+```zywny-exercise
+id: l1-ouvir-achar
+type: listen-note
+title: Ouça e ache a tecla
+notes: {random: C4-E4, count: 8}
+reference: C4
+input: keyboard
+octave: any
+pass: {accuracy: 60}
+```

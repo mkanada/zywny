@@ -31,6 +31,12 @@ class _Seen {
   final clefs = <String>{};
   final modes = <String>{};
   final octaves = <String>{};
+  final inputs = <String>{};
+  final directions = <String>{};
+  final plays = <String>{};
+  final changes = <String>{};
+  final answers = <String>{};
+  final intervals = <String>{};
   final hands = <String>{};
   final accidentals = <String>{};
   final onlys = <String>{};
@@ -93,6 +99,21 @@ void _collectYamlMap(YamlMap map, _Seen seen, String mark, String? type) {
       if (key == 'clef' && value is String) seen.clefs.add(value);
       if (key == 'mode' && value is String) seen.modes.add(value);
       if (key == 'octave' && value is String) seen.octaves.add(value);
+      if (key == 'input' && value is String) seen.inputs.add(value);
+      if (key == 'direction' && value is String) seen.directions.add(value);
+      if (key == 'play' && value is String) seen.plays.add(value);
+      if (key == 'change' && value is String) seen.changes.add(value);
+      if (key == 'answer' &&
+          value is String &&
+          type == ExerciseType.listenScore.wire) {
+        seen.answers.add(value);
+      }
+      if (key == 'intervals' && valueNode is YamlList) {
+        for (final item in valueNode.nodes) {
+          final interval = item.value;
+          if (interval is String) seen.intervals.add(interval);
+        }
+      }
       if (key == 'hand' && value is String) seen.hands.add(value);
       if (key == 'accidentals' && value is String) {
         seen.accidentals.add(value);
@@ -269,6 +290,19 @@ void main() {
     checkValues('clef', seen.clefs, ['treble', 'bass', 'grand']);
     checkValues('mode', seen.modes, ['wait', 'realtime']);
     checkValues('octave', seen.octaves, ['any', 'exact']);
+    checkValues('input', seen.inputs, ['keyboard', 'buttons']);
+    checkValues('direction', seen.directions, ['up', 'down', 'both']);
+    checkValues('play', seen.plays, ['melodic', 'harmonic']);
+    checkValues('change', seen.changes, [
+      for (final change in ScoreChange.values) change.wire,
+    ]);
+    checkValues('answer (listen-score)', seen.answers, [
+      for (final answer in ScoreAnswer.values) answer.wire,
+    ]);
+    // Intervalos: o curso usa os cinco mais comuns (2ª menor e maior, 3ª
+    // maior, 5ª justa e oitava). Os outros sete ficam de fora: intervalos
+    // menos comuns não cabem num curso para iniciantes.
+    checkValues('intervals', seen.intervals, ['m2', 'M2', 'M3', 'P5', 'P8']);
     checkValues('hand', seen.hands, ['right', 'left', 'both']);
     checkValues('accidentals', seen.accidentals, [
       'none',

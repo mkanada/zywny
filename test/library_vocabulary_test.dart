@@ -234,7 +234,7 @@ void main() {
       expect(onSettings, contains('valem para todas as peças'));
     });
 
-    testWidgets('layout e trilha: textos concordam com o termo', (
+    testWidgets('layout: o painel diz que vale para todas as peças', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(1000, 1600);
@@ -265,10 +265,8 @@ void main() {
           ),
         ),
       );
-      expect(
-        find.byTooltip('Restaurar o layout padrão nesta peça'),
-        findsOneWidget,
-      );
+      expect(find.text('valem para todas as peças'), findsOneWidget);
+      expect(find.byTooltip('Restaurar o layout padrão'), findsOneWidget);
     }, skip: false);
   });
 }

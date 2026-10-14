@@ -5,6 +5,7 @@
 // (`_CachedRenderer`), como o `course_screens_test.dart` — o render FFI não
 // termina no relógio falso do widget test.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -23,10 +24,13 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import 'package:zywny/course/course_progress.dart';
 import 'package:zywny/course/exercise/exercise_kind.dart';
 import 'package:zywny/course/exercise/exercise_round.dart';
+import 'package:zywny/course/exercise/question_kinds.dart';
+import 'package:zywny_course_format/course_model.dart';
 import 'package:zywny_course_format/course_reader.dart';
 import 'package:zywny/course/loaded_course.dart';
 import 'package:zywny/course/ui/course_flow.dart';
 import 'package:zywny/course/ui/exercise_screen.dart';
+import 'package:zywny/course/ui/question_body.dart';
 import 'package:zywny_midi/midi_device_manager.dart';
 import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/settings/app_settings.dart';
@@ -100,6 +104,88 @@ class _GatedRenderer implements ScoreRenderer {
   }
 }
 
+/// Entrega a partitura já renderizada de cada pergunta (a `listen-score`
+/// tem uma por pergunta; a chave é o MusicXML inteiro).
+class _ByScoreRenderer implements ScoreRenderer {
+  _ByScoreRenderer(this.docs);
+
+  final Map<String, VsbDocument> docs;
+
+  @override
+  Future<RenderedScore> render(ScoreRenderRequest request) async =>
+      RenderedScore(docs[utf8.decode(request.source)]!);
+}
+
+/// Espera de verdade (o cronômetro da sessão é o relógio de parede), andando
+/// os timers falsos.
+Future<void> _waitReal(WidgetTester tester, double seconds) async {
+  final until = DateTime.now().add(
+    Duration(milliseconds: (seconds * 1000).round()),
+  );
+  while (DateTime.now().isBefore(until)) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+}
+
+/// Põe um `QuestionBody` com [round] na tela. Cada partitura da rodada é
+/// renderizada fora do relógio falso; devolve os documentos por MusicXML.
+Future<Map<String, VsbDocument>> _pumpListen(
+  WidgetTester tester, {
+  required LoadedCourse loaded,
+  required QuestionRound round,
+  required FakeSoundEngine engine,
+  required AppSettings settings,
+  required ValueChanged<RoundResult> onDone,
+}) async {
+  final docs = <String, VsbDocument>{};
+  for (final question in round.questions) {
+    final compare = question.compare!;
+    docs[utf8.decode(compare.scoreBytes)] = (await tester.runAsync(
+      () => _renderBytes(compare.scoreBytes, compare.fileName),
+    ))!;
+  }
+  // Alto o bastante para a partitura e os botões ficarem visíveis (sem
+  // rolagem), como num celular na vertical.
+  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  final midi = FakeMidiInput();
+  addTearDown(midi.dispose);
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: QuestionBody(
+          spec: loaded.course.lessons.single.exercises.single,
+          round: round,
+          files: loaded.files,
+          settings: settings,
+          midiInput: midi,
+          rendererFactory: () => _ByScoreRenderer(docs),
+          onDone: onDone,
+          ensureEngine: () async => engine,
+        ),
+      ),
+    ),
+  );
+  return docs;
+}
+
+/// Uma rodada de `listen-score` cuja primeira pergunta soa igual ao escrito.
+Future<QuestionRound> _sameFirstRound(LoadedCourse loaded) async {
+  final spec = loaded.course.lessons.single.exercises.single as ListenScoreSpec;
+  for (var seed = 1; seed <= 50; seed++) {
+    final round = await const ListenScoreKind().generate(
+      spec,
+      loaded.files,
+      Random(seed),
+    );
+    if (round.questions.first.compare!.changedIds.isEmpty) return round;
+  }
+  throw StateError('nenhuma semente de 1 a 50 deu uma pergunta igual');
+}
+
 Future<MidiDeviceManager> _makeDevices({bool connected = false}) async {
   final fake = _FakeMidiCommand();
   if (connected) {
@@ -142,6 +228,12 @@ Future<LoadedCourse> _loadedWith(String exerciseBody) async {
     origin: CourseOrigin.installed,
   );
 }
+
+/// Alturas das notas ligadas que o motor falso recebeu, na ordem.
+List<int> _ons(FakeSoundEngine engine) => [
+  for (final e in engine.scheduled)
+    if (e.status == 0x90) e.d1,
+];
 
 Future<VsbDocument> _renderRound(QuestionRound round) =>
     _renderBytes(round.scoreBytes!, round.fileName!);
@@ -343,26 +435,14 @@ void main() {
       expect(controller().colorOf('zn1'), deps.settings.practicePendingColor);
 
       // O cronômetro da sessão é o relógio de parede: espera de verdade
-      // (1 s de limite + 1,5 s de revelação), andando os timers falsos.
-      Future<void> waitReal(double seconds) async {
-        final until = DateTime.now().add(
-          Duration(milliseconds: (seconds * 1000).round()),
-        );
-        while (DateTime.now().isBefore(until)) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 50)),
-          );
-          await tester.pump(const Duration(milliseconds: 200));
-        }
-      }
-
-      await waitReal(2.9);
+      // (1 s de limite + 1,5 s de revelação).
+      await _waitReal(tester, 2.9);
       // A primeira estourou: errada; a da vez agora é a segunda.
       expect(controller().colorOf('zn1'), deps.settings.practiceWrongColor);
       expect(controller().colorOf('zn2'), deps.settings.practicePendingColor);
 
       // A última também estoura: a rodada termina (sem ficar girando).
-      await waitReal(2.9);
+      await _waitReal(tester, 2.9);
       await tester.pump();
       expect(find.textContaining('0 de 2 de primeira'), findsOneWidget);
     },
@@ -702,6 +782,473 @@ void main() {
       72,
       'em outra oitava',
     );
+  });
+
+  testWidgets('listen-note com teclado: toca a referência e a nota, aprova', (
+    tester,
+  ) async {
+    final loaded = await _loadedWith(
+      'id: o\ntype: listen-note\ntitle: Ouça\nnotes: [E4]\nreference: C4\n',
+    );
+    final devices = await _makeDevices(connected: true);
+    final midi = FakeMidiInput();
+    final engine = FakeSoundEngine();
+    final progress = MemoryCourseProgressStore();
+    final deps = _makeDeps(
+      devices: devices,
+      midi: midi,
+      engine: engine,
+      progress: progress,
+    );
+    addTearDown(() {
+      midi.dispose();
+      deps.settings.dispose();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExerciseScreen.course(
+          loaded: loaded,
+          spec: loaded.course.lessons.single.exercises.single,
+          deps: deps,
+          rng: Random(1),
+        ),
+      ),
+    );
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text('Ouvir de novo'), findsOneWidget);
+    expect(_ons(engine), [60, 64]);
+
+    await tester.tap(find.text('Ouvir de novo'));
+    await tester.pump();
+    expect(_ons(engine), [60, 64, 60, 64]);
+
+    midi.press(64);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (find.text('Exercício aprovado!').evaluate().isNotEmpty) break;
+    }
+    expect(find.text('Exercício aprovado!'), findsOneWidget);
+    expect(progress['t'].records['o']?.passed, isTrue);
+  });
+
+  testWidgets('listen-note com botões, sem teclado: uma nota por pergunta', (
+    tester,
+  ) async {
+    final loaded = await _loadedWith(
+      'id: o\ntype: listen-note\ntitle: Ouça\nnotes: [C4, D4]\n'
+      'input: buttons\nchoices: [C, D]\n',
+    );
+    final devices = await _makeDevices(connected: false);
+    final midi = FakeMidiInput();
+    final engine = FakeSoundEngine();
+    final progress = MemoryCourseProgressStore();
+    final deps = _makeDeps(
+      devices: devices,
+      midi: midi,
+      engine: engine,
+      progress: progress,
+    );
+    addTearDown(() {
+      midi.dispose();
+      deps.settings.dispose();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExerciseScreen.course(
+          loaded: loaded,
+          spec: loaded.course.lessons.single.exercises.single,
+          deps: deps,
+          rng: Random(1),
+        ),
+      ),
+    );
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text('Conecte o teclado'), findsNothing);
+    expect(_ons(engine), [60]);
+
+    await tester.tap(find.text('Dó').first);
+    await tester.pump();
+    // A segunda nota toca sozinha, depois do silêncio entre as perguntas.
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.tap(find.text('Ré').first);
+    await tester.pump();
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (find.text('Exercício aprovado!').evaluate().isNotEmpty) break;
+    }
+    expect(find.text('Exercício aprovado!'), findsOneWidget);
+    expect(_ons(engine), [60, 62]);
+  });
+
+  testWidgets('listen-note sem saída de som: avisa e o exercício segue', (
+    tester,
+  ) async {
+    final loaded = await _loadedWith(
+      'id: o\ntype: listen-note\ntitle: Ouça\nnotes: [C4]\n'
+      'input: buttons\nchoices: [C, D]\n',
+    );
+    final devices = await _makeDevices(connected: false);
+    final midi = FakeMidiInput();
+    final deps = CourseScreenDeps(
+      settings: AppSettings(),
+      deviceManager: devices,
+      midiInput: midi,
+      progress: MemoryCourseProgressStore(),
+      ensureEngine: () async => null,
+      rendererFactory: createScoreRenderer,
+    );
+    addTearDown(() {
+      midi.dispose();
+      deps.settings.dispose();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExerciseScreen.course(
+          loaded: loaded,
+          spec: loaded.course.lessons.single.exercises.single,
+          deps: deps,
+          rng: Random(1),
+        ),
+      ),
+    );
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(
+      find.text('Sem som: confira a saída de som nas configurações.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Dó').first);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (find.text('Exercício aprovado!').evaluate().isNotEmpty) break;
+    }
+    expect(find.text('Exercício aprovado!'), findsOneWidget);
+  });
+
+  testWidgets(
+    'listen-interval sem teclado: toca o intervalo e escolhe o nome',
+    (tester) async {
+      final loaded = await _loadedWith(
+        'id: o\ntype: listen-interval\ntitle: Intervalo\nnotes: [C4]\n'
+        'intervals: [M3, P5]\n',
+      );
+      final devices = await _makeDevices(connected: false);
+      final midi = FakeMidiInput();
+      final engine = FakeSoundEngine();
+      final progress = MemoryCourseProgressStore();
+      final deps = _makeDeps(
+        devices: devices,
+        midi: midi,
+        engine: engine,
+        progress: progress,
+      );
+      addTearDown(() {
+        midi.dispose();
+        deps.settings.dispose();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExerciseScreen.course(
+            loaded: loaded,
+            spec: loaded.course.lessons.single.exercises.single,
+            deps: deps,
+            rng: Random(1),
+          ),
+        ),
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(find.text('Que intervalo é este?'), findsOneWidget);
+      expect(find.text('Conecte o teclado'), findsNothing);
+      expect(find.text('Ouvir de novo'), findsOneWidget);
+      // A raiz (60) e a segunda nota: 64 é a 3ª maior; 67, a 5ª justa.
+      final ons = _ons(engine);
+      expect(ons.first, 60);
+      expect(ons.last, anyOf(64, 67));
+
+      await tester.tap(find.text(ons.last == 64 ? '3ª maior' : '5ª justa'));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if (find.text('Exercício aprovado!').evaluate().isNotEmpty) break;
+      }
+      expect(find.text('Exercício aprovado!'), findsOneWidget);
+      expect(progress['t'].records['o']?.passed, isTrue);
+    },
+  );
+
+  // E07: a pergunta de `listen-score` com a sua partitura, a frase que toca
+  // sozinha e a revelação depois da resposta.
+  group('listen-score', skip: !verovioAvailable, () {
+    testWidgets('a frase toca sozinha: o acorde, depois as notas; "Ouvir de '
+        'novo" repete', (tester) async {
+      final loaded = await _loadedWith(
+        'id: s\ntype: listen-score\ntitle: S\nstep: 1c\ncount: 2\n',
+      );
+      final round = await generateRound(
+        loaded.course.lessons.single.exercises.single,
+        loaded.files,
+        Random(7),
+      ) as QuestionRound;
+      final engine = FakeSoundEngine();
+      final settings = AppSettings();
+      addTearDown(settings.dispose);
+      await _pumpListen(
+        tester,
+        loaded: loaded,
+        round: round,
+        engine: engine,
+        settings: settings,
+        onDone: (_) {},
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.text('Em que compasso soou diferente?'), findsOneWidget);
+      expect(
+        find.text('Primeiro o acorde, depois a partitura.'),
+        findsOneWidget,
+      );
+      for (final label in ['1', '2', '3', '4']) {
+        expect(find.widgetWithText(FilledButton, label), findsOneWidget);
+      }
+      // O acorde de Dó (60, 64, 67 e 48) e depois a frase da pergunta.
+      final played = [
+        for (final note in round.questions.first.compare!.played) note.pitch,
+      ];
+      expect(played.take(4).toList(), [60, 64, 67, 48]);
+      expect(_ons(engine), played);
+
+      await tester.tap(find.text('Ouvir de novo'));
+      await tester.pump();
+      expect(_ons(engine), [...played, ...played]);
+    });
+
+    testWidgets('errou e depois acertou: a revelação pinta a nota que mudou, '
+        'diz o compasso e toca as duas versões', (tester) async {
+      final loaded = await _loadedWith(
+        'id: s\ntype: listen-score\ntitle: S\nstep: 1c\ncount: 2\n',
+      );
+      final round = await generateRound(
+        loaded.course.lessons.single.exercises.single,
+        loaded.files,
+        Random(7),
+      ) as QuestionRound;
+      final engine = FakeSoundEngine();
+      final settings = AppSettings();
+      addTearDown(settings.dispose);
+      await _pumpListen(
+        tester,
+        loaded: loaded,
+        round: round,
+        engine: engine,
+        settings: settings,
+        onDone: (_) {},
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      final question = round.questions.first;
+      final compare = question.compare!;
+      final correct = question.correct!;
+      await tester.tap(
+        find.widgetWithText(FilledButton, question.answers[(correct + 1) % 4]),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.widgetWithText(FilledButton, question.answers[correct]),
+      );
+      await tester.pump();
+
+      expect(find.text('Era aqui.'), findsOneWidget);
+      expect(
+        find.text('Compasso ${compare.measure! + 1}: ${compare.description}.'),
+        findsOneWidget,
+      );
+      expect(find.text('Ouvir o que soou'), findsOneWidget);
+      expect(find.text('Ouvir o escrito'), findsOneWidget);
+      expect(find.text('Próxima'), findsOneWidget);
+      // A nota que mudou fica destacada na partitura desta pergunta.
+      final controller = tester
+          .widget<ScoreView>(find.byType(ScoreView))
+          .controller!;
+      expect(
+        controller.colorOf(compare.changedIds.first),
+        settings.practiceWrongColor,
+      );
+
+      final before = _ons(engine).length;
+      await tester.tap(find.text('Ouvir o escrito'));
+      await tester.pump();
+      expect(_ons(engine).skip(before).toList(), [
+        for (final note in compare.written) note.pitch,
+      ]);
+      // "E" também toca o escrito, no teclado do computador.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+      await tester.pump();
+      expect(_ons(engine).length, before + 2 * compare.written.length);
+    });
+
+    testWidgets('"Próxima" mostra a pergunta seguinte com a sua partitura; a '
+        'última termina a rodada', (tester) async {
+      final loaded = await _loadedWith(
+        'id: s\ntype: listen-score\ntitle: S\nstep: 1c\ncount: 2\n',
+      );
+      final round = await generateRound(
+        loaded.course.lessons.single.exercises.single,
+        loaded.files,
+        Random(7),
+      ) as QuestionRound;
+      final engine = FakeSoundEngine();
+      final settings = AppSettings();
+      addTearDown(settings.dispose);
+      RoundResult? result;
+      final docs = await _pumpListen(
+        tester,
+        loaded: loaded,
+        round: round,
+        engine: engine,
+        settings: settings,
+        onDone: (r) => result = r,
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      // Pergunta 1: erra e acerta. Pergunta 2: acerta de primeira.
+      final first = round.questions[0];
+      await tester.tap(
+        find.widgetWithText(
+          FilledButton,
+          first.answers[(first.correct! + 1) % 4],
+        ),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.widgetWithText(FilledButton, first.answers[first.correct!]),
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Próxima'));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      final second = round.questions[1];
+      expect(find.text('Em que compasso soou diferente?'), findsOneWidget);
+      expect(find.text('Próxima'), findsNothing);
+      expect(
+        identical(
+          tester.widget<ScoreView>(find.byType(ScoreView)).document,
+          docs[utf8.decode(second.compare!.scoreBytes)],
+        ),
+        isTrue,
+      );
+      final played = [for (final note in second.compare!.played) note.pitch];
+      expect(
+        _ons(engine).skip(_ons(engine).length - played.length).toList(),
+        played,
+      );
+
+      await tester.tap(
+        find.widgetWithText(FilledButton, second.answers[second.correct!]),
+      );
+      await tester.pump();
+      expect(find.text('Certo!'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Terminar'));
+      await tester.pump();
+      expect(result?.hits, 1);
+      expect(result?.total, 2);
+    });
+
+    testWidgets('igual ou diferente: "Era igual." e sem "Ouvir o escrito" '
+        'quando nada mudou', (tester) async {
+      final loaded = await _loadedWith(
+        'id: s\ntype: listen-score\ntitle: S\nstep: 1c\n'
+        'answer: same-different\ncount: 2\n',
+      );
+      final round = await _sameFirstRound(loaded);
+      final engine = FakeSoundEngine();
+      final settings = AppSettings();
+      addTearDown(settings.dispose);
+      await _pumpListen(
+        tester,
+        loaded: loaded,
+        round: round,
+        engine: engine,
+        settings: settings,
+        onDone: (_) {},
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(find.text('Soou igual ao escrito?'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Diferente'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Igual'));
+      await tester.pump();
+
+      expect(find.text('Era igual.'), findsOneWidget);
+      expect(find.text('O que soou foi exatamente o escrito.'), findsOneWidget);
+      expect(find.text('Ouvir o que soou'), findsOneWidget);
+      expect(find.text('Ouvir o escrito'), findsNothing);
+    });
+
+    testWidgets('estourou o tempo: a revelação espera o aluno, e o relógio '
+        'para nela', (tester) async {
+      final loaded = await _loadedWith(
+        'id: s\ntype: listen-score\ntitle: S\nstep: 1c\ncount: 2\n'
+        'pass: {time-limit: 1}\n',
+      );
+      final round = await generateRound(
+        loaded.course.lessons.single.exercises.single,
+        loaded.files,
+        Random(7),
+      ) as QuestionRound;
+      final engine = FakeSoundEngine();
+      final settings = AppSettings();
+      addTearDown(settings.dispose);
+      await _pumpListen(
+        tester,
+        loaded: loaded,
+        round: round,
+        engine: engine,
+        settings: settings,
+        onDone: (_) {},
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      // 1 s de limite e 1,5 s de revelação da sessão: a revelação da tela
+      // aparece depois disso.
+      await _waitReal(tester, 2.9);
+      expect(find.text('Era aqui.'), findsOneWidget);
+      expect(find.text('Próxima'), findsOneWidget);
+
+      // Parada na revelação, a pergunta seguinte não aparece sozinha.
+      await _waitReal(tester, 3);
+      expect(find.text('Próxima'), findsOneWidget);
+      expect(find.text('Em que compasso soou diferente?'), findsNothing);
+
+      // Ao seguir, a pergunta 2 ganha o seu tempo inteiro (1 s).
+      await tester.tap(find.widgetWithText(FilledButton, 'Próxima'));
+      await tester.pump();
+      await _waitReal(tester, 0.5);
+      expect(find.text('Em que compasso soou diferente?'), findsOneWidget);
+    });
   });
 
   // Uso das variáveis do `setUpAll` (evita aviso de não usadas quando o

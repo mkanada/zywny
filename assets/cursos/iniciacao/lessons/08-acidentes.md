@@ -21,6 +21,33 @@ names: true
 caption: "Mi e Fá, Si e Dó: meio tom sem preta no meio"
 ```
 
+Agora de ouvido: o zywny toca duas notas, uma depois da outra. A distância
+entre elas é meio tom ou um tom? O meio tom soa apertado, as duas notas
+quase grudadas; o tom soa mais aberto, como Dó e Ré.
+
+Nos botões, meio tom aparece como **2ª menor** e um tom como **2ª maior**.
+
+```zywny-exercise
+id: l8-ouvir-tom
+type: listen-interval
+title: Meio tom ou tom, subindo
+notes: {random: C4-G4, count: 10}
+intervals: [m2, M2]
+direction: up
+play: melodic
+pass: {accuracy: 70}
+```
+
+```zywny-exercise
+id: l8-ouvir-tom-descendo
+type: listen-interval
+title: Meio tom ou tom, descendo
+notes: {random: D4-A4, count: 10}
+intervals: [m2, M2]
+direction: down
+pass: {accuracy: 70}
+```
+
 ## Sustenido e bemol
 
 O **sustenido** (♯) sobe a nota meio tom; o **bemol** (♭) desce meio

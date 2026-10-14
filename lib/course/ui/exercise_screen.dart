@@ -615,6 +615,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       settings: widget.deps.settings,
       midiInput: widget.deps.midiInput,
       rendererFactory: widget.deps.rendererFactory,
+      ensureEngine: widget.deps.ensureEngine,
       onDone: (result) => unawaited(_finishRound(result)),
     );
   }

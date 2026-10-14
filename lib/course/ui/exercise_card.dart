@@ -15,7 +15,8 @@ bool exerciseNeedsMidi(ExerciseSpec spec) =>
     spec is FindKeySpec ||
     spec is PlayNotesSpec ||
     spec is RhythmSpec ||
-    spec is PlayScoreSpec;
+    spec is PlayScoreSpec ||
+    (spec is ListenNoteSpec && spec.input == AnswerInput.keyboard);
 
 /// Estado resumido para o cartão (o progresso guardado é do I09).
 class ExerciseCardState {
@@ -61,6 +62,15 @@ String exerciseSummary(ExerciseSpec spec) {
       return 'Toque a partitura · $hand · $mode';
     case ChoiceSpec():
       return spec.question;
+    case ListenNoteSpec():
+      final how = spec.input == AnswerInput.buttons
+          ? 'pelo nome'
+          : 'no teclado';
+      return 'Ouça e responda $how · ${countOf(spec.notes, fallback: 10)}';
+    case ListenIntervalSpec():
+      return 'Ouça o intervalo · ${countOf(spec.notes, fallback: 10)}';
+    case ListenScoreSpec():
+      return 'Ouça a partitura · ${spec.count}';
   }
 }
 

@@ -102,3 +102,19 @@ bpm: 70
 note: C4
 pass: {accuracy: 85, speed: 100}
 ```
+
+## Ouça o ritmo
+
+O zywny toca uma partitura de semibreves e mínimas, mas num compasso o
+ritmo soa diferente do escrito: uma nota se divide em duas, ou duas viram
+uma só. Conte os tempos enquanto ouve. Em que compasso?
+
+```zywny-exercise
+id: l6-onde-mudou-ritmo
+type: listen-score
+title: Onde o ritmo mudou
+step: 4c
+change: rhythm
+count: 5
+pass: {accuracy: 80}
+```
