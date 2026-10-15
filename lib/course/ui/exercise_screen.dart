@@ -30,7 +30,10 @@ import 'package:zywny_midi/midi_device_manager.dart';
 
 import '../../midi/midi_device_picker.dart';
 import '../../practice/app_hand.dart';
+import '../../practice/hand.dart';
 import '../../practice/practice_colors.dart' show kPracticeAppHandColor;
+import '../../ui/phone_chrome.dart';
+import '../../ui/side_panel.dart';
 import '../../ui/theme.dart';
 
 import 'package:zywny_course_format/course_model.dart';
@@ -132,6 +135,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   /// Metrônomo da rodada com tempo: ligado por padrão, na rodada inteira (não
   /// só na contagem). O aluno desliga na barra.
   bool _metronomeOn = true;
+
+  /// Gaveta "Opções de estudo" aberta (celular, como no hino).
+  bool _optionsOpen = false;
 
   /// Ouvindo antes (I08): o trecho sem avaliar.
   bool _listening = false;
@@ -647,6 +653,60 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     final showControls = _result == null && _error == null;
     final ready = _runner != null && !_loading;
     final realtime = _isRealtimeScore;
+    final body = Expanded(
+      child: _RoundBody(
+        loading: _loading,
+        error: _error,
+        runner: _runner,
+        player: _player,
+        viewController: _viewController,
+        scheduler: _runner?.scheduler,
+        phone: _isPhone,
+        sidePanel: courseCompactHeader(context),
+        label: widget.source.id,
+        onPaper: (widthPx, heightPx) {
+          if ((_loadWidthPx == widthPx && _loadHeightPx == heightPx) ||
+              _running ||
+              _listening ||
+              _result != null) {
+            return;
+          }
+          _loadWidthPx = widthPx;
+          _loadHeightPx = heightPx;
+          if (_startedRound) unawaited(_newRound(widthPx));
+        },
+        resultPanel: _result != null && _verdict != null
+            ? _ResultPanel(
+                result: _result!,
+                verdict: _verdict!,
+                errors: _errors,
+                previousBest: _previousBest,
+                retryLabel: widget.source.nextRoundLabel,
+                onRetry: _loadWidthPx == null
+                    ? null
+                    : () => unawaited(_newRound(_loadWidthPx!)),
+                onRepeat: _loadWidthPx == null || !widget.source.canRepeatRound
+                    ? null
+                    : () => unawaited(_newRound(_loadWidthPx!, repeat: true)),
+                onBack: _exit,
+                side: courseCompactHeader(context),
+              )
+            : null,
+      ),
+    );
+    // No celular, os controles ficam na barra lateral da direita, como nos
+    // hinos; nos outros aparelhos, na faixa de cima.
+    if (_isPhone) {
+      return Stack(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [body, if (showControls) _scoreRail()],
+          ),
+          if (_optionsOpen && showControls) _scoreOptions(),
+        ],
+      );
+    }
     return Column(
       children: [
         if (showControls)
@@ -656,61 +716,110 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             metronome: _metronomeOn,
             listening: _listening,
             running: _running,
-            onSpeed: ready
-                ? (value) {
-                    setState(() => _chosenSpeed = value);
-                    final widthPx = _loadWidthPx;
-                    if (widthPx != null) unawaited(_newRound(widthPx));
-                  }
-                : null,
+            playing: _playing,
+            onPlayPause: _running ? _togglePause : null,
+            onSpeed: ready ? _setSpeed : null,
             onMetronome: ready ? _toggleMetronome : null,
             onRestart: _loadWidthPx == null ? null : _restart,
             onListen: ready ? _toggleListen : null,
           ),
-        Expanded(
-          child: _RoundBody(
-            loading: _loading,
-            error: _error,
-            runner: _runner,
-            player: _player,
-            viewController: _viewController,
-            scheduler: _runner?.scheduler,
-            phone: _isPhone,
-            sidePanel: courseCompactHeader(context),
-            label: widget.source.id,
-            onPaper: (widthPx, heightPx) {
-              if ((_loadWidthPx == widthPx && _loadHeightPx == heightPx) ||
-                  _running ||
-                  _listening ||
-                  _result != null) {
-                return;
-              }
-              _loadWidthPx = widthPx;
-              _loadHeightPx = heightPx;
-              if (_startedRound) unawaited(_newRound(widthPx));
-            },
-            resultPanel: _result != null && _verdict != null
-                ? _ResultPanel(
-                    result: _result!,
-                    verdict: _verdict!,
-                    errors: _errors,
-                    previousBest: _previousBest,
-                    retryLabel: widget.source.nextRoundLabel,
-                    onRetry: _loadWidthPx == null
-                        ? null
-                        : () => unawaited(_newRound(_loadWidthPx!)),
-                    onRepeat:
-                        _loadWidthPx == null || !widget.source.canRepeatRound
-                        ? null
-                        : () =>
-                              unawaited(_newRound(_loadWidthPx!, repeat: true)),
-                    onBack: _exit,
-                    side: courseCompactHeader(context),
-                  )
-                : null,
+        body,
+      ],
+    );
+  }
+
+  /// Rodada tocando (não pausada): o botão mostra "Pausar".
+  bool get _playing => _running && !(_runner?.paused ?? false);
+
+  /// Pausa ou retoma a rodada com tempo real; a partitura para ou segue junto.
+  void _togglePause() {
+    final runner = _runner;
+    if (runner == null || !_running) return;
+    if (runner.paused) {
+      runner.resume();
+      _player?.play();
+    } else {
+      runner.pause();
+      _player?.pause();
+    }
+    setState(() {});
+  }
+
+  /// Andamento escolhido: a rodada recomeça com ele na mesma largura.
+  void _setSpeed(double value) {
+    setState(() => _chosenSpeed = value);
+    final widthPx = _loadWidthPx;
+    if (widthPx != null) unawaited(_newRound(widthPx));
+  }
+
+  /// A barra lateral da rodada no celular: o mesmo desenho do hino
+  /// (`PhoneRail`). O compasso acompanha a partitura.
+  Widget _scoreRail() {
+    final runner = _runner;
+    final player = _player;
+    final playing = _playing;
+    final speed = _chosenSpeed ?? widget.source.startSpeed;
+    Widget rail(int? measure, int? total) => PhoneRail(
+      playing: playing,
+      onPlayPause: _running ? _togglePause : null,
+      measure: measure,
+      totalMeasures: total,
+      tempoPercent: (speed * 100).round(),
+      handLabel: runner?.round.hand.shortLabel ?? '',
+      onOptions: () => setState(() => _optionsOpen = true),
+      onRestart: _loadWidthPx == null ? null : _restart,
+      onListen: runner != null && !_loading ? _toggleListen : null,
+      listening: _listening,
+    );
+    if (player == null) return rail(null, null);
+    return ValueListenableBuilder<int>(
+      valueListenable: player.currentMeasureIndex,
+      builder: (context, index, _) => rail(index + 1, player.measures.length),
+    );
+  }
+
+  /// A gaveta "Opções de estudo" da rodada, como a do hino: andamento e
+  /// metrônomo, o que a faixa de cima mostra no computador.
+  Widget _scoreOptions() {
+    final realtime = _isRealtimeScore;
+    final percent = ((_chosenSpeed ?? widget.source.startSpeed) * 100).round();
+    return Positioned.fill(
+      child: PhoneSidePanel(
+        title: 'Opções de estudo',
+        onClose: () => setState(() => _optionsOpen = false),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (realtime) ...[
+                Text(
+                  'Andamento $percent%',
+                  style: const TextStyle(fontSize: 15),
+                ),
+                Slider(
+                  value: percent.clamp(25, 200).toDouble(),
+                  min: 25,
+                  max: 200,
+                  divisions: 35,
+                  label: '$percent%',
+                  onChanged: (value) => _setSpeed(value / 100),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Metrônomo'),
+                  value: _metronomeOn,
+                  onChanged: (_) => _toggleMetronome(),
+                ),
+              ] else
+                const Text(
+                  'Toque no seu tempo.',
+                  style: TextStyle(fontSize: 14, color: kInkCaption),
+                ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -763,6 +872,8 @@ class _ScoreControls extends StatelessWidget {
     required this.metronome,
     required this.listening,
     required this.running,
+    required this.playing,
+    required this.onPlayPause,
     required this.onSpeed,
     required this.onMetronome,
     required this.onRestart,
@@ -774,6 +885,8 @@ class _ScoreControls extends StatelessWidget {
   final bool metronome;
   final bool listening;
   final bool running;
+  final bool playing;
+  final VoidCallback? onPlayPause;
   final ValueChanged<double>? onSpeed;
   final VoidCallback? onMetronome;
   final VoidCallback? onRestart;
@@ -789,6 +902,11 @@ class _ScoreControls extends StatelessWidget {
       ),
       child: Row(
         children: [
+          IconButton(
+            tooltip: playing ? 'Pausar' : 'Tocar',
+            onPressed: onPlayPause,
+            icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+          ),
           if (realtime) ...[
             const Icon(Icons.speed, size: 18, color: kInkCaption),
             Expanded(

@@ -488,7 +488,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     engine.scheduled.clear();
-    await tester.tap(find.byTooltip('Ouvir antes (sem avaliar)'));
+    // Na barra lateral do celular, o mesmo botão do hino.
+    await tester.tap(find.byTooltip('Ouvir o trecho'));
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }

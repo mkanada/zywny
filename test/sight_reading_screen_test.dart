@@ -138,13 +138,37 @@ void main() {
     'leitura no ritmo: o botão desliga o metrônomo da rodada inteira',
     (tester) async {
       final r = await _abrirLeitura(tester, leituraDoc);
-      await tester.tap(find.byTooltip('Desligar metrônomo'));
+      // No celular, o metrônomo fica na gaveta de andamento, como no hino.
+      await tester.tap(find.byTooltip('Andamento'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.widgetWithText(SwitchListTile, 'Metrônomo'));
       await tester.pump();
-      expect(find.byTooltip('Ligar metrônomo'), findsOneWidget);
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isFalse,
+      );
+      await tester.tap(find.byTooltip('Fechar'));
+      await tester.pump(const Duration(milliseconds: 500));
       await playAllCorrect(tester, r.runner, r.midi, r.engine, r.result);
       final clicks = r.engine.scheduled.where((m) => m.status == 0x99).length;
       // Só a contagem (um compasso de cliques), sem as batidas da rodada.
       expect(clicks, lessThan(r.runner.scheduler.beats.length));
+    },
+    skip: !verovioAvailable,
+  );
+
+  testWidgets(
+    'leitura no ritmo: tocar/pausar para a rodada e retoma de onde parou',
+    (tester) async {
+      final r = await _abrirLeitura(tester, leituraDoc);
+      await tester.tap(find.byTooltip('Pausar'));
+      await tester.pump();
+      expect(r.runner.paused, isTrue);
+      expect(find.byTooltip('Tocar'), findsOneWidget);
+      await tester.tap(find.byTooltip('Tocar'));
+      await tester.pump();
+      expect(r.runner.paused, isFalse);
+      expect(find.byTooltip('Pausar'), findsOneWidget);
     },
     skip: !verovioAvailable,
   );

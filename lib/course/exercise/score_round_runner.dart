@@ -279,6 +279,11 @@ class ScoreRoundRunner {
     ghosts.setReview([for (final m in practice.wrongMarks) m.ghostRequest]);
   }
 
+  /// Pausa e retoma a rodada com tempo real (o botão tocar/pausar da barra).
+  bool get paused => _practice?.paused ?? false;
+  void pause() => _practice?.pause();
+  void resume() => _practice?.resume();
+
   /// Abandona a rodada: nenhum resultado (o [start] termina com `null`).
   void cancel() {
     final done = _done;
