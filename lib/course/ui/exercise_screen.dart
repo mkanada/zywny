@@ -536,55 +536,102 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appBar = AppBar(
+      backgroundColor: kPanelSideBg,
+      surfaceTintColor: Colors.transparent,
+      // Deitado, o cabeçalho fica baixo: a partitura precisa da altura.
+      toolbarHeight: courseToolbarHeight(context),
+      automaticallyImplyLeading: false,
+      leading: IconButton(
+        tooltip: 'Sair do exercício',
+        onPressed: _exit,
+        icon: const Icon(Icons.close),
+      ),
+      title: Text(
+        widget.source.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: serifDisplay(fontSize: 19),
+      ),
+      actions: [
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Text(
+              'rodada $_roundNumber',
+              style: const TextStyle(fontSize: 13, color: kInkCaption),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Center(
+            child: Text(
+              widget.source.goal,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: kInkCaption),
+            ),
+          ),
+        ),
+      ],
+    );
+    final flow = CourseTextScale(
+      settings: widget.deps.settings,
+      child: _needsMidi && widget.deps.deviceManager.connected.value == null
+          ? _KeyboardGate(deviceManager: widget.deps.deviceManager)
+          : _isQuestion
+          ? _questionFlow()
+          : _scoreFlow(),
+    );
+    if (!_isPhone) {
+      return Scaffold(
+        backgroundColor: kSurface,
+        appBar: appBar,
+        // Como no hino: o corpo fica na área segura (o recorte da câmera não
+        // corta a partitura). O topo já é do cabeçalho.
+        body: SafeArea(child: flow),
+      );
+    }
+    // No celular, a barra lateral da rodada vai de alto a baixo, como no
+    // hino; o cabeçalho ocupa só a largura da partitura. Tudo dentro da área
+    // segura, longe do recorte da câmera.
+    final gate =
+        _needsMidi && widget.deps.deviceManager.connected.value == null;
+    final railShown =
+        !gate && !_isQuestion && _result == null && _error == null;
     return Scaffold(
       backgroundColor: kSurface,
-      appBar: AppBar(
-        backgroundColor: kPanelSideBg,
-        surfaceTintColor: Colors.transparent,
-        // Deitado, o cabeçalho fica baixo: a partitura precisa da altura.
-        toolbarHeight: courseToolbarHeight(context),
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          tooltip: 'Sair do exercício',
-          onPressed: _exit,
-          icon: const Icon(Icons.close),
-        ),
-        title: Text(
-          widget.source.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: serifDisplay(fontSize: 19),
-        ),
-        actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Text(
-                'rodada $_roundNumber',
-                style: const TextStyle(fontSize: 13, color: kInkCaption),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: railShown ? kPhoneRailWidth : 0,
+                ),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: courseToolbarHeight(context),
+                      child: appBar,
+                    ),
+                    Expanded(child: flow),
+                  ],
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Center(
-              child: Text(
-                widget.source.goal,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: kInkCaption),
+            if (railShown)
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: kPhoneRailWidth,
+                child: _scoreRail(),
               ),
-            ),
-          ),
-        ],
-      ),
-      body: CourseTextScale(
-        settings: widget.deps.settings,
-        child: _needsMidi && widget.deps.deviceManager.connected.value == null
-            ? _KeyboardGate(deviceManager: widget.deps.deviceManager)
-            : _isQuestion
-            ? _questionFlow()
-            : _scoreFlow(),
+            if (railShown && _optionsOpen) _scoreOptions(),
+          ],
+        ),
       ),
     );
   }
@@ -696,20 +743,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     );
     // No celular, os controles ficam na barra lateral da direita, como nos
     // hinos; nos outros aparelhos, na faixa de cima.
-    if (_isPhone) {
-      return Stack(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [body, if (showControls) _scoreRail()],
-          ),
-          if (_optionsOpen && showControls) _scoreOptions(),
-        ],
-      );
-    }
     return Column(
       children: [
-        if (showControls)
+        if (showControls && !_isPhone)
           _ScoreControls(
             realtime: realtime,
             speed: _chosenSpeed ?? widget.source.startSpeed,
@@ -984,9 +1020,9 @@ class _RoundBody extends StatelessWidget {
   final ScoreAudioScheduler? scheduler;
   final bool phone;
 
-  /// Celular deitado: o [resultPanel] entra pela direita e a partitura
-  /// encolhe para caber ao lado dele, sem nada por cima das notas erradas
-  /// (embaixo, o painel cobriria a pauta quase toda).
+  /// Celular deitado: o [resultPanel] entra pela direita, sobre a partitura,
+  /// que mantém o tamanho (encolher a pauta a redesenhava menor; embaixo, o
+  /// painel cobriria a pauta quase toda).
   final bool sidePanel;
 
   /// Id do exercício, para o log de tamanho (`ScoreSizeLog`).
@@ -1065,25 +1101,30 @@ class _RoundBody extends StatelessWidget {
               ),
             if (resultPanel case final panel? when !side)
               Positioned(left: 0, right: 0, bottom: 0, child: panel),
+            // Celular deitado: o resumo entra pela direita sobre a partitura,
+            // sem mudar o tamanho dela (como o resumo do hino).
+            if (resultPanel case final panel? when side)
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: min(constraints.maxWidth * 0.6, kPhoneSidePanelWidth),
+                child: Material(
+                  color: kSurface,
+                  elevation: 8,
+                  child: SafeArea(
+                    left: false,
+                    child: Center(child: SingleChildScrollView(child: panel)),
+                  ),
+                ),
+              ),
           ],
         );
-        if (!side) return stack;
-        return Row(
-          children: [
-            Expanded(child: stack),
-            SizedBox(
-              width: min(constraints.maxWidth * 0.4, _kResultPanelWidth),
-              child: Center(child: SingleChildScrollView(child: resultPanel)),
-            ),
-          ],
-        );
+        return stack;
       },
     );
   }
 }
-
-/// Largura do painel de resultado na lateral (celular deitado).
-const double _kResultPanelWidth = 320;
 
 /// "2 erros" no canto da partitura durante a rodada.
 class _ErrorChip extends StatelessWidget {
