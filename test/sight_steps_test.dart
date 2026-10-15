@@ -46,9 +46,10 @@ void main() {
   });
 
   test('o andamento segue a tabela de cada passo', () {
+    // Níveis 1 a 3 (só semibreves) a 60; o 4 (mínimas) volta aos 30.
     expect(
       [for (var l = 1; l <= 4; l++) sightStep(l, 0).bpm],
-      [30, 30, 30, 30],
+      [60, 60, 60, 30],
     );
     expect(sightStep(8, 0).bpm, 55);
     expect(sightStep(11, 0).bpm, 35);

@@ -123,7 +123,7 @@ O que já existe e é reaproveitado:
 | D-LEI-TAREFA | Primeira tarefa | **"Onde mudou?"**, respondida pelo compasso (botões 1 a 4). "Igual ou diferente?" só no curso, nas primeiras lições. (Usuário, 2026-10-13.) |
 | D-LEI-TONICA | Tocar o acorde da tônica antes da frase? | **Sim.** (Usuário, 2026-10-13.) |
 | D-LEI-DITADO | Ditado com o ritmo dado: agora ou depois da 1.0? | O passo (E09) está escrito; executar **depois do E08**. O usuário pode adiá-lo para depois da 1.0. |
-| D-LEI-ANDAMENTO | Em que andamento a frase soa? | O do passo, mas **nunca abaixo de 72**: a semibreve do 1a (30 bpm) duraria 8 s. O curso pode trocar com `bpm`. |
+| D-LEI-ANDAMENTO | Em que andamento a frase soa? | O do passo, mas **nunca abaixo de 72**: a semibreve do 1a duraria 8 s a 30 bpm (hoje, a 60 bpm, dura 4 s). O curso pode trocar com `bpm`. |
 | D-LEI-MUDANCA | Quão grande é a mudança de altura? | Até o nível 6, **2 ou 3 graus**; do 7 em diante, **1 ou 2**. A **primeira nota** da frase nunca muda (é a âncora, junto com o acorde). |
 | D-LEI-SOOUVIDO | Progresso do modo só ouvido | Os mesmos 80 passos, com **progresso próprio**. Uma rodada tem 5 perguntas; é limpa com 4 ou mais de primeira; 3 limpas sobem um passo, como na leitura. |
 | D-LEI-NOTA | Quando a resposta passa do compasso para a nota (E10)? | No curso, quando o autor pedir (`answer: note`). No modo só ouvido, **do nível 7 em diante**. Depois de cada leitura, continua o compasso. |
