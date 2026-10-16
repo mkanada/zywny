@@ -71,6 +71,7 @@ void main() {
     expect(find.text('Leitura à primeira vista'), findsOneWidget);
     expect(find.text('Ler e tocar'), findsOneWidget);
     expect(find.text('Só ouvido'), findsOneWidget);
+    expect(find.text('Níveis'), findsOneWidget);
     expect(find.text('Ouvido depois de cada leitura'), findsOneWidget);
 
     await tester.tap(find.text('Ler e tocar'));
@@ -96,6 +97,26 @@ void main() {
     await tester.tap(find.text('Leitura à primeira vista'));
     await tester.pump();
     expect(read, 0);
+  });
+
+  testWidgets('"Níveis" abre a lista dos passos', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _list(
+          onSightReading: (context) async {},
+          store: SightReadingStore(prefs: SharedPreferencesAsync()),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Níveis'));
+    await tester.pump(const Duration(milliseconds: 400));
+    // O progresso guardado chega de forma assíncrona; a lista aparece depois.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump();
+    expect(find.text('Níveis da leitura'), findsOneWidget);
+    expect(find.text('Nível 1'), findsOneWidget);
   });
 
   testWidgets('desligar a chave do ouvido grava false', (tester) async {

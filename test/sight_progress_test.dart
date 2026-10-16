@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/sight_reading/sight_progress.dart';
+import 'package:zywny/sight_reading/sight_steps.dart';
 
 void main() {
   setUp(() {
@@ -121,4 +122,27 @@ void main() {
     expect((await store.loadListen()).step.name, '2a');
     expect((await store.loadListen()).clean, 1);
   });
+
+  test(
+    'voltar a um passo zera as rodadas e o ouvido; antes dele fica atrás',
+    () {
+      const p = SightProgress(
+        level: 5,
+        sub: 2,
+        clean: 2,
+        earHits: 3,
+        earTotal: 4,
+      );
+      final back = SightProgress.startOf(sightStep(3, 1));
+      expect(back.step.name, '3b');
+      expect(back.clean, 0);
+      expect(back.earTotal, 0);
+
+      expect(p.isBehind(sightStep(5, 1)), isTrue);
+      expect(p.isBehind(sightStep(1, 0)), isTrue);
+      expect(p.isBehind(sightStep(5, 2)), isFalse);
+      expect(p.isBehind(sightStep(5, 3)), isFalse);
+      expect(const SightProgress().isBehind(sightSteps.first), isFalse);
+    },
+  );
 }

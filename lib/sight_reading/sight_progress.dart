@@ -56,6 +56,15 @@ class SightProgress {
   /// Rodadas limpas que faltam para o próximo subnível.
   int get remaining => sightCleanToAdvance - clean;
 
+  /// O começo de [step]: sem rodadas limpas nem perguntas de ouvido, que
+  /// contam só no passo em que foram feitas.
+  factory SightProgress.startOf(SightStep step) =>
+      SightProgress(level: step.level, sub: step.sub);
+
+  /// Se [step] ficou para trás: o aluno já está num passo depois dele.
+  bool isBehind(SightStep step) =>
+      step.level < level || (step.level == level && step.sub < sub);
+
   /// Conta uma pergunta de ouvido: [hit] diz se foi certa de primeira.
   SightProgress withEar({required bool hit}) => SightProgress(
     level: level,

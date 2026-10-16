@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../sight_reading/sight_levels_screen.dart';
 import '../../sight_reading/sight_progress.dart';
 import '../../ui/theme.dart';
 import '../course_progress.dart';
@@ -105,8 +106,8 @@ class CoursesScreen extends StatelessWidget {
 }
 
 /// Cartão do treino de leitura, no topo da lista: "Ler e tocar" e "Só ouvido"
-/// (E08), e a chave do ouvido depois de cada leitura. Os botões abrem o treino;
-/// o toque no cartão não abre nada.
+/// (E08), "Níveis" (a lista dos passos, para voltar), e a chave do ouvido depois
+/// de cada leitura. Os botões abrem o treino; o toque no cartão não abre nada.
 class _SightReadingCard extends StatefulWidget {
   const _SightReadingCard({
     required this.onRead,
@@ -145,6 +146,13 @@ class _SightReadingCardState extends State<_SightReadingCard> {
   void _setEarOn(bool on) {
     setState(() => _earOn = on);
     unawaited(_store.saveEarOn(on));
+  }
+
+  /// Os níveis, com a descrição de cada passo: voltar ou reiniciar a leitura.
+  void _openLevels() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => SightLevelsScreen(store: _store)),
+    );
   }
 
   @override
@@ -188,19 +196,23 @@ class _SightReadingCardState extends State<_SightReadingCard> {
               ],
             ),
             const SizedBox(height: 10),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 FilledButton(
                   onPressed: widget.onRead,
                   child: const Text('Ler e tocar'),
                 ),
-                if (widget.onListen != null) ...[
-                  const SizedBox(width: 8),
+                if (widget.onListen != null)
                   OutlinedButton(
                     onPressed: widget.onListen,
                     child: const Text('Só ouvido'),
                   ),
-                ],
+                OutlinedButton(
+                  onPressed: _openLevels,
+                  child: const Text('Níveis'),
+                ),
               ],
             ),
             SwitchListTile(
