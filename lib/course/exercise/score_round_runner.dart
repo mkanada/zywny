@@ -204,9 +204,11 @@ class ScoreRoundRunner {
     }
 
     final resolved = exerciseRange(timeline, round.measures);
-    // Partitura de uma pauta só ignora a mão (`play-score` com `hand`):
-    // a pauta é do aluno.
-    final Hand hand = track.staves.length <= 1 ? Hand.direita : round.hand;
+    // Partitura de uma pauta só ignora a mão (`play-score` com `hand`): a
+    // pauta é do aluno, seja qual for o número dela (a mão esquerda da
+    // leitura à vista tem a 1 só de pausas, e a com notas é a 2). `ambas`
+    // cobre as duas, e o app não toca nada.
+    final Hand hand = track.staves.length <= 1 ? Hand.ambas : round.hand;
 
     final done = Completer<RoundResult?>();
     final practice = PracticeController(
