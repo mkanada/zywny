@@ -3,6 +3,8 @@
          o app abre e serve para leitura de partitura sem eles. -->
     <uses-feature android:name="android.software.midi" android:required="false"/>
     <uses-feature android:name="android.hardware.usb.host" android:required="false"/>
+    <!-- MIDI por Bluetooth LE (M01). As permissões vêm do pacote do plugin. -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false"/>
     <application
         android:label="zywny"
         android:name="${applicationName}"

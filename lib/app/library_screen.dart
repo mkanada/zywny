@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -223,7 +224,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   late Future<PieceCatalog> _catalog = _loadCatalog();
   late final PieceProgressStore _progress =
       widget.progress ?? PieceProgressStore();
-  final MidiDeviceManager _midi = MidiDeviceManager();
+  final MidiDeviceManager _midi = MidiDeviceManager(
+    bluetooth: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+  );
 
   /// Configurações gerais (uma só para o app inteiro, lida ao abrir) e as
   /// de cada hino (lidas quando o hino abre).
